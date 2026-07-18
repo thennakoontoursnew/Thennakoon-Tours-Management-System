@@ -25,11 +25,14 @@ export default async function DashboardLayout({
     .from('profiles')
     .select('full_name, role, is_active')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
-  if (!profile || !profile.is_active) {
-    await supabase.auth.signOut()
-    redirect('/login?error=unauthorized')
+  if (!profile) {
+    redirect('/login?error=profile_missing')
+  }
+
+  if (!profile.is_active) {
+    redirect('/login?error=inactive')
   }
 
   const handleLogoutAction = async () => {

@@ -11,11 +11,11 @@ export function createAdminClient() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!supabaseUrl) {
-    throw new Error('Configuration Error: NEXT_PUBLIC_SUPABASE_URL is missing.')
+    throw new Error('Configuration Error: NEXT_PUBLIC_SUPABASE_URL is not configured in environment settings.')
   }
 
   if (!serviceRoleKey) {
-    throw new Error('Configuration Error: SUPABASE_SERVICE_ROLE_KEY is missing.')
+    throw new Error('Configuration Error: SUPABASE_SERVICE_ROLE_KEY is not configured in environment settings.')
   }
 
   return createClient(supabaseUrl, serviceRoleKey, {

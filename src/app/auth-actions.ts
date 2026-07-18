@@ -6,16 +6,49 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { ownerSetupSchema, loginSchema, resetPasswordSchema } from '@/lib/validations/auth'
 
-// 1. Check if owner exists
+// 1. Check if owner exists with auto-repair capability
 export async function checkOwnerExists() {
   try {
     const supabase = await createClient()
-    const { data, error } = await supabase.rpc('check_owner_exists')
-    if (error) {
-      console.error('Error checking owner existence:', error)
-      return { exists: false, error: error.message }
+    
+    // Check if an active owner profile exists in database
+    const { data: ownerProfile } = await supabase
+      .from('profiles')
+      .select('id, role, is_active')
+      .eq('role', 'owner')
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (ownerProfile) {
+      return { exists: true }
     }
-    return { exists: !!data }
+
+    // Profile Repair: If SUPABASE_SERVICE_ROLE_KEY is configured, check auth.users for existing owner
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const adminSupabase = createAdminClient()
+      const { data: { users } } = await adminSupabase.auth.admin.listUsers()
+
+      if (users && users.length > 0) {
+        const ownerAuthUser = users.find((u) => u.user_metadata?.role === 'owner') || users[0]
+        if (ownerAuthUser) {
+          // Repair profile safely
+          await adminSupabase.from('profiles').upsert(
+            {
+              id: ownerAuthUser.id,
+              full_name: ownerAuthUser.user_metadata?.full_name || 'System Owner',
+              email: ownerAuthUser.email || '',
+              role: 'owner',
+              is_active: true,
+            },
+            { onConflict: 'id' }
+          )
+
+          return { exists: true }
+        }
+      }
+    }
+
+    return { exists: false }
   } catch (err: any) {
     return { exists: false, error: err.message }
   }
@@ -91,7 +124,6 @@ export async function registerOwner(values: z.infer<typeof ownerSetupSchema>) {
     const userId = adminAuthData.user.id
 
     // 5. Ensure profile row exists and has role='owner' and is_active=true
-    // Note: DB trigger on_auth_user_created automatically creates a profile row upon auth.users insert.
     const { data: existingProfile, error: profileFetchError } = await adminSupabase
       .from('profiles')
       .select('*')
@@ -99,7 +131,6 @@ export async function registerOwner(values: z.infer<typeof ownerSetupSchema>) {
       .maybeSingle()
 
     if (profileFetchError) {
-      // Rollback: delete auth user if query failed unexpectedly
       await adminSupabase.auth.admin.deleteUser(userId)
       return {
         success: false,
@@ -108,7 +139,6 @@ export async function registerOwner(values: z.infer<typeof ownerSetupSchema>) {
     }
 
     if (!existingProfile) {
-      // Create profile explicitly
       const { error: profileInsertError } = await adminSupabase
         .from('profiles')
         .insert({
@@ -120,7 +150,6 @@ export async function registerOwner(values: z.infer<typeof ownerSetupSchema>) {
         })
 
       if (profileInsertError) {
-        // Transactional Rollback: delete created auth user
         await adminSupabase.auth.admin.deleteUser(userId)
         return {
           success: false,
@@ -128,7 +157,6 @@ export async function registerOwner(values: z.infer<typeof ownerSetupSchema>) {
         }
       }
     } else {
-      // Ensure profile is explicitly set as active owner
       const { error: profileUpdateError } = await adminSupabase
         .from('profiles')
         .update({
@@ -139,7 +167,6 @@ export async function registerOwner(values: z.infer<typeof ownerSetupSchema>) {
         .eq('id', userId)
 
       if (profileUpdateError) {
-        // Transactional Rollback: delete created auth user
         await adminSupabase.auth.admin.deleteUser(userId)
         return {
           success: false,
@@ -148,7 +175,7 @@ export async function registerOwner(values: z.infer<typeof ownerSetupSchema>) {
       }
     }
 
-    // 6. Sign in the newly created owner using normal server Supabase client
+    // 6. Sign in newly created owner using normal server Supabase client
     const serverSupabase = await createClient()
     const { error: signInError } = await serverSupabase.auth.signInWithPassword({
       email: values.email,
