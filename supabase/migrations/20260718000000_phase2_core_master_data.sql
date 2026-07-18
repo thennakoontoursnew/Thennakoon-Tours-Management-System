@@ -93,9 +93,9 @@ CREATE TABLE IF NOT EXISTS public.vehicles (
     updated_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT check_transmission VALUES CHECK (transmission IN ('automatic', 'manual', 'semi_automatic')),
-    CONSTRAINT check_fuel_type VALUES CHECK (fuel_type IN ('petrol', 'diesel', 'hybrid', 'electric', 'plug_in_hybrid')),
-    CONSTRAINT check_vehicle_status VALUES CHECK (status IN ('available', 'reserved', 'on_trip', 'maintenance', 'inactive')),
+    CONSTRAINT check_transmission CHECK (transmission IN ('automatic', 'manual', 'semi_automatic')),
+    CONSTRAINT check_fuel_type CHECK (fuel_type IN ('petrol', 'diesel', 'hybrid', 'electric', 'plug_in_hybrid')),
+    CONSTRAINT check_vehicle_status CHECK (status IN ('available', 'reserved', 'on_trip', 'maintenance', 'inactive')),
     CONSTRAINT check_rates_non_negative CHECK (daily_rate >= 0 AND refundable_deposit >= 0 AND (current_mileage IS NULL OR current_mileage >= 0)),
     CONSTRAINT check_seat_count_positive CHECK (seat_count IS NULL OR seat_count > 0)
 );
@@ -131,9 +131,9 @@ CREATE TABLE IF NOT EXISTS public.customers (
     updated_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT check_customer_type VALUES CHECK (customer_type IN ('individual', 'company')),
-    CONSTRAINT check_customer_status VALUES CHECK (status IN ('active', 'inactive', 'blacklisted')),
-    CONSTRAINT check_customer_source VALUES CHECK (source IS NULL OR source IN ('facebook', 'instagram', 'tiktok', 'youtube', 'whatsapp', 'website', 'google', 'referral', 'walk_in', 'travel_agent', 'hotel', 'corporate', 'other'))
+    CONSTRAINT check_customer_type CHECK (customer_type IN ('individual', 'company')),
+    CONSTRAINT check_customer_status CHECK (status IN ('active', 'inactive', 'blacklisted')),
+    CONSTRAINT check_customer_source CHECK (source IS NULL OR source IN ('facebook', 'instagram', 'tiktok', 'youtube', 'whatsapp', 'website', 'google', 'referral', 'walk_in', 'travel_agent', 'hotel', 'corporate', 'other'))
 );
 
 -- Partial Unique Indexes for Customer NIC and Passport
@@ -222,7 +222,7 @@ CREATE TABLE IF NOT EXISTS public.drivers (
     updated_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT check_driver_status VALUES CHECK (status IN ('available', 'assigned', 'on_leave', 'inactive'))
+    CONSTRAINT check_driver_status CHECK (status IN ('available', 'assigned', 'on_leave', 'inactive'))
 );
 
 -- 9. Driver Documents Table
@@ -236,7 +236,7 @@ CREATE TABLE IF NOT EXISTS public.driver_documents (
     expiry_date DATE,
     uploaded_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT check_document_type VALUES CHECK (document_type IN ('nic_front', 'nic_back', 'driving_license_front', 'driving_license_back', 'passport', 'police_clearance', 'medical_certificate', 'profile_photo', 'other'))
+    CONSTRAINT check_document_type CHECK (document_type IN ('nic_front', 'nic_back', 'driving_license_front', 'driving_license_back', 'passport', 'police_clearance', 'medical_certificate', 'profile_photo', 'other'))
 );
 
 -- 10. Supabase Storage Buckets
