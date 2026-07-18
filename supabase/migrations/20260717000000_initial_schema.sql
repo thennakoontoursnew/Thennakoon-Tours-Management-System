@@ -80,10 +80,12 @@ VALUES (
   '/documents/thennakoon-tours-letterhead.png'
 ) ON CONFLICT (id) DO NOTHING;
 
--- Auto-update triggers
+-- Auto-update triggers (Idempotent: Drop if exists before create)
+DROP TRIGGER IF EXISTS set_profiles_updated_at ON public.profiles;
 CREATE TRIGGER set_profiles_updated_at BEFORE UPDATE ON public.profiles
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS set_company_settings_updated_at ON public.company_settings;
 CREATE TRIGGER set_company_settings_updated_at BEFORE UPDATE ON public.company_settings
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -124,8 +126,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
--- Trigger for auth.users insertion
-CREATE OR REPLACE TRIGGER on_auth_user_created
+-- Trigger for auth.users insertion (Idempotent: Drop if exists before create)
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
 AFTER INSERT ON auth.users
 FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
@@ -176,50 +179,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
--- Bind safety trigger
+-- Bind safety trigger (Idempotent: Drop if exists before create)
+DROP TRIGGER IF EXISTS trigger_check_profile_changes ON public.profiles;
 CREATE TRIGGER trigger_check_profile_changes
 BEFORE UPDATE OR DELETE ON public.profiles
 FOR EACH ROW EXECUTE FUNCTION public.check_profile_changes();
-
--- Enable RLS on all tables
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
-
--- Profiles Policies
-CREATE POLICY "Allow service role or user insert profile" ON public.profiles
-    FOR INSERT
-    WITH CHECK (true);
-
-CREATE POLICY "Users can view their own profile or owner can view all" ON public.profiles
-    FOR SELECT
-    USING (auth.uid() = id OR (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'owner');
-
-CREATE POLICY "Users can update their own profile fields except role/active, owner can update all" ON public.profiles
-    FOR UPDATE
-    USING (auth.uid() = id OR (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'owner');
-
-CREATE POLICY "Only owner can delete profiles" ON public.profiles
-    FOR DELETE
-    USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'owner');
-
--- Company Settings Policies
-CREATE POLICY "All active users can view company settings" ON public.company_settings
-    FOR SELECT
-    USING ((SELECT is_active FROM public.profiles WHERE id = auth.uid()) = true);
-
-CREATE POLICY "Only owner can update company settings" ON public.company_settings
-    FOR UPDATE
-    USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'owner');
-
--- Audit Logs Policies
-CREATE POLICY "Only owner can view audit logs" ON public.audit_logs
-    FOR SELECT
-    USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'owner');
-
-CREATE POLICY "Active users can insert audit logs" ON public.audit_logs
-    FOR INSERT
-    WITH CHECK ((SELECT is_active FROM public.profiles WHERE id = auth.uid()) = true);
 
 -- SECURITY DEFINER Helper Functions
 CREATE OR REPLACE FUNCTION public.check_owner_exists()
@@ -271,3 +235,51 @@ BEGIN
     VALUES (auth.uid(), p_action, p_entity_type, p_entity_id, p_description, p_metadata);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Enable RLS on all tables
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+
+-- Profiles Policies (Idempotent: Drop if exists before create)
+DROP POLICY IF EXISTS "Allow service role or user insert profile" ON public.profiles;
+CREATE POLICY "Allow service role or user insert profile" ON public.profiles
+    FOR INSERT
+    WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Users can view their own profile or owner can view all" ON public.profiles;
+CREATE POLICY "Users can view their own profile or owner can view all" ON public.profiles
+    FOR SELECT
+    USING (auth.uid() = id OR public.get_user_role(auth.uid()) = 'owner');
+
+DROP POLICY IF EXISTS "Users can update their own profile fields except role/active, owner can update all" ON public.profiles;
+CREATE POLICY "Users can update their own profile fields except role/active, owner can update all" ON public.profiles
+    FOR UPDATE
+    USING (auth.uid() = id OR public.get_user_role(auth.uid()) = 'owner');
+
+DROP POLICY IF EXISTS "Only owner can delete profiles" ON public.profiles;
+CREATE POLICY "Only owner can delete profiles" ON public.profiles
+    FOR DELETE
+    USING (public.get_user_role(auth.uid()) = 'owner');
+
+-- Company Settings Policies (Idempotent: Drop if exists before create)
+DROP POLICY IF EXISTS "All active users can view company settings" ON public.company_settings;
+CREATE POLICY "All active users can view company settings" ON public.company_settings
+    FOR SELECT
+    USING (public.is_user_active(auth.uid()) = true);
+
+DROP POLICY IF EXISTS "Only owner can update company settings" ON public.company_settings;
+CREATE POLICY "Only owner can update company settings" ON public.company_settings
+    FOR UPDATE
+    USING (public.get_user_role(auth.uid()) = 'owner');
+
+-- Audit Logs Policies (Idempotent: Drop if exists before create)
+DROP POLICY IF EXISTS "Only owner can view audit logs" ON public.audit_logs;
+CREATE POLICY "Only owner can view audit logs" ON public.audit_logs
+    FOR SELECT
+    USING (public.get_user_role(auth.uid()) = 'owner');
+
+DROP POLICY IF EXISTS "Active users can insert audit logs" ON public.audit_logs;
+CREATE POLICY "Active users can insert audit logs" ON public.audit_logs
+    FOR INSERT
+    WITH CHECK (public.is_user_active(auth.uid()) = true);
