@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { customerSchema, customerNoteSchema, sanitizePayload } from '@/lib/validations/master-data'
+import { customerSchema, customerNoteSchema } from '@/lib/validations/master-data'
 import { z } from 'zod'
 
 type CustomerInput = z.infer<typeof customerSchema>
@@ -36,16 +36,29 @@ export async function createCustomer(values: CustomerInput, tagIds: string[] = [
       return { success: false, error: parsed.error.issues[0].message }
     }
 
-    // Sanitize payload: convert all empty strings "" to null for date & optional columns
-    const sanitizedData = sanitizePayload(parsed.data)
+    // Explicitly normalize optional date fields and optional strings to NULL instead of empty strings ""
     const payload = {
-      ...sanitizedData,
+      ...parsed.data,
+      date_of_birth: values.date_of_birth?.trim() || null,
+      driving_license_expiry: values.driving_license_expiry?.trim() || null,
+      nic: values.nic?.trim() || null,
+      passport_number: values.passport_number?.trim() || null,
+      company_name: values.company_name?.trim() || null,
+      nationality: values.nationality?.trim() || null,
+      gender: values.gender?.trim() || null,
+      whatsapp: values.whatsapp?.trim() || null,
+      email: values.email?.trim() || null,
+      address_line_1: values.address_line_1?.trim() || null,
+      address_line_2: values.address_line_2?.trim() || null,
+      city: values.city?.trim() || null,
+      country: values.country?.trim() || null,
+      driving_license_number: values.driving_license_number?.trim() || null,
+      source: (values.source?.trim() as any) || null,
+      preferred_vehicle_id: values.preferred_vehicle_id?.trim() || null,
+      notes: values.notes?.trim() || null,
       created_by: user.id,
       updated_by: user.id,
     }
-
-    // Task requirement: Log exact payload immediately before inserting
-    console.log('Customer insert payload', payload)
 
     // Insert customer record
     const { data: newCustomer, error: insertError } = await supabase
@@ -117,14 +130,28 @@ export async function updateCustomer(id: string, values: CustomerInput, tagIds?:
       return { success: false, error: parsed.error.issues[0].message }
     }
 
-    // Sanitize payload: convert all empty strings "" to null for date & optional columns
-    const sanitizedData = sanitizePayload(parsed.data)
+    // Explicitly normalize optional date fields and optional strings to NULL instead of empty strings ""
     const payload = {
-      ...sanitizedData,
+      ...parsed.data,
+      date_of_birth: values.date_of_birth?.trim() || null,
+      driving_license_expiry: values.driving_license_expiry?.trim() || null,
+      nic: values.nic?.trim() || null,
+      passport_number: values.passport_number?.trim() || null,
+      company_name: values.company_name?.trim() || null,
+      nationality: values.nationality?.trim() || null,
+      gender: values.gender?.trim() || null,
+      whatsapp: values.whatsapp?.trim() || null,
+      email: values.email?.trim() || null,
+      address_line_1: values.address_line_1?.trim() || null,
+      address_line_2: values.address_line_2?.trim() || null,
+      city: values.city?.trim() || null,
+      country: values.country?.trim() || null,
+      driving_license_number: values.driving_license_number?.trim() || null,
+      source: (values.source?.trim() as any) || null,
+      preferred_vehicle_id: values.preferred_vehicle_id?.trim() || null,
+      notes: values.notes?.trim() || null,
       updated_by: user.id,
     }
-
-    console.log('Customer update payload', payload)
 
     const { error: updateError } = await supabase
       .from('customers')

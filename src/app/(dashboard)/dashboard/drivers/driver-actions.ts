@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { driverSchema, sanitizePayload } from '@/lib/validations/master-data'
+import { driverSchema } from '@/lib/validations/master-data'
 import { z } from 'zod'
 
 type DriverInput = z.infer<typeof driverSchema>
@@ -17,14 +17,22 @@ export async function createDriver(values: DriverInput) {
     const parsed = driverSchema.safeParse(values)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
-    const sanitizedData = sanitizePayload(parsed.data)
     const payload = {
-      ...sanitizedData,
+      ...parsed.data,
+      date_of_birth: values.date_of_birth?.trim() || null,
+      date_joined: values.date_joined?.trim() || null,
+      license_expiry: values.license_expiry?.trim() || null,
+      police_clearance_expiry: values.police_clearance_expiry?.trim() || null,
+      medical_expiry: values.medical_expiry?.trim() || null,
+      whatsapp: values.whatsapp?.trim() || null,
+      email: values.email?.trim() || null,
+      address: values.address?.trim() || null,
+      emergency_contact_name: values.emergency_contact_name?.trim() || null,
+      emergency_contact_phone: values.emergency_contact_phone?.trim() || null,
+      notes: values.notes?.trim() || null,
       created_by: user.id,
       updated_by: user.id,
     }
-
-    console.log('Driver insert payload', payload)
 
     const { data: newDriver, error: insertError } = await supabase
       .from('drivers')
@@ -63,13 +71,21 @@ export async function updateDriver(id: string, values: DriverInput) {
     const parsed = driverSchema.safeParse(values)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
-    const sanitizedData = sanitizePayload(parsed.data)
     const payload = {
-      ...sanitizedData,
+      ...parsed.data,
+      date_of_birth: values.date_of_birth?.trim() || null,
+      date_joined: values.date_joined?.trim() || null,
+      license_expiry: values.license_expiry?.trim() || null,
+      police_clearance_expiry: values.police_clearance_expiry?.trim() || null,
+      medical_expiry: values.medical_expiry?.trim() || null,
+      whatsapp: values.whatsapp?.trim() || null,
+      email: values.email?.trim() || null,
+      address: values.address?.trim() || null,
+      emergency_contact_name: values.emergency_contact_name?.trim() || null,
+      emergency_contact_phone: values.emergency_contact_phone?.trim() || null,
+      notes: values.notes?.trim() || null,
       updated_by: user.id,
     }
-
-    console.log('Driver update payload', payload)
 
     const { error: updateError } = await supabase
       .from('drivers')
@@ -159,8 +175,7 @@ export async function uploadDriverDocument(formData: FormData) {
   try {
     const driverId = formData.get('driver_id') as string
     const documentType = formData.get('document_type') as string
-    let expiryDate = (formData.get('expiry_date') as string) || null
-    if (expiryDate && expiryDate.trim() === '') expiryDate = null
+    let expiryDate = (formData.get('expiry_date') as string)?.trim() || null
 
     const file = formData.get('file') as File
 

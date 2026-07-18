@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { vehicleSchema, vehicleCategorySchema, sanitizePayload } from '@/lib/validations/master-data'
+import { vehicleSchema, vehicleCategorySchema } from '@/lib/validations/master-data'
 import { z } from 'zod'
 
 type VehicleInput = z.infer<typeof vehicleSchema>
@@ -19,12 +19,11 @@ export async function createVehicleCategory(values: CategoryInput) {
     const parsed = vehicleCategorySchema.safeParse(values)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
-    const sanitizedData = sanitizePayload(parsed.data)
-
     const { data: newCat, error } = await supabase
       .from('vehicle_categories')
       .insert({
-        ...sanitizedData,
+        ...parsed.data,
+        description: values.description?.trim() || null,
         created_by: user.id,
         updated_by: user.id,
       })
@@ -60,12 +59,11 @@ export async function updateVehicleCategory(id: string, values: CategoryInput) {
     const parsed = vehicleCategorySchema.safeParse(values)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
-    const sanitizedData = sanitizePayload(parsed.data)
-
     const { error } = await supabase
       .from('vehicle_categories')
       .update({
-        ...sanitizedData,
+        ...parsed.data,
+        description: values.description?.trim() || null,
         updated_by: user.id,
       })
       .eq('id', id)
@@ -97,14 +95,20 @@ export async function createVehicle(values: VehicleInput) {
     const parsed = vehicleSchema.safeParse(values)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
-    const sanitizedData = sanitizePayload(parsed.data)
     const payload = {
-      ...sanitizedData,
+      ...parsed.data,
+      next_service_date: values.next_service_date?.trim() || null,
+      insurance_expiry: values.insurance_expiry?.trim() || null,
+      revenue_license_expiry: values.revenue_license_expiry?.trim() || null,
+      emission_test_expiry: values.emission_test_expiry?.trim() || null,
+      chassis_number: values.chassis_number?.trim() || null,
+      engine_number: values.engine_number?.trim() || null,
+      colour: values.colour?.trim() || null,
+      description: values.description?.trim() || null,
+      notes: values.notes?.trim() || null,
       created_by: user.id,
       updated_by: user.id,
     }
-
-    console.log('Vehicle insert payload', payload)
 
     const { data: newVehicle, error: insertError } = await supabase
       .from('vehicles')
@@ -142,13 +146,19 @@ export async function updateVehicle(id: string, values: VehicleInput) {
     const parsed = vehicleSchema.safeParse(values)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
-    const sanitizedData = sanitizePayload(parsed.data)
     const payload = {
-      ...sanitizedData,
+      ...parsed.data,
+      next_service_date: values.next_service_date?.trim() || null,
+      insurance_expiry: values.insurance_expiry?.trim() || null,
+      revenue_license_expiry: values.revenue_license_expiry?.trim() || null,
+      emission_test_expiry: values.emission_test_expiry?.trim() || null,
+      chassis_number: values.chassis_number?.trim() || null,
+      engine_number: values.engine_number?.trim() || null,
+      colour: values.colour?.trim() || null,
+      description: values.description?.trim() || null,
+      notes: values.notes?.trim() || null,
       updated_by: user.id,
     }
-
-    console.log('Vehicle update payload', payload)
 
     const { error: updateError } = await supabase
       .from('vehicles')
