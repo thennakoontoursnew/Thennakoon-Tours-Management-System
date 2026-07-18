@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { ownerSetupSchema, loginSchema, resetPasswordSchema } from '@/lib/validations/auth'
@@ -20,59 +21,162 @@ export async function checkOwnerExists() {
   }
 }
 
-// 2. Register first owner
+// 2. Register first owner using secure Server-Side Supabase Admin API
 export async function registerOwner(values: z.infer<typeof ownerSetupSchema>) {
   try {
-    const ownerCheck = await checkOwnerExists()
-    if (ownerCheck.exists) {
-      return { success: false, error: 'An owner account already exists.' }
+    // Check missing server secret key early
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return {
+        success: false,
+        error: 'System configuration error: Missing server secret key (SUPABASE_SERVICE_ROLE_KEY). Please contact your administrator.',
+      }
     }
 
-    const supabase = await createClient()
+    // 1. Check if an active owner already exists
+    const ownerCheck = await checkOwnerExists()
+    if (ownerCheck.exists) {
+      return {
+        success: false,
+        error: 'An active owner account already exists in the system.',
+      }
+    }
 
-    // Sign up first user. Database trigger on auth.users will automatically 
-    // assign 'owner' role because the profiles table is empty.
-    const { data, error } = await supabase.auth.signUp({
-      email: values.email,
-      password: values.password,
-      options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback`,
-        data: {
+    // 2. Validate input schema
+    const validation = ownerSetupSchema.safeParse(values)
+    if (!validation.success) {
+      return {
+        success: false,
+        error: validation.error.issues[0].message,
+      }
+    }
+
+    // 3. Initialize Server-Only Admin Supabase Client
+    const adminSupabase = createAdminClient()
+
+    // 4. Create auth user via Admin API with auto-confirmed email
+    const { data: adminAuthData, error: adminAuthError } =
+      await adminSupabase.auth.admin.createUser({
+        email: values.email,
+        password: values.password,
+        email_confirm: true,
+        user_metadata: {
           full_name: values.fullName,
           role: 'owner',
         },
-      },
-    })
+      })
 
-    if (error) {
-      return { success: false, error: error.message }
+    if (adminAuthError) {
+      const msg = adminAuthError.message.toLowerCase()
+      if (
+        msg.includes('already registered') ||
+        msg.includes('already exists') ||
+        msg.includes('unique constraint') ||
+        msg.includes('duplicate')
+      ) {
+        return {
+          success: false,
+          error: 'An account with this email address already exists.',
+        }
+      }
+      return {
+        success: false,
+        error: `Failed to create owner account: ${adminAuthError.message}`,
+      }
     }
 
-    if (!data.user) {
-      return { success: false, error: 'Sign up failed.' }
+    if (!adminAuthData.user) {
+      return { success: false, error: 'Failed to create owner user record.' }
     }
 
-    // Since we need to log in, we authenticate the user immediately
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const userId = adminAuthData.user.id
+
+    // 5. Ensure profile row exists and has role='owner' and is_active=true
+    // Note: DB trigger on_auth_user_created automatically creates a profile row upon auth.users insert.
+    const { data: existingProfile, error: profileFetchError } = await adminSupabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (profileFetchError) {
+      // Rollback: delete auth user if query failed unexpectedly
+      await adminSupabase.auth.admin.deleteUser(userId)
+      return {
+        success: false,
+        error: 'Failed to verify profile configuration. Rollback executed.',
+      }
+    }
+
+    if (!existingProfile) {
+      // Create profile explicitly
+      const { error: profileInsertError } = await adminSupabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          full_name: values.fullName,
+          email: values.email,
+          role: 'owner',
+          is_active: true,
+        })
+
+      if (profileInsertError) {
+        // Transactional Rollback: delete created auth user
+        await adminSupabase.auth.admin.deleteUser(userId)
+        return {
+          success: false,
+          error: 'Failed to create owner profile. Rollback executed.',
+        }
+      }
+    } else {
+      // Ensure profile is explicitly set as active owner
+      const { error: profileUpdateError } = await adminSupabase
+        .from('profiles')
+        .update({
+          full_name: values.fullName,
+          role: 'owner',
+          is_active: true,
+        })
+        .eq('id', userId)
+
+      if (profileUpdateError) {
+        // Transactional Rollback: delete created auth user
+        await adminSupabase.auth.admin.deleteUser(userId)
+        return {
+          success: false,
+          error: 'Failed to assign owner permissions. Rollback executed.',
+        }
+      }
+    }
+
+    // 6. Sign in the newly created owner using normal server Supabase client
+    const serverSupabase = await createClient()
+    const { error: signInError } = await serverSupabase.auth.signInWithPassword({
       email: values.email,
       password: values.password,
     })
 
     if (signInError) {
-      return { success: false, error: 'Registered but automatic login failed: ' + signInError.message }
+      return {
+        success: false,
+        error: 'Owner account created successfully, but automatic login failed. Please sign in manually at the login page.',
+      }
     }
 
-    // Log audit log
-    await supabase.rpc('log_audit_action_internal', {
+    // 7. Update last login timestamp & log audit action
+    await serverSupabase.rpc('update_last_login', { p_user_id: userId })
+    await serverSupabase.rpc('log_audit_action_internal', {
       p_action: 'CREATE_OWNER',
       p_entity_type: 'profile',
-      p_entity_id: data.user.id,
-      p_description: `Initial owner profile created for ${values.fullName}`,
+      p_entity_id: userId,
+      p_description: `Owner profile created and authenticated for ${values.fullName}`,
     })
 
     return { success: true }
   } catch (err: any) {
-    return { success: false, error: err.message }
+    return {
+      success: false,
+      error: err.message || 'An unexpected error occurred during owner registration.',
+    }
   }
 }
 

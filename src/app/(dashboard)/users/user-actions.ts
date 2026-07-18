@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
@@ -57,19 +58,12 @@ export async function createStaffUser(values: {
     return { success: false, error: parsed.error.issues[0].message }
   }
 
-  // Use service-role key only on the server — never expose to client
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-
-  if (!serviceRoleKey || !supabaseUrl) {
-    return { success: false, error: 'Server configuration missing. Contact administrator.' }
+  // Use service-role key only on the server
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return { success: false, error: 'Server configuration missing: SUPABASE_SERVICE_ROLE_KEY is not defined.' }
   }
 
-  // Dynamically import createClient with service role to create user
-  const { createClient: createAdminClient } = await import('@supabase/supabase-js')
-  const adminSupabase = createAdminClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
+  const adminSupabase = createAdminClient()
 
   // Create auth user via service role
   const { data: newUser, error: createError } = await adminSupabase.auth.admin.createUser({
