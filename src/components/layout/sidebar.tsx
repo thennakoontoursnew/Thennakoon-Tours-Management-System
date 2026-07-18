@@ -70,7 +70,7 @@ export function Sidebar({ role, fullName, onLogout }: SidebarProps) {
           title: 'Customers',
           href: '/dashboard/customers',
           icon: Users,
-          roles: ['owner', 'manager', 'booking_staff', 'viewer'],
+          roles: ['owner', 'manager', 'booking_staff', 'operations_staff', 'marketing_staff', 'finance_staff', 'viewer'],
         },
         {
           title: 'Quotations',
@@ -105,13 +105,13 @@ export function Sidebar({ role, fullName, onLogout }: SidebarProps) {
           title: 'Vehicles',
           href: '/dashboard/vehicles',
           icon: Car,
-          roles: ['owner', 'manager', 'operations_staff', 'viewer'],
+          roles: ['owner', 'manager', 'booking_staff', 'operations_staff', 'marketing_staff', 'finance_staff', 'viewer'],
         },
         {
           title: 'Drivers',
           href: '/dashboard/drivers',
           icon: UserSquare2,
-          roles: ['owner', 'manager', 'operations_staff', 'viewer'],
+          roles: ['owner', 'manager', 'operations_staff', 'finance_staff', 'viewer'],
         },
         {
           title: 'Fleet Tracking',

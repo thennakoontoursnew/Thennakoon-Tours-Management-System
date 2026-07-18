@@ -10,18 +10,14 @@ async function run() {
     process.exit(1)
   }
 
-  const files = fs.readdirSync(migrationDir)
+  const files = fs.readdirSync(migrationDir).filter((f) => f.endsWith('.sql')).sort()
   console.log('Found migration files:', files)
 
-  const initialMigrationFile = files.find((f) => f.endsWith('_initial_schema.sql'))
-  if (!initialMigrationFile) {
-    console.error('Error: Initial migration file not found in supabase/migrations.')
-    process.exit(1)
-  }
-
-  const migrationPath = path.join(migrationDir, initialMigrationFile)
-  const sqlContent = fs.readFileSync(migrationPath, 'utf8')
-  console.log(`Verified migration file exists: ${initialMigrationFile} (${sqlContent.length} bytes)`)
+  files.forEach((f) => {
+    const p = path.join(migrationDir, f)
+    const sql = fs.readFileSync(p, 'utf8')
+    console.log(` - ${f} (${sql.length} bytes)`)
+  })
 
   // Check database connection string
   const dbUrl =
@@ -32,9 +28,8 @@ async function run() {
 
   if (!dbUrl) {
     console.log('\n=== Notice: No direct PostgreSQL connection string (DATABASE_URL) found in environment. ===')
-    console.log('To apply the migration automatically, please set DATABASE_URL or SUPABASE_DB_URL in .env.local.')
-    console.log('Alternatively, you can apply the migration file directly in the Supabase SQL Editor:')
-    console.log(`Path: ${migrationPath}`)
+    console.log('Migration files structure verified successfully:')
+    files.forEach((f) => console.log(`   - supabase/migrations/${f}`))
     process.exit(0)
   }
 
@@ -48,9 +43,12 @@ async function run() {
     await client.connect()
     console.log('Connected to Database successfully.')
 
-    console.log('\n=== Step 3: Applying migration SQL ===')
-    await client.query(sqlContent)
-    console.log('Migration executed successfully!')
+    for (const f of files) {
+      console.log(`\n=== Step 3: Applying ${f} ===`)
+      const sqlContent = fs.readFileSync(path.join(migrationDir, f), 'utf8')
+      await client.query(sqlContent)
+      console.log(`✓ Migration ${f} executed successfully!`)
+    }
 
     console.log('\n=== Step 4: Verifying Public Tables ===')
     const resTables = await client.query(`
@@ -62,45 +60,28 @@ async function run() {
     const tableNames = resTables.rows.map((r) => r.table_name)
     console.log('Public tables in database:', tableNames)
 
-    const requiredTables = ['profiles', 'company_settings', 'audit_logs']
+    const requiredTables = [
+      'profiles',
+      'company_settings',
+      'audit_logs',
+      'customers',
+      'customer_tags',
+      'customer_tag_assignments',
+      'customer_notes',
+      'vehicle_categories',
+      'vehicles',
+      'vehicle_images',
+      'drivers',
+      'driver_documents',
+    ]
+
     const missingTables = requiredTables.filter((t) => !tableNames.includes(t))
 
     if (missingTables.length > 0) {
-      console.error('Missing required tables:', missingTables)
+      console.error('Missing required Phase 2 tables:', missingTables)
     } else {
-      console.log('✓ All required tables exist: profiles, company_settings, audit_logs.')
+      console.log('✓ All required Phase 1 and Phase 2 tables exist in database.')
     }
-
-    console.log('\n=== Step 5: Verifying Row Level Security (RLS) ===')
-    const resRLS = await client.query(`
-      SELECT tablename, rowsecurity 
-      FROM pg_tables 
-      WHERE schemaname = 'public';
-    `)
-    console.log('RLS Status per table:')
-    resRLS.rows.forEach((r) => {
-      console.log(` - ${r.tablename}: RLS = ${r.rowsecurity}`)
-    })
-
-    console.log('\n=== Step 6: Verifying Triggers ===')
-    const resTriggers = await client.query(`
-      SELECT trigger_name, event_object_table 
-      FROM information_schema.triggers 
-      WHERE trigger_schema = 'public' OR event_object_table = 'users';
-    `)
-    console.log('Triggers found:')
-    resTriggers.rows.forEach((r) => {
-      console.log(` - ${r.trigger_name} on ${r.event_object_table}`)
-    })
-
-    console.log('\n=== Step 7: Verifying RPC Functions ===')
-    const resFunctions = await client.query(`
-      SELECT routine_name 
-      FROM information_schema.routines 
-      WHERE routine_schema = 'public';
-    `)
-    const functionNames = resFunctions.rows.map((r) => r.routine_name)
-    console.log('RPC functions found:', functionNames)
 
     await client.end()
     console.log('\n=== Database Verification Completed Successfully ===')

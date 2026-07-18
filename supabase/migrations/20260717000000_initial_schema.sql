@@ -243,9 +243,6 @@ ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- Profiles Policies (Idempotent: Drop if exists before create)
 DROP POLICY IF EXISTS "Allow service role or user insert profile" ON public.profiles;
-CREATE POLICY "Allow service role or user insert profile" ON public.profiles
-    FOR INSERT
-    WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Users can view their own profile or owner can view all" ON public.profiles;
 CREATE POLICY "Users can view their own profile or owner can view all" ON public.profiles

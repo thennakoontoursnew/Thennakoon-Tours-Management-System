@@ -1,15 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import {
+  Users,
+  Car,
+  UserCheck,
+  Wrench,
   CalendarDays,
   FileText,
-  Car,
-  TrendingUp,
-  DollarSign,
-  Star,
   Clock,
   LayoutDashboard,
-  AlertTriangle,
-  Play,
+  CheckCircle,
 } from 'lucide-react'
 
 export default async function DashboardPage() {
@@ -26,6 +25,38 @@ export default async function DashboardPage() {
     .eq('id', user?.id)
     .single()
 
+  // Fetch real counts from Phase 2 tables gracefully
+  let totalCustomers = 0
+  let activeCustomers = 0
+  let totalVehicles = 0
+  let availableVehicles = 0
+  let maintenanceVehicles = 0
+  let totalDrivers = 0
+  let availableDrivers = 0
+
+  try {
+    const [custRes, activeCustRes, vehRes, availVehRes, maintVehRes, drvRes, availDrvRes] =
+      await Promise.all([
+        supabase.from('customers').select('*', { count: 'exact', head: true }).eq('is_archived', false),
+        supabase.from('customers').select('*', { count: 'exact', head: true }).eq('status', 'active').eq('is_archived', false),
+        supabase.from('vehicles').select('*', { count: 'exact', head: true }).eq('is_archived', false),
+        supabase.from('vehicles').select('*', { count: 'exact', head: true }).eq('status', 'available').eq('is_archived', false),
+        supabase.from('vehicles').select('*', { count: 'exact', head: true }).eq('status', 'maintenance').eq('is_archived', false),
+        supabase.from('drivers').select('*', { count: 'exact', head: true }).eq('is_archived', false),
+        supabase.from('drivers').select('*', { count: 'exact', head: true }).eq('status', 'available').eq('is_archived', false),
+      ])
+
+    totalCustomers = custRes.count || 0
+    activeCustomers = activeCustRes.count || 0
+    totalVehicles = vehRes.count || 0
+    availableVehicles = availVehRes.count || 0
+    maintenanceVehicles = maintVehRes.count || 0
+    totalDrivers = drvRes.count || 0
+    availableDrivers = availDrvRes.count || 0
+  } catch (err) {
+    console.error('Error fetching dashboard counts:', err)
+  }
+
   // Current Date in Asia/Colombo timezone
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Colombo',
@@ -33,49 +64,49 @@ export default async function DashboardPage() {
   })
   const formattedDate = formatter.format(new Date())
 
-  // Define Stats Cards
+  // Define Real Phase 2 Stats Cards
   const stats = [
     {
-      title: "Today's Bookings",
-      value: '0',
-      description: 'Fleet assignments',
-      icon: CalendarDays,
-      color: 'border-l-4 border-l-amber-500',
+      title: 'Total Customers',
+      value: totalCustomers.toString(),
+      description: `${activeCustomers} active clients`,
+      icon: Users,
+      color: 'border-l-4 border-l-blue-500',
     },
     {
-      title: 'Pending Quotations',
-      value: '0',
-      description: 'Awaiting client response',
-      icon: FileText,
-      color: 'border-l-4 border-l-amber-500',
-    },
-    {
-      title: 'Available Vehicles',
-      value: '0',
-      description: 'Active fleet status',
+      title: 'Total Vehicles',
+      value: totalVehicles.toString(),
+      description: `${availableVehicles} available operational`,
       icon: Car,
       color: 'border-l-4 border-l-amber-500',
     },
     {
-      title: 'Monthly Revenue',
-      value: 'LKR 0.00',
-      description: 'Invoiced payments',
-      icon: TrendingUp,
-      color: 'border-l-4 border-l-emerald-500',
-    },
-    {
-      title: 'Monthly Expenses',
-      value: 'LKR 0.00',
-      description: 'Fleet & operating costs',
-      icon: DollarSign,
+      title: 'Maintenance Fleet',
+      value: maintenanceVehicles.toString(),
+      description: 'Under service or repair',
+      icon: Wrench,
       color: 'border-l-4 border-l-rose-500',
     },
     {
-      title: 'Reviews Received',
+      title: 'Total Drivers',
+      value: totalDrivers.toString(),
+      description: `${availableDrivers} ready for assignment`,
+      icon: UserCheck,
+      color: 'border-l-4 border-l-emerald-500',
+    },
+    {
+      title: 'Active Bookings',
       value: '0',
-      description: 'Average rating: N/A',
-      icon: Star,
-      color: 'border-l-4 border-l-amber-500',
+      description: 'Phase 3 module placeholder',
+      icon: CalendarDays,
+      color: 'border-l-4 border-l-slate-400',
+    },
+    {
+      title: 'Pending Quotations',
+      value: '0',
+      description: 'Phase 3 module placeholder',
+      icon: FileText,
+      color: 'border-l-4 border-l-slate-400',
     },
   ]
 
@@ -99,12 +130,12 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Module Deployment Notice banner */}
-      <div className="bg-amber-50 dark:bg-slate-900/40 border border-amber-200 dark:border-amber-500/10 rounded-2xl p-4 flex gap-3.5 items-start">
-        <AlertTriangle className="text-amber-500 shrink-0 mt-0.5" size={20} />
+      {/* Phase 2 Operational Status Banner */}
+      <div className="bg-emerald-50 dark:bg-slate-900/40 border border-emerald-200 dark:border-emerald-500/20 rounded-2xl p-4 flex gap-3.5 items-start">
+        <CheckCircle className="text-emerald-500 shrink-0 mt-0.5" size={20} />
         <div className="text-xs text-slate-700 dark:text-slate-300 leading-normal">
-          <span className="font-bold text-slate-900 dark:text-slate-100 block mb-0.5">Project Initialization Notice (Phase 1)</span>
-          This is an operational dashboard preview. The core business modules are currently deactivated and will be implemented in subsequent development phases. Real statistics and analytical figures will populate here once active modules are configured.
+          <span className="font-bold text-slate-900 dark:text-slate-100 block mb-0.5">Phase 2 Core Master Data Active</span>
+          Customer Management, Vehicle Categories, Vehicle Fleet, Driver Profiles, Document Vault, and Real Statistics are online and active. Transactional modules (Bookings, Invoices, Maintenance) will connect in Phase 3.
         </div>
       </div>
 
@@ -136,37 +167,38 @@ export default async function DashboardPage() {
         })}
       </div>
 
-      {/* Two Column details section */}
+      {/* System Status Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Activity (Empty state) */}
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-5 lg:col-span-2 space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-850 pb-3">
             <Clock size={18} className="text-amber-500" />
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">Recent Activity</h3>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">System Modules Overview</h3>
           </div>
-          <div className="flex flex-col items-center justify-center py-10 text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-850 flex items-center justify-center text-slate-400">
-              <Clock size={20} />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 py-2">
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-100 dark:border-slate-800 space-y-1">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Customers Module</span>
+              <span className="text-[10px] text-emerald-500 font-bold block">ACTIVE ({totalCustomers} Records)</span>
             </div>
-            <div className="space-y-1">
-              <p className="text-slate-700 dark:text-slate-350 text-xs font-semibold">No Activity Logs Found</p>
-              <p className="text-slate-400 dark:text-slate-500 text-[10px] max-w-xs leading-normal">
-                User interactions and fleet updates will appear here once module workflows are active.
-              </p>
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-100 dark:border-slate-800 space-y-1">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Fleet Module</span>
+              <span className="text-[10px] text-emerald-500 font-bold block">ACTIVE ({totalVehicles} Vehicles)</span>
+            </div>
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-100 dark:border-slate-800 space-y-1">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Driver Module</span>
+              <span className="text-[10px] text-emerald-500 font-bold block">ACTIVE ({totalDrivers} Drivers)</span>
             </div>
           </div>
         </div>
 
-        {/* Quick Actions (Placeholders) */}
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-5 space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-850 pb-3">
             <LayoutDashboard size={18} className="text-amber-500" />
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">System Information</h3>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">Master Data Status</h3>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-lg flex items-center justify-between border border-slate-100 dark:border-slate-800">
               <div className="space-y-0.5">
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Phase 0 & 1 Status</p>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Phase 2 Core Master Data</p>
                 <p className="text-[10px] text-slate-400">Database & RLS active</p>
               </div>
               <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-[10px] font-bold rounded-full">
@@ -176,21 +208,11 @@ export default async function DashboardPage() {
 
             <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-lg flex items-center justify-between border border-slate-100 dark:border-slate-800">
               <div className="space-y-0.5">
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Document letterhead</p>
-                <p className="text-[10px] text-slate-400">Fixed asset available</p>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Supabase Storage</p>
+                <p className="text-[10px] text-slate-400">Images & Docs Vault</p>
               </div>
-              <span className="px-2 py-0.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-bold rounded-full">
-                READY
-              </span>
-            </div>
-
-            <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-lg flex items-center justify-between border border-slate-100 dark:border-slate-800">
-              <div className="space-y-0.5">
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Next Phase</p>
-                <p className="text-[10px] text-slate-400">Customer & Fleet setup</p>
-              </div>
-              <span className="px-2 py-0.5 bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-bold rounded-full">
-                PHASE 2
+              <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-[10px] font-bold rounded-full">
+                ACTIVE
               </span>
             </div>
           </div>
