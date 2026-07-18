@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { customerSchema, customerNoteSchema } from '@/lib/validations/master-data'
+import { customerSchema, customerNoteSchema, sanitizePayload } from '@/lib/validations/master-data'
 import { z } from 'zod'
 
 type CustomerInput = z.infer<typeof customerSchema>
@@ -36,15 +36,21 @@ export async function createCustomer(values: CustomerInput, tagIds: string[] = [
       return { success: false, error: parsed.error.issues[0].message }
     }
 
+    // Sanitize payload: convert all empty strings "" to null for date & optional columns
+    const sanitizedData = sanitizePayload(parsed.data)
+    const payload = {
+      ...sanitizedData,
+      created_by: user.id,
+      updated_by: user.id,
+    }
+
+    // Task requirement: Log exact payload immediately before inserting
+    console.log('Customer insert payload', payload)
+
     // Insert customer record
     const { data: newCustomer, error: insertError } = await supabase
       .from('customers')
-      .insert({
-        ...parsed.data,
-        registration_number: undefined,
-        created_by: user.id,
-        updated_by: user.id,
-      })
+      .insert(payload)
       .select()
       .single()
 
@@ -111,12 +117,18 @@ export async function updateCustomer(id: string, values: CustomerInput, tagIds?:
       return { success: false, error: parsed.error.issues[0].message }
     }
 
+    // Sanitize payload: convert all empty strings "" to null for date & optional columns
+    const sanitizedData = sanitizePayload(parsed.data)
+    const payload = {
+      ...sanitizedData,
+      updated_by: user.id,
+    }
+
+    console.log('Customer update payload', payload)
+
     const { error: updateError } = await supabase
       .from('customers')
-      .update({
-        ...parsed.data,
-        updated_by: user.id,
-      })
+      .update(payload)
       .eq('id', id)
 
     if (updateError) {

@@ -1,5 +1,21 @@
 import { z } from 'zod'
 
+// Sanitizer helper: Converts empty string "" or whitespace to null for clean DB insertion
+export function sanitizePayload<T extends Record<string, any>>(data: T): T {
+  const sanitized = { ...data }
+  for (const key in sanitized) {
+    if (typeof sanitized[key] === 'string') {
+      const trimmed = (sanitized[key] as string).trim()
+      if (trimmed === '') {
+        ;(sanitized as any)[key] = null
+      } else {
+        ;(sanitized as any)[key] = trimmed
+      }
+    }
+  }
+  return sanitized
+}
+
 // 1. Customer Validation Schema
 export const customerSchema = z.object({
   customer_type: z.enum(['individual', 'company']),

@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { driverSchema } from '@/lib/validations/master-data'
+import { driverSchema, sanitizePayload } from '@/lib/validations/master-data'
 import { z } from 'zod'
 
 type DriverInput = z.infer<typeof driverSchema>
@@ -17,13 +17,18 @@ export async function createDriver(values: DriverInput) {
     const parsed = driverSchema.safeParse(values)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
+    const sanitizedData = sanitizePayload(parsed.data)
+    const payload = {
+      ...sanitizedData,
+      created_by: user.id,
+      updated_by: user.id,
+    }
+
+    console.log('Driver insert payload', payload)
+
     const { data: newDriver, error: insertError } = await supabase
       .from('drivers')
-      .insert({
-        ...parsed.data,
-        created_by: user.id,
-        updated_by: user.id,
-      })
+      .insert(payload)
       .select()
       .single()
 
@@ -58,12 +63,17 @@ export async function updateDriver(id: string, values: DriverInput) {
     const parsed = driverSchema.safeParse(values)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
+    const sanitizedData = sanitizePayload(parsed.data)
+    const payload = {
+      ...sanitizedData,
+      updated_by: user.id,
+    }
+
+    console.log('Driver update payload', payload)
+
     const { error: updateError } = await supabase
       .from('drivers')
-      .update({
-        ...parsed.data,
-        updated_by: user.id,
-      })
+      .update(payload)
       .eq('id', id)
 
     if (updateError) {
@@ -149,7 +159,9 @@ export async function uploadDriverDocument(formData: FormData) {
   try {
     const driverId = formData.get('driver_id') as string
     const documentType = formData.get('document_type') as string
-    const expiryDate = (formData.get('expiry_date') as string) || null
+    let expiryDate = (formData.get('expiry_date') as string) || null
+    if (expiryDate && expiryDate.trim() === '') expiryDate = null
+
     const file = formData.get('file') as File
 
     if (!driverId || !documentType || !file) {
@@ -188,7 +200,6 @@ export async function uploadDriverDocument(formData: FormData) {
       return { success: false, error: `Storage upload failed: ${uploadError.message}` }
     }
 
-    // Generate signed URL for private bucket access (1 year expiry for session display)
     const { data: signedData } = await adminSupabase.storage
       .from('driver-documents')
       .createSignedUrl(storagePath, 60 * 60 * 24 * 365)

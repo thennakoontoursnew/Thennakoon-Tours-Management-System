@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { vehicleSchema, vehicleCategorySchema } from '@/lib/validations/master-data'
+import { vehicleSchema, vehicleCategorySchema, sanitizePayload } from '@/lib/validations/master-data'
 import { z } from 'zod'
 
 type VehicleInput = z.infer<typeof vehicleSchema>
@@ -19,10 +19,12 @@ export async function createVehicleCategory(values: CategoryInput) {
     const parsed = vehicleCategorySchema.safeParse(values)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
+    const sanitizedData = sanitizePayload(parsed.data)
+
     const { data: newCat, error } = await supabase
       .from('vehicle_categories')
       .insert({
-        ...parsed.data,
+        ...sanitizedData,
         created_by: user.id,
         updated_by: user.id,
       })
@@ -58,10 +60,12 @@ export async function updateVehicleCategory(id: string, values: CategoryInput) {
     const parsed = vehicleCategorySchema.safeParse(values)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
+    const sanitizedData = sanitizePayload(parsed.data)
+
     const { error } = await supabase
       .from('vehicle_categories')
       .update({
-        ...parsed.data,
+        ...sanitizedData,
         updated_by: user.id,
       })
       .eq('id', id)
@@ -93,13 +97,18 @@ export async function createVehicle(values: VehicleInput) {
     const parsed = vehicleSchema.safeParse(values)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
+    const sanitizedData = sanitizePayload(parsed.data)
+    const payload = {
+      ...sanitizedData,
+      created_by: user.id,
+      updated_by: user.id,
+    }
+
+    console.log('Vehicle insert payload', payload)
+
     const { data: newVehicle, error: insertError } = await supabase
       .from('vehicles')
-      .insert({
-        ...parsed.data,
-        created_by: user.id,
-        updated_by: user.id,
-      })
+      .insert(payload)
       .select()
       .single()
 
@@ -133,12 +142,17 @@ export async function updateVehicle(id: string, values: VehicleInput) {
     const parsed = vehicleSchema.safeParse(values)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
+    const sanitizedData = sanitizePayload(parsed.data)
+    const payload = {
+      ...sanitizedData,
+      updated_by: user.id,
+    }
+
+    console.log('Vehicle update payload', payload)
+
     const { error: updateError } = await supabase
       .from('vehicles')
-      .update({
-        ...parsed.data,
-        updated_by: user.id,
-      })
+      .update(payload)
       .eq('id', id)
 
     if (updateError) {
@@ -229,7 +243,6 @@ export async function uploadVehicleImage(formData: FormData) {
       return { success: false, error: 'Vehicle ID and image file are required.' }
     }
 
-    // Validate MIME type & file size (max 5MB)
     const allowedMime = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg']
     if (!allowedMime.includes(file.type)) {
       return { success: false, error: 'Invalid file format. Allowed formats: JPG, PNG, WEBP.' }
@@ -242,7 +255,6 @@ export async function uploadVehicleImage(formData: FormData) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated.' }
 
-    // Upload to Supabase Storage bucket vehicle-images
     const fileExt = file.name.split('.').pop() || 'webp'
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
     const storagePath = `vehicle-images/${vehicleId}/${fileName}`
@@ -250,7 +262,6 @@ export async function uploadVehicleImage(formData: FormData) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // Admin storage client for safe bucket management
     const adminSupabase = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : supabase
 
     const { error: uploadError } = await adminSupabase.storage
@@ -268,7 +279,6 @@ export async function uploadVehicleImage(formData: FormData) {
       .from('vehicle-images')
       .getPublicUrl(storagePath)
 
-    // If setting as primary, unset other primary images for this vehicle
     if (isPrimary) {
       await supabase
         .from('vehicle_images')
@@ -276,7 +286,6 @@ export async function uploadVehicleImage(formData: FormData) {
         .eq('vehicle_id', vehicleId)
     }
 
-    // Insert database record
     const { error: dbError } = await supabase.from('vehicle_images').insert({
       vehicle_id: vehicleId,
       storage_path: storagePath,
@@ -287,7 +296,6 @@ export async function uploadVehicleImage(formData: FormData) {
     })
 
     if (dbError) {
-      // Rollback storage file
       await adminSupabase.storage.from('vehicle-images').remove([storagePath])
       return { success: false, error: `Database record failed: ${dbError.message}` }
     }
@@ -310,13 +318,11 @@ export async function setPrimaryVehicleImage(vehicleId: string, imageId: string)
   try {
     const supabase = await createClient()
 
-    // Unset current primary
     await supabase
       .from('vehicle_images')
       .update({ is_primary: false })
       .eq('vehicle_id', vehicleId)
 
-    // Set new primary
     const { error } = await supabase
       .from('vehicle_images')
       .update({ is_primary: true })
@@ -336,12 +342,10 @@ export async function deleteVehicleImage(imageId: string, vehicleId: string, sto
     const supabase = await createClient()
     const adminSupabase = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : supabase
 
-    // Delete storage file
     if (storagePath) {
       await adminSupabase.storage.from('vehicle-images').remove([storagePath])
     }
 
-    // Delete DB record
     const { error } = await supabase.from('vehicle_images').delete().eq('id', imageId)
 
     if (error) return { success: false, error: error.message }
