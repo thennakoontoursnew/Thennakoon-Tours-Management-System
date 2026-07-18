@@ -57,7 +57,7 @@ export async function checkOwnerExists() {
 // 2. Register first owner using secure Server-Side Supabase Admin API
 export async function registerOwner(values: z.infer<typeof ownerSetupSchema>) {
   try {
-    // Check missing server secret key early
+    // 1. Check missing server secret key early
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return {
         success: false,
@@ -65,7 +65,7 @@ export async function registerOwner(values: z.infer<typeof ownerSetupSchema>) {
       }
     }
 
-    // 1. Check if an active owner already exists
+    // 2. Check if an active owner already exists
     const ownerCheck = await checkOwnerExists()
     if (ownerCheck.exists) {
       return {
@@ -74,7 +74,7 @@ export async function registerOwner(values: z.infer<typeof ownerSetupSchema>) {
       }
     }
 
-    // 2. Validate input schema
+    // 3. Validate input schema
     const validation = ownerSetupSchema.safeParse(values)
     if (!validation.success) {
       return {
@@ -83,10 +83,10 @@ export async function registerOwner(values: z.infer<typeof ownerSetupSchema>) {
       }
     }
 
-    // 3. Initialize Server-Only Admin Supabase Client
+    // 4. Initialize Server-Only Admin Supabase Client
     const adminSupabase = createAdminClient()
 
-    // 4. Create auth user via Admin API with auto-confirmed email
+    // 5. Create auth user via Admin API with auto-confirmed email
     const { data: adminAuthData, error: adminAuthError } =
       await adminSupabase.auth.admin.createUser({
         email: values.email,
@@ -113,69 +113,61 @@ export async function registerOwner(values: z.infer<typeof ownerSetupSchema>) {
       }
       return {
         success: false,
-        error: `Failed to create owner account: ${adminAuthError.message}`,
+        error: `Failed to create owner auth user: ${adminAuthError.message}`,
       }
     }
 
     if (!adminAuthData.user) {
-      return { success: false, error: 'Failed to create owner user record.' }
+      return { success: false, error: 'Failed to create owner auth user record.' }
     }
 
     const userId = adminAuthData.user.id
 
-    // 5. Ensure profile row exists and has role='owner' and is_active=true
-    const { data: existingProfile, error: profileFetchError } = await adminSupabase
+    // 6. Explicitly Upsert Profile (Ensure role = 'owner', is_active = true)
+    const { error: profileInsertError } = await adminSupabase
       .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle()
-
-    if (profileFetchError) {
-      await adminSupabase.auth.admin.deleteUser(userId)
-      return {
-        success: false,
-        error: 'Failed to verify profile configuration. Rollback executed.',
-      }
-    }
-
-    if (!existingProfile) {
-      const { error: profileInsertError } = await adminSupabase
-        .from('profiles')
-        .insert({
+      .upsert(
+        {
           id: userId,
           full_name: values.fullName,
           email: values.email,
           role: 'owner',
           is_active: true,
-        })
+        },
+        { onConflict: 'id' }
+      )
 
-      if (profileInsertError) {
-        await adminSupabase.auth.admin.deleteUser(userId)
-        return {
-          success: false,
-          error: 'Failed to create owner profile. Rollback executed.',
-        }
-      }
-    } else {
-      const { error: profileUpdateError } = await adminSupabase
-        .from('profiles')
-        .update({
-          full_name: values.fullName,
-          role: 'owner',
-          is_active: true,
-        })
-        .eq('id', userId)
-
-      if (profileUpdateError) {
-        await adminSupabase.auth.admin.deleteUser(userId)
-        return {
-          success: false,
-          error: 'Failed to assign owner permissions. Rollback executed.',
-        }
+    if (profileInsertError) {
+      console.error('Profile insertion error:', profileInsertError)
+      return {
+        success: false,
+        error: `Profile creation failed: ${profileInsertError.message}`,
       }
     }
 
-    // 6. Sign in newly created owner using normal server Supabase client
+    // 7. IMMEDIATELY VERIFY: SELECT * FROM public.profiles WHERE id = userId
+    const { data: verifiedProfile, error: verifyError } = await adminSupabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+
+    if (verifyError || !verifiedProfile) {
+      console.error('Profile verification failed:', verifyError)
+      return {
+        success: false,
+        error: 'Critical Error: Owner profile insertion could not be verified in public.profiles. Operation aborted.',
+      }
+    }
+
+    if (verifiedProfile.role !== 'owner' || !verifiedProfile.is_active) {
+      return {
+        success: false,
+        error: 'Critical Error: Owner profile role or active status is invalid. Operation aborted.',
+      }
+    }
+
+    // 8. Sign in the newly created owner ONLY after profile insertion & verification succeeded
     const serverSupabase = await createClient()
     const { error: signInError } = await serverSupabase.auth.signInWithPassword({
       email: values.email,
@@ -185,21 +177,22 @@ export async function registerOwner(values: z.infer<typeof ownerSetupSchema>) {
     if (signInError) {
       return {
         success: false,
-        error: 'Owner account created successfully, but automatic login failed. Please sign in manually at the login page.',
+        error: `Owner account and profile created successfully, but automatic login failed: ${signInError.message}`,
       }
     }
 
-    // 7. Update last login timestamp & log audit action
+    // 9. Update last login timestamp & log audit action
     await serverSupabase.rpc('update_last_login', { p_user_id: userId })
     await serverSupabase.rpc('log_audit_action_internal', {
       p_action: 'CREATE_OWNER',
       p_entity_type: 'profile',
       p_entity_id: userId,
-      p_description: `Owner profile created and authenticated for ${values.fullName}`,
+      p_description: `Owner profile created and verified for ${values.fullName}`,
     })
 
     return { success: true }
   } catch (err: any) {
+    console.error('registerOwner unexpected error:', err)
     return {
       success: false,
       error: err.message || 'An unexpected error occurred during owner registration.',

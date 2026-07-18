@@ -115,7 +115,11 @@ BEGIN
         true,
         new.raw_user_meta_data->>'avatar_url',
         new.raw_user_meta_data->>'phone'
-    );
+    ) ON CONFLICT (id) DO UPDATE SET
+        full_name = EXCLUDED.full_name,
+        email = EXCLUDED.email,
+        role = EXCLUDED.role,
+        is_active = true;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -183,6 +187,10 @@ ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- Profiles Policies
+CREATE POLICY "Allow service role or user insert profile" ON public.profiles
+    FOR INSERT
+    WITH CHECK (true);
+
 CREATE POLICY "Users can view their own profile or owner can view all" ON public.profiles
     FOR SELECT
     USING (auth.uid() = id OR (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'owner');
