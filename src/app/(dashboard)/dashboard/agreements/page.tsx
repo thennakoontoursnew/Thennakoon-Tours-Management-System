@@ -1,52 +1,56 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { Printer, Eye, FileCheck2 } from 'lucide-react'
+import { FileText, Printer, Eye } from 'lucide-react'
 
-export default async function ReceiptsPage() {
+export default async function AgreementsPage() {
   const supabase = await createClient()
 
-  const { data: receipts } = await supabase
-    .from('receipts')
-    .select('*, customer:customers(full_name, mobile)')
+  const { data: agreements } = await supabase
+    .from('rental_agreements')
+    .select('*, customer:customers(full_name, mobile), booking:bookings(booking_number)')
     .order('created_at', { ascending: false })
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-black text-slate-900 dark:text-white">Payment Receipts</h1>
-        <p className="text-xs text-slate-500">Official proof-of-payment receipts generated for customer transactions.</p>
+        <h1 className="text-2xl font-black text-slate-900 dark:text-white">Rental Agreements</h1>
+        <p className="text-xs text-slate-500">Legal vehicle rental agreements, conditions, and signature documents.</p>
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-sm">
-        {receipts && receipts.length > 0 ? (
+        {agreements && agreements.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-850 text-slate-500 font-bold border-b border-slate-200 dark:border-slate-800 uppercase tracking-wider">
-                  <th className="py-3.5 px-4">Receipt No</th>
+                  <th className="py-3.5 px-4">Agreement No</th>
+                  <th className="py-3.5 px-4">Booking Ref</th>
                   <th className="py-3.5 px-4">Customer</th>
-                  <th className="py-3.5 px-4">Payment Method</th>
-                  <th className="py-3.5 px-4">Amount Paid</th>
-                  <th className="py-3.5 px-4">Date</th>
+                  <th className="py-3.5 px-4">Rental Period</th>
+                  <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-slate-700 dark:text-slate-300">
-                {receipts.map((item) => (
+                {agreements.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-bold text-amber-500">{item.receipt_number}</td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-amber-500">{item.agreement_number}</td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-700 dark:text-slate-300">{item.booking?.booking_number}</td>
                     <td className="py-3.5 px-4">
                       <div className="font-bold text-slate-900 dark:text-white">{item.customer?.full_name || 'N/A'}</div>
                       <div className="text-[11px] text-slate-400">{item.customer?.mobile}</div>
                     </td>
-                    <td className="py-3.5 px-4 uppercase font-semibold text-slate-600 dark:text-slate-400">{item.payment_method}</td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-emerald-500">
-                      LKR {Number(item.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    <td className="py-3.5 px-4 text-[11px]">
+                      {new Date(item.rental_start_at).toLocaleDateString()} to {new Date(item.rental_end_at).toLocaleDateString()}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-400">{new Date(item.receipt_date || item.created_at).toLocaleDateString()}</td>
+                    <td className="py-3.5 px-4">
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                        {item.status.toUpperCase()}
+                      </span>
+                    </td>
                     <td className="py-3.5 px-4 text-right">
                       <Link
-                        href={`/dashboard/receipts/${item.id}/preview`}
+                        href={`/dashboard/agreements/${item.id}/preview`}
                         className="p-1.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 inline-flex items-center gap-1 font-semibold text-[11px]"
                       >
                         <Printer size={13} />
@@ -60,9 +64,9 @@ export default async function ReceiptsPage() {
           </div>
         ) : (
           <div className="py-16 text-center space-y-3">
-            <FileCheck2 size={36} className="mx-auto text-slate-400" />
-            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No Receipts Generated</p>
-            <p className="text-xs text-slate-400">Payment receipts will automatically appear here once payments are recorded.</p>
+            <FileText size={36} className="mx-auto text-slate-400" />
+            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No Rental Agreements Generated</p>
+            <p className="text-xs text-slate-400">Generate rental agreements directly from booking records.</p>
           </div>
         )}
       </div>

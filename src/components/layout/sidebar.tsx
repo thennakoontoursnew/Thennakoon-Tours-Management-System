@@ -96,6 +96,12 @@ export function Sidebar({ role, fullName, onLogout }: SidebarProps) {
           icon: CheckCircle,
           roles: ['owner', 'manager', 'booking_staff', 'finance_staff', 'viewer'],
         },
+        {
+          title: 'Agreements',
+          href: '/dashboard/agreements',
+          icon: FileText,
+          roles: ['owner', 'manager', 'booking_staff', 'operations_staff', 'finance_staff', 'viewer'],
+        },
       ],
     },
     {
