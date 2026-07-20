@@ -2,49 +2,85 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { quotationSchema, sanitizePayload } from '@/lib/validations/sales-documents'
+import { quotationSchema } from '@/lib/validations/sales-documents'
+import { normalizeNewlines, calculateRentalDays } from '@/lib/utils/formatters'
 import { z } from 'zod'
 
 type QuotationInput = z.infer<typeof quotationSchema>
 
+function sanitizePayload(obj: Record<string, any>) {
+  const clean: Record<string, any> = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined || value === '') {
+      clean[key] = null
+    } else if (typeof value === 'string') {
+      clean[key] = normalizeNewlines(value.trim()) || null
+    } else {
+      clean[key] = value
+    }
+  }
+  return clean
+}
+
 export async function createQuotation(values: QuotationInput) {
   try {
     const supabase = await createClient()
+
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated.' }
 
     const parsed = quotationSchema.safeParse(values)
-    if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0].message }
+    }
 
     const { items, ...headerData } = parsed.data
 
-    // Server-side recalculation of line totals and grand total
     let subtotal = 0
     const processedItems = items.map((item) => {
-      const baseLineTotal = Number(item.number_of_days) * Number(item.unit_rate) * Number(item.quantity)
-      const lineTotal = baseLineTotal + Number(item.driver_charge) + Number(item.additional_charge)
+      const days = calculateRentalDays(headerData.rental_start_date, headerData.rental_end_date)
+      const numDays = item.number_of_days || days
+      const baseLineTotal = Number(numDays) * Number(item.unit_rate) * Number(item.quantity || 1)
+      const lineTotal = baseLineTotal + Number(item.driver_charge || 0) + Number(item.additional_charge || 0)
       subtotal += lineTotal
       return {
         ...item,
+        number_of_days: numDays,
         line_total: lineTotal,
-        display_order: item.display_order || 0,
       }
     })
 
     let discountAmount = 0
     if (headerData.discount_type === 'percentage') {
-      discountAmount = (subtotal * Number(headerData.discount_value)) / 100
+      discountAmount = (subtotal * Number(headerData.discount_value || 0)) / 100
     } else if (headerData.discount_type === 'fixed') {
-      discountAmount = Number(headerData.discount_value)
+      discountAmount = Number(headerData.discount_value || 0)
     }
 
-    const taxableAmount = Math.max(0, subtotal - discountAmount + Number(headerData.additional_charges))
-    const taxAmount = (taxableAmount * Number(headerData.tax_rate)) / 100
-    const grandTotal = taxableAmount + taxAmount + Number(headerData.refundable_deposit)
+    const taxableAmount = Math.max(0, subtotal - discountAmount + Number(headerData.additional_charges || 0))
+    const taxAmount = (taxableAmount * Number(headerData.tax_rate || 0)) / 100
+    const grandTotal = taxableAmount + taxAmount + Number(headerData.refundable_deposit || 0)
+
+    const year = new Date().getFullYear()
+    const { data: maxQt } = await supabase
+      .from('quotations')
+      .select('quotation_number')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    let nextSeq = 1
+    if (maxQt?.quotation_number) {
+      const parts = maxQt.quotation_number.split('-')
+      const lastSeq = parseInt(parts[parts.length - 1], 10)
+      if (!isNaN(lastSeq)) nextSeq = lastSeq + 1
+    }
+    const quotationNumber = `QT-${year}-${String(nextSeq).padStart(6, '0')}`
 
     const sanitizedHeader = sanitizePayload(headerData)
     const payload = {
       ...sanitizedHeader,
+      quotation_number: quotationNumber,
       subtotal,
       discount_amount: discountAmount,
       tax_amount: taxAmount,
@@ -52,6 +88,18 @@ export async function createQuotation(values: QuotationInput) {
       prepared_by: user.id,
       created_by: user.id,
       updated_by: user.id,
+      special_notes: normalizeNewlines(headerData.special_notes),
+      important_message: normalizeNewlines(headerData.important_message),
+      bank_account_name_snapshot: headerData.bank_account_name_snapshot,
+      bank_name_snapshot: headerData.bank_name_snapshot,
+      bank_branch_snapshot: headerData.bank_branch_snapshot,
+      bank_account_number_snapshot: headerData.bank_account_number_snapshot,
+      bank_swift_code_snapshot: headerData.bank_swift_code_snapshot,
+      payment_instructions_snapshot: normalizeNewlines(headerData.payment_instructions_snapshot),
+      prepared_by_name_snapshot: headerData.prepared_by_name_snapshot,
+      prepared_by_designation_snapshot: headerData.prepared_by_designation_snapshot,
+      company_name_snapshot: headerData.company_name_snapshot,
+      terms_and_conditions_snapshot: normalizeNewlines(headerData.terms_and_conditions_snapshot),
     }
 
     const { data: quotation, error: insertError } = await supabase
@@ -61,10 +109,9 @@ export async function createQuotation(values: QuotationInput) {
       .single()
 
     if (insertError || !quotation) {
-      return { success: false, error: insertError?.message || 'Failed to create quotation.' }
+      return { success: false, error: insertError?.message || 'Failed to create quotation record.' }
     }
 
-    // Insert quotation line items
     const itemRows = processedItems.map((it) => ({
       quotation_id: quotation.id,
       ...sanitizePayload(it),
@@ -73,24 +120,14 @@ export async function createQuotation(values: QuotationInput) {
     const { error: itemsError } = await supabase.from('quotation_items').insert(itemRows)
     if (itemsError) {
       await supabase.from('quotations').delete().eq('id', quotation.id)
-      return { success: false, error: `Failed to insert quotation items: ${itemsError.message}` }
+      return { success: false, error: `Failed to insert quotation line items: ${itemsError.message}` }
     }
 
-    // Audit Logging
     await supabase.rpc('log_audit_action_internal', {
       p_action: 'CREATE_QUOTATION',
       p_entity_type: 'quotation',
       p_entity_id: quotation.id,
       p_description: `Created quotation ${quotation.quotation_number}`,
-    })
-
-    await supabase.from('document_activity_logs').insert({
-      document_type: 'quotation',
-      document_id: quotation.id,
-      action: 'create',
-      new_status: quotation.status,
-      change_summary: `Created quotation ${quotation.quotation_number}`,
-      user_id: user.id,
     })
 
     revalidatePath('/dashboard/quotations')
@@ -124,25 +161,28 @@ export async function updateQuotation(id: string, values: QuotationInput) {
 
     let subtotal = 0
     const processedItems = items.map((item) => {
-      const baseLineTotal = Number(item.number_of_days) * Number(item.unit_rate) * Number(item.quantity)
-      const lineTotal = baseLineTotal + Number(item.driver_charge) + Number(item.additional_charge)
+      const days = calculateRentalDays(headerData.rental_start_date, headerData.rental_end_date)
+      const numDays = item.number_of_days || days
+      const baseLineTotal = Number(numDays) * Number(item.unit_rate) * Number(item.quantity || 1)
+      const lineTotal = baseLineTotal + Number(item.driver_charge || 0) + Number(item.additional_charge || 0)
       subtotal += lineTotal
       return {
         ...item,
+        number_of_days: numDays,
         line_total: lineTotal,
       }
     })
 
     let discountAmount = 0
     if (headerData.discount_type === 'percentage') {
-      discountAmount = (subtotal * Number(headerData.discount_value)) / 100
+      discountAmount = (subtotal * Number(headerData.discount_value || 0)) / 100
     } else if (headerData.discount_type === 'fixed') {
-      discountAmount = Number(headerData.discount_value)
+      discountAmount = Number(headerData.discount_value || 0)
     }
 
-    const taxableAmount = Math.max(0, subtotal - discountAmount + Number(headerData.additional_charges))
-    const taxAmount = (taxableAmount * Number(headerData.tax_rate)) / 100
-    const grandTotal = taxableAmount + taxAmount + Number(headerData.refundable_deposit)
+    const taxableAmount = Math.max(0, subtotal - discountAmount + Number(headerData.additional_charges || 0))
+    const taxAmount = (taxableAmount * Number(headerData.tax_rate || 0)) / 100
+    const grandTotal = taxableAmount + taxAmount + Number(headerData.refundable_deposit || 0)
 
     const sanitizedHeader = sanitizePayload(headerData)
     const payload = {
@@ -152,6 +192,18 @@ export async function updateQuotation(id: string, values: QuotationInput) {
       tax_amount: taxAmount,
       grand_total: grandTotal,
       updated_by: user.id,
+      special_notes: normalizeNewlines(headerData.special_notes),
+      important_message: normalizeNewlines(headerData.important_message),
+      bank_account_name_snapshot: headerData.bank_account_name_snapshot,
+      bank_name_snapshot: headerData.bank_name_snapshot,
+      bank_branch_snapshot: headerData.bank_branch_snapshot,
+      bank_account_number_snapshot: headerData.bank_account_number_snapshot,
+      bank_swift_code_snapshot: headerData.bank_swift_code_snapshot,
+      payment_instructions_snapshot: normalizeNewlines(headerData.payment_instructions_snapshot),
+      prepared_by_name_snapshot: headerData.prepared_by_name_snapshot,
+      prepared_by_designation_snapshot: headerData.prepared_by_designation_snapshot,
+      company_name_snapshot: headerData.company_name_snapshot,
+      terms_and_conditions_snapshot: normalizeNewlines(headerData.terms_and_conditions_snapshot),
     }
 
     const { error: updateError } = await supabase
@@ -161,7 +213,6 @@ export async function updateQuotation(id: string, values: QuotationInput) {
 
     if (updateError) return { success: false, error: updateError.message }
 
-    // Re-insert line items
     await supabase.from('quotation_items').delete().eq('quotation_id', id)
     const itemRows = processedItems.map((it) => ({
       quotation_id: id,
@@ -177,209 +228,166 @@ export async function updateQuotation(id: string, values: QuotationInput) {
   }
 }
 
-export async function duplicateQuotation(id: string) {
-  try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { success: false, error: 'Not authenticated.' }
-
-    const { data: orig, error: fetchError } = await supabase
-      .from('quotations')
-      .select('*, quotation_items(*)')
-      .eq('id', id)
-      .single()
-
-    if (fetchError || !orig) return { success: false, error: 'Quotation not found.' }
-
-    // Create duplicate header
-    const { data: dup, error: dupError } = await supabase
-      .from('quotations')
-      .insert({
-        customer_id: orig.customer_id,
-        quotation_date: new Date().toISOString().split('T')[0],
-        rental_start_date: orig.rental_start_date,
-        rental_end_date: orig.rental_end_date,
-        pickup_location: orig.pickup_location,
-        dropoff_location: orig.dropoff_location,
-        destination: orig.destination,
-        passenger_count: orig.passenger_count,
-        purpose: orig.purpose,
-        currency: orig.currency,
-        subtotal: orig.subtotal,
-        discount_type: orig.discount_type,
-        discount_value: orig.discount_value,
-        discount_amount: orig.discount_amount,
-        tax_rate: orig.tax_rate,
-        tax_amount: orig.tax_amount,
-        refundable_deposit: orig.refundable_deposit,
-        additional_charges: orig.additional_charges,
-        grand_total: orig.grand_total,
-        notes: orig.notes,
-        special_notes: orig.special_notes,
-        terms_and_conditions: orig.terms_and_conditions,
-        status: 'draft',
-        parent_quotation_id: orig.id,
-        prepared_by: user.id,
-        created_by: user.id,
-        updated_by: user.id,
-      })
-      .select()
-      .single()
-
-    if (dupError || !dup) return { success: false, error: dupError?.message || 'Failed to duplicate.' }
-
-    if (orig.quotation_items && orig.quotation_items.length > 0) {
-      const items = orig.quotation_items.map((it: any) => ({
-        quotation_id: dup.id,
-        vehicle_id: it.vehicle_id,
-        description: it.description,
-        vehicle_name_snapshot: it.vehicle_name_snapshot,
-        vehicle_registration_snapshot: it.vehicle_registration_snapshot,
-        vehicle_year_snapshot: it.vehicle_year_snapshot,
-        quantity: it.quantity,
-        number_of_days: it.number_of_days,
-        unit_rate: it.unit_rate,
-        line_total: it.line_total,
-        allowed_km: it.allowed_km,
-        extra_km_charge: it.extra_km_charge,
-        deposit_amount: it.deposit_amount,
-        driver_charge: it.driver_charge,
-        additional_charge: it.additional_charge,
-        display_order: it.display_order,
-      }))
-      await supabase.from('quotation_items').insert(items)
-    }
-
-    revalidatePath('/dashboard/quotations')
-    return { success: true, newQuotationId: dup.id }
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Failed to duplicate quotation.' }
-  }
-}
-
 export async function changeQuotationStatus(id: string, newStatus: string) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated.' }
 
-    const updatePayload: any = { status: newStatus, updated_by: user.id }
-    if (newStatus === 'accepted') updatePayload.accepted_at = new Date().toISOString()
-    if (newStatus === 'rejected') updatePayload.rejected_at = new Date().toISOString()
-    if (newStatus === 'sent') updatePayload.sent_at = new Date().toISOString()
-    if (newStatus === 'cancelled') updatePayload.cancelled_at = new Date().toISOString()
-
     const { error } = await supabase
       .from('quotations')
-      .update(updatePayload)
+      .update({ status: newStatus, updated_by: user.id })
       .eq('id', id)
 
     if (error) return { success: false, error: error.message }
 
-    revalidatePath('/dashboard/quotations')
     revalidatePath(`/dashboard/quotations/${id}`)
+    revalidatePath('/dashboard/quotations')
     return { success: true }
   } catch (err: any) {
     return { success: false, error: err.message }
   }
 }
 
-export async function convertQuotationToBooking(quotationId: string) {
+export async function duplicateQuotation(id: string) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated.' }
 
-    const { data: q, error: qError } = await supabase
+    const { data: orig, error: fetchErr } = await supabase
       .from('quotations')
-      .select('*, quotation_items(*)')
-      .eq('id', quotationId)
+      .select('*, items:quotation_items(*)')
+      .eq('id', id)
       .single()
 
-    if (qError || !q) return { success: false, error: 'Quotation not found.' }
-    if (q.status !== 'accepted') {
-      return { success: false, error: 'Only accepted quotations can be converted to bookings.' }
+    if (fetchErr || !orig) return { success: false, error: 'Original quotation not found.' }
+
+    const year = new Date().getFullYear()
+    const { data: maxQt } = await supabase
+      .from('quotations')
+      .select('quotation_number')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    let nextSeq = 1
+    if (maxQt?.quotation_number) {
+      const parts = maxQt.quotation_number.split('-')
+      const lastSeq = parseInt(parts[parts.length - 1], 10)
+      if (!isNaN(lastSeq)) nextSeq = lastSeq + 1
+    }
+    const newQuotationNumber = `QT-${year}-${String(nextSeq).padStart(6, '0')}`
+
+    const { id: _, created_at: __, updated_at: ___, quotation_number: ____, items: origItems, ...headerCopy } = orig
+
+    const payload = {
+      ...headerCopy,
+      quotation_number: newQuotationNumber,
+      status: 'draft',
+      created_by: user.id,
+      updated_by: user.id,
+      prepared_by: user.id,
     }
 
-    // Check if booking already created
-    const { data: existingBooking } = await supabase
-      .from('bookings')
-      .select('id, booking_number')
-      .eq('quotation_id', quotationId)
-      .single()
-
-    if (existingBooking) {
-      return { success: false, error: `This quotation was already converted to Booking ${existingBooking.booking_number}` }
-    }
-
-    const startAt = `${q.rental_start_date}T09:00:00Z`
-    const endAt = `${q.rental_end_date}T18:00:00Z`
-
-    // Create booking
-    const { data: booking, error: bError } = await supabase
-      .from('bookings')
-      .insert({
-        quotation_id: q.id,
-        customer_id: q.customer_id,
-        booking_date: new Date().toISOString().split('T')[0],
-        rental_start_at: startAt,
-        rental_end_at: endAt,
-        pickup_location: q.pickup_location,
-        dropoff_location: q.dropoff_location,
-        destination: q.destination,
-        passenger_count: q.passenger_count,
-        subtotal: q.subtotal,
-        discount_amount: q.discount_amount,
-        tax_amount: q.tax_amount,
-        refundable_deposit: q.refundable_deposit,
-        grand_total: q.grand_total,
-        advance_required: q.grand_total * 0.25,
-        advance_paid: 0,
-        balance_due: q.grand_total,
-        status: 'confirmed',
-        created_by: user.id,
-        updated_by: user.id,
-      })
+    const { data: newQt, error: insErr } = await supabase
+      .from('quotations')
+      .insert(payload)
       .select()
       .single()
 
-    if (bError || !booking) return { success: false, error: bError?.message || 'Failed to convert to booking.' }
+    if (insErr || !newQt) return { success: false, error: insErr?.message || 'Failed to duplicate quotation.' }
 
-    // Assign vehicles from quotation items
-    if (q.quotation_items && q.quotation_items.length > 0) {
-      const bVehicles = q.quotation_items
-        .filter((it: any) => it.vehicle_id)
-        .map((it: any) => ({
-          booking_id: booking.id,
-          vehicle_id: it.vehicle_id,
-          rental_start_at: startAt,
-          rental_end_at: endAt,
-          vehicle_rate: it.unit_rate,
-          driver_charge: it.driver_charge,
-          deposit_amount: it.deposit_amount,
-          allowed_km: it.allowed_km,
-          extra_km_charge: it.extra_km_charge,
-          status: 'reserved',
-        }))
-
-      if (bVehicles.length > 0) {
-        await supabase.from('booking_vehicles').insert(bVehicles)
-      }
+    if (origItems && origItems.length > 0) {
+      const itemRows = origItems.map((it: any) => {
+        const { id: itemUuid, quotation_id: origId, created_at: cat, updated_at: uat, ...itemData } = it
+        return {
+          quotation_id: newQt.id,
+          ...itemData,
+        }
+      })
+      await supabase.from('quotation_items').insert(itemRows)
     }
 
-    await supabase.from('document_activity_logs').insert({
-      document_type: 'quotation',
-      document_id: q.id,
-      action: 'convert',
-      new_status: 'converted',
-      change_summary: `Converted quotation ${q.quotation_number} to booking ${booking.booking_number}`,
-      user_id: user.id,
-    })
+    revalidatePath('/dashboard/quotations')
+    return { success: true, quotationId: newQt.id }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to duplicate quotation.' }
+  }
+}
+
+export async function convertQuotationToBooking(id: string) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated.' }
+
+    const { data: qt, error: fetchErr } = await supabase
+      .from('quotations')
+      .select('*, customer:customers(*), items:quotation_items(*)')
+      .eq('id', id)
+      .single()
+
+    if (fetchErr || !qt) return { success: false, error: 'Quotation not found.' }
+
+    // Generate Booking Number (BK-2026-000001)
+    const year = new Date().getFullYear()
+    const { data: maxBk } = await supabase
+      .from('bookings')
+      .select('booking_number')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    let nextSeq = 1
+    if (maxBk?.booking_number) {
+      const parts = maxBk.booking_number.split('-')
+      const lastSeq = parseInt(parts[parts.length - 1], 10)
+      if (!isNaN(lastSeq)) nextSeq = lastSeq + 1
+    }
+    const bookingNumber = `BK-${year}-${String(nextSeq).padStart(6, '0')}`
+
+    const bookingPayload = {
+      booking_number: bookingNumber,
+      quotation_id: qt.id,
+      customer_id: qt.customer_id,
+      rental_start_date: qt.rental_start_date,
+      rental_end_date: qt.rental_end_date,
+      pickup_location: qt.pickup_location,
+      dropoff_location: qt.dropoff_location,
+      destination: qt.destination,
+      passenger_count: qt.passenger_count,
+      purpose: qt.purpose,
+      subtotal: qt.subtotal,
+      discount_type: qt.discount_type,
+      discount_value: qt.discount_value,
+      discount_amount: qt.discount_amount,
+      tax_rate: qt.tax_rate,
+      tax_amount: qt.tax_amount,
+      refundable_deposit: qt.refundable_deposit,
+      additional_charges: qt.additional_charges,
+      grand_total: qt.grand_total,
+      status: 'confirmed',
+      notes: qt.notes,
+      created_by: user.id,
+      updated_by: user.id,
+    }
+
+    const { data: booking, error: bkErr } = await supabase
+      .from('bookings')
+      .insert(bookingPayload)
+      .select()
+      .single()
+
+    if (bkErr || !booking) return { success: false, error: bkErr?.message || 'Failed to create booking.' }
+
+    // Update Quotation Status to 'accepted'
+    await supabase.from('quotations').update({ status: 'accepted', updated_by: user.id }).eq('id', id)
 
     revalidatePath('/dashboard/quotations')
     revalidatePath('/dashboard/bookings')
     return { success: true, bookingId: booking.id }
   } catch (err: any) {
-    return { success: false, error: err.message || 'Conversion failed.' }
+    return { success: false, error: err.message || 'Failed to convert quotation to booking.' }
   }
 }

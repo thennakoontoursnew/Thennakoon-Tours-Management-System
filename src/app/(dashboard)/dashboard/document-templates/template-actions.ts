@@ -3,12 +3,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { documentTemplateSchema } from '@/lib/validations/templates'
+import { normalizeNewlines } from '@/lib/utils/formatters'
 import { z } from 'zod'
 
 type TemplateInput = z.infer<typeof documentTemplateSchema>
 
 const DEFAULT_QUOTATION_TEMPLATE = {
   document_type: 'quotation',
+  display_name: 'Standard Quotation Template',
   special_notes: `• 700km allowed.
 • This quotation is valid for 24 hours only.
 • Vehicles are subject to availability.
@@ -30,6 +32,7 @@ const DEFAULT_QUOTATION_TEMPLATE = {
 
 const DEFAULT_INVOICE_TEMPLATE = {
   document_type: 'invoice',
+  display_name: 'Standard Invoice Template',
   special_notes: `• Payment due within 7 days of invoice date.
 • Late payments subject to a 2% monthly surcharge.`,
   important_message: `Please send payment receipt confirmation to info@thennakoontours.com once transferred.`,
@@ -47,6 +50,7 @@ const DEFAULT_INVOICE_TEMPLATE = {
 
 const DEFAULT_RECEIPT_TEMPLATE = {
   document_type: 'receipt',
+  display_name: 'Standard Receipt Template',
   special_notes: 'Official Proof of Payment. Retain this receipt for your records.',
   important_message: 'Payment received with thanks. We appreciate your business!',
   bank_account_name: 'Thennakoon Tours (Pvt) Ltd',
@@ -63,6 +67,7 @@ const DEFAULT_RECEIPT_TEMPLATE = {
 
 const DEFAULT_AGREEMENT_TEMPLATE = {
   document_type: 'rental_agreement',
+  display_name: 'Standard Rental Agreement Template',
   special_notes: `• Hirer is fully responsible for vehicle condition during the rental period.
 • Any traffic fines or toll charges incurred will be charged to the hirer.`,
   important_message: 'Please inspect vehicle condition with our representative before departure.',
@@ -90,6 +95,17 @@ async function verifyTemplateWritePermission(supabase: any, userId: string) {
   return allowed.includes(profile.role)
 }
 
+function cleanTemplateRecord(raw: any) {
+  if (!raw) return null
+  return {
+    ...raw,
+    special_notes: normalizeNewlines(raw.special_notes),
+    important_message: normalizeNewlines(raw.important_message),
+    payment_instructions: normalizeNewlines(raw.payment_instructions),
+    default_terms_and_conditions: normalizeNewlines(raw.default_terms_and_conditions),
+  }
+}
+
 export async function getDocumentTemplates() {
   try {
     const supabase = await createClient()
@@ -99,7 +115,7 @@ export async function getDocumentTemplates() {
       .order('document_type')
 
     if (error) return { success: false, error: error.message, templates: [] }
-    return { success: true, templates: data || [] }
+    return { success: true, templates: (data || []).map(cleanTemplateRecord) }
   } catch (err: any) {
     return { success: false, error: err.message, templates: [] }
   }
@@ -114,25 +130,15 @@ export async function getDocumentTemplateByType(type: string) {
       .eq('document_type', type)
       .maybeSingle()
 
-    if (data) return { success: true, template: data }
+    if (data) return { success: true, template: cleanTemplateRecord(data) }
 
-    // Fallback: Auto-create missing template
+    // Fallback: Return safe system default template without crashing
     let defaultObj: any = DEFAULT_QUOTATION_TEMPLATE
     if (type === 'invoice') defaultObj = DEFAULT_INVOICE_TEMPLATE
     if (type === 'receipt') defaultObj = DEFAULT_RECEIPT_TEMPLATE
     if (type === 'rental_agreement') defaultObj = DEFAULT_AGREEMENT_TEMPLATE
 
-    const { data: newTemplate, error: insertError } = await supabase
-      .from('document_templates')
-      .upsert(defaultObj, { onConflict: 'document_type' })
-      .select('*')
-      .single()
-
-    if (insertError || !newTemplate) {
-      return { success: true, template: { id: 'default', ...defaultObj } }
-    }
-
-    return { success: true, template: newTemplate }
+    return { success: true, template: cleanTemplateRecord({ id: 'default', ...defaultObj }) }
   } catch (err: any) {
     return { success: false, error: err.message }
   }
@@ -151,17 +157,18 @@ export async function updateDocumentTemplate(type: string, values: Partial<Templ
 
     const payload = {
       document_type: type,
-      special_notes: values.special_notes?.trim() || null,
-      important_message: values.important_message?.trim() || null,
+      display_name: values.display_name?.trim() || `${type.toUpperCase()} Template`,
+      special_notes: normalizeNewlines(values.special_notes),
+      important_message: normalizeNewlines(values.important_message),
       bank_account_name: values.bank_account_name?.trim() || null,
       bank_name: values.bank_name?.trim() || null,
       bank_branch: values.bank_branch?.trim() || null,
       bank_account_number: values.bank_account_number?.trim() || null,
       bank_swift_code: values.bank_swift_code?.trim() || null,
-      payment_instructions: values.payment_instructions?.trim() || null,
+      payment_instructions: normalizeNewlines(values.payment_instructions),
       prepared_by_designation: values.prepared_by_designation?.trim() || null,
       company_name: values.company_name?.trim() || null,
-      default_terms_and_conditions: values.default_terms_and_conditions?.trim() || null,
+      default_terms_and_conditions: normalizeNewlines(values.default_terms_and_conditions),
       updated_by: user.id,
       updated_at: new Date().toISOString(),
     }
@@ -209,7 +216,7 @@ export async function resetDocumentTemplateToDefault(type: string) {
     if (error) return { success: false, error: error.message }
 
     revalidatePath('/dashboard/document-templates')
-    return { success: true, template: defaultObj }
+    return { success: true, template: cleanTemplateRecord(defaultObj) }
   } catch (err: any) {
     return { success: false, error: err.message || 'Failed to reset template.' }
   }

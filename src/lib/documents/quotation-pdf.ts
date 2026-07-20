@@ -1,4 +1,5 @@
 import { jsPDF, autoTable, getLetterheadBase64, drawLetterheadBackground, A4_MARGINS } from './pdf-engine'
+import { normalizeNewlines } from '@/lib/utils/formatters'
 
 export async function generateQuotationPDF(quotation: any, companySettings?: any) {
   const doc = new jsPDF('p', 'mm', 'a4')
@@ -113,8 +114,8 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
 
   currentY += 10
 
-  // 5. SPECIAL NOTES
-  const specialNotesText = quotation.special_notes || ''
+  // 5. SPECIAL NOTES (Pre-normalized line breaks)
+  const specialNotesText = normalizeNewlines(quotation.special_notes)
   if (specialNotesText.trim()) {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8.5)
@@ -130,8 +131,8 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
     currentY += splitNotes.length * 3.8 + 4
   }
 
-  // 6. IMPORTANT
-  const importantMsg = quotation.important_message || ''
+  // 6. IMPORTANT (Pre-normalized line breaks)
+  const importantMsg = normalizeNewlines(quotation.important_message)
   if (importantMsg.trim()) {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8.5)
@@ -159,7 +160,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   const bankBranch = quotation.bank_branch_snapshot || companySettings?.bank_branch || 'Nugegoda'
   const bankAccNum = quotation.bank_account_number_snapshot || companySettings?.bank_account_number || '100530013140'
   const bankSwift = quotation.bank_swift_code_snapshot || companySettings?.bank_swift_code || 'NTBCLKLX'
-  const paymentInstructions = quotation.payment_instructions_snapshot || ''
+  const paymentInstructions = normalizeNewlines(quotation.payment_instructions_snapshot)
 
   doc.setFillColor(241, 245, 249)
   doc.setDrawColor(226, 232, 240)

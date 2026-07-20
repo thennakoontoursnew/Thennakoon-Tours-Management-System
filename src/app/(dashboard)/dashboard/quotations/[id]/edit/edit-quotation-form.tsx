@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { updateQuotation } from '../../quotation-actions'
-import { ArrowLeft, Save, Plus, Trash2, AlertCircle, FileText, Building2, User, Info } from 'lucide-react'
+import { normalizeNewlines, calculateRentalDays } from '@/lib/utils/formatters'
+import { ArrowLeft, Save, Plus, Trash2, AlertCircle, FileText, Building2, User, Calculator, ShieldAlert, Eye } from 'lucide-react'
 
 interface Props {
   quotation: any
@@ -33,27 +34,31 @@ export default function EditQuotationForm({ quotation, customers, vehicles }: Pr
     refundable_deposit: quotation.refundable_deposit || 0,
     additional_charges: quotation.additional_charges || 0,
     notes: quotation.notes || '',
-    // 12 Saved Snapshot Fields directly from quotation record
-    special_notes: quotation.special_notes || '',
-    important_message: quotation.important_message || '',
+    // 12 Saved Snapshot Fields (Pre-normalized)
+    special_notes: normalizeNewlines(quotation.special_notes),
+    important_message: normalizeNewlines(quotation.important_message),
     bank_account_name_snapshot: quotation.bank_account_name_snapshot || '',
     bank_name_snapshot: quotation.bank_name_snapshot || '',
     bank_branch_snapshot: quotation.bank_branch_snapshot || '',
     bank_account_number_snapshot: quotation.bank_account_number_snapshot || '',
     bank_swift_code_snapshot: quotation.bank_swift_code_snapshot || '',
-    payment_instructions_snapshot: quotation.payment_instructions_snapshot || '',
+    payment_instructions_snapshot: normalizeNewlines(quotation.payment_instructions_snapshot),
     prepared_by_name_snapshot: quotation.prepared_by_name_snapshot || '',
     prepared_by_designation_snapshot: quotation.prepared_by_designation_snapshot || '',
     company_name_snapshot: quotation.company_name_snapshot || '',
-    terms_and_conditions_snapshot: quotation.terms_and_conditions_snapshot || quotation.terms_and_conditions || '',
+    terms_and_conditions_snapshot: normalizeNewlines(quotation.terms_and_conditions_snapshot || quotation.terms_and_conditions),
   })
+
+  const rentalDays = useMemo(() => {
+    return calculateRentalDays(formData.rental_start_date, formData.rental_end_date)
+  }, [formData.rental_start_date, formData.rental_end_date])
 
   const [items, setItems] = useState<any[]>(
     (quotation.items || []).map((it: any) => ({
       vehicle_id: it.vehicle_id || '',
       description: it.description || 'Vehicle Rental Service',
       quantity: it.quantity || 1,
-      number_of_days: it.number_of_days || 1,
+      number_of_days: it.number_of_days || rentalDays,
       unit_rate: it.unit_rate || 0,
       driver_charge: it.driver_charge || 0,
       additional_charge: it.additional_charge || 0,
@@ -86,7 +91,7 @@ export default function EditQuotationForm({ quotation, customers, vehicles }: Pr
         vehicle_id: '',
         description: 'Vehicle Rental Service',
         quantity: 1,
-        number_of_days: 1,
+        number_of_days: rentalDays,
         unit_rate: 0,
         driver_charge: 0,
         additional_charge: 0,
@@ -124,19 +129,19 @@ export default function EditQuotationForm({ quotation, customers, vehicles }: Pr
       additional_charges: Number(formData.additional_charges),
       notes: formData.notes,
       // 12 Saved Snapshot Fields
-      special_notes: formData.special_notes,
-      important_message: formData.important_message,
+      special_notes: normalizeNewlines(formData.special_notes),
+      important_message: normalizeNewlines(formData.important_message),
       bank_account_name_snapshot: formData.bank_account_name_snapshot,
       bank_name_snapshot: formData.bank_name_snapshot,
       bank_branch_snapshot: formData.bank_branch_snapshot,
       bank_account_number_snapshot: formData.bank_account_number_snapshot,
       bank_swift_code_snapshot: formData.bank_swift_code_snapshot,
-      payment_instructions_snapshot: formData.payment_instructions_snapshot,
+      payment_instructions_snapshot: normalizeNewlines(formData.payment_instructions_snapshot),
       prepared_by_name_snapshot: formData.prepared_by_name_snapshot,
       prepared_by_designation_snapshot: formData.prepared_by_designation_snapshot,
       company_name_snapshot: formData.company_name_snapshot,
-      terms_and_conditions_snapshot: formData.terms_and_conditions_snapshot,
-      terms_and_conditions: formData.terms_and_conditions_snapshot,
+      terms_and_conditions_snapshot: normalizeNewlines(formData.terms_and_conditions_snapshot),
+      terms_and_conditions: normalizeNewlines(formData.terms_and_conditions_snapshot),
       items: items.map((it) => ({
         ...it,
         quantity: Number(it.quantity),
@@ -161,7 +166,7 @@ export default function EditQuotationForm({ quotation, customers, vehicles }: Pr
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
       <div className="flex items-center gap-3">
         <Link
           href={`/dashboard/quotations/${quotation.id}`}
@@ -171,7 +176,7 @@ export default function EditQuotationForm({ quotation, customers, vehicles }: Pr
         </Link>
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white">Edit Quotation ({quotation.quotation_number})</h1>
-          <p className="text-xs text-slate-500">Edit quotation details and instance snapshot fields.</p>
+          <p className="text-xs text-slate-500">Edit quotation details and saved instance snapshots.</p>
         </div>
       </div>
 
@@ -183,13 +188,13 @@ export default function EditQuotationForm({ quotation, customers, vehicles }: Pr
       )}
 
       <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-6 shadow-sm">
-        {/* Section 1: Customer & Rental Schedule */}
+        {/* Section 1: Customer */}
         <div className="space-y-4">
           <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500 border-b border-slate-100 dark:border-slate-800 pb-2">
-            1. Customer & Rental Dates
+            1. Customer Information
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
+            <div className="sm:col-span-2">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Select Customer *</label>
               <select
                 required
@@ -205,6 +210,15 @@ export default function EditQuotationForm({ quotation, customers, vehicles }: Pr
                 ))}
               </select>
             </div>
+          </div>
+        </div>
+
+        {/* Section 2: Dates */}
+        <div className="space-y-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500 border-b border-slate-100 dark:border-slate-800 pb-2">
+            2. Rental Schedule ({rentalDays} Day(s))
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Rental Start Date *</label>
               <input
@@ -228,10 +242,10 @@ export default function EditQuotationForm({ quotation, customers, vehicles }: Pr
           </div>
         </div>
 
-        {/* Section 2: Vehicle Line Items */}
+        {/* Section 3: Vehicle Line Items */}
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500">2. Vehicle Items & Rates</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500">3. Vehicle Items & Rates</h3>
             <button
               type="button"
               onClick={addItemRow}
@@ -246,7 +260,7 @@ export default function EditQuotationForm({ quotation, customers, vehicles }: Pr
             <div key={idx} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Select Vehicle Master</label>
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Select Fleet Vehicle</label>
                   <select
                     value={item.vehicle_id}
                     onChange={(e) => handleVehicleSelect(idx, e.target.value)}
@@ -312,13 +326,11 @@ export default function EditQuotationForm({ quotation, customers, vehicles }: Pr
           ))}
         </div>
 
-        {/* Section 3: Saved Snapshot Fields */}
+        {/* Section 4: Special Notes */}
         <div className="space-y-4">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-1.5">
-            <FileText size={15} />
-            <span>3. Saved Instance Snapshot Fields</span>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500 border-b border-slate-100 dark:border-slate-800 pb-2">
+            4. Special Notes & Important Message
           </h3>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Special Notes</label>
@@ -339,98 +351,100 @@ export default function EditQuotationForm({ quotation, customers, vehicles }: Pr
               />
             </div>
           </div>
+        </div>
 
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 space-y-3">
-            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <Building2 size={14} className="text-amber-500" />
-              <span>Saved Bank Payment Details Snapshot</span>
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 mb-1">Account Name</label>
-                <input
-                  type="text"
-                  value={formData.bank_account_name_snapshot}
-                  onChange={(e) => setFormData({ ...formData, bank_account_name_snapshot: e.target.value })}
-                  className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 mb-1">Bank Name</label>
-                <input
-                  type="text"
-                  value={formData.bank_name_snapshot}
-                  onChange={(e) => setFormData({ ...formData, bank_name_snapshot: e.target.value })}
-                  className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 mb-1">Bank Branch</label>
-                <input
-                  type="text"
-                  value={formData.bank_branch_snapshot}
-                  onChange={(e) => setFormData({ ...formData, bank_branch_snapshot: e.target.value })}
-                  className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 mb-1">Account Number</label>
-                <input
-                  type="text"
-                  value={formData.bank_account_number_snapshot}
-                  onChange={(e) => setFormData({ ...formData, bank_account_number_snapshot: e.target.value })}
-                  className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 mb-1">Swift Code</label>
-                <input
-                  type="text"
-                  value={formData.bank_swift_code_snapshot}
-                  onChange={(e) => setFormData({ ...formData, bank_swift_code_snapshot: e.target.value })}
-                  className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 mb-1">Payment Instructions</label>
-                <input
-                  type="text"
-                  value={formData.payment_instructions_snapshot}
-                  onChange={(e) => setFormData({ ...formData, payment_instructions_snapshot: e.target.value })}
-                  className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
-                />
-              </div>
+        {/* Section 5: Bank Details */}
+        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 space-y-3">
+          <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+            <Building2 size={14} className="text-amber-500" />
+            <span>Saved Bank Details Snapshot</span>
+          </span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 mb-1">Account Name</label>
+              <input
+                type="text"
+                value={formData.bank_account_name_snapshot}
+                onChange={(e) => setFormData({ ...formData, bank_account_name_snapshot: e.target.value })}
+                className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 mb-1">Bank Name</label>
+              <input
+                type="text"
+                value={formData.bank_name_snapshot}
+                onChange={(e) => setFormData({ ...formData, bank_name_snapshot: e.target.value })}
+                className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 mb-1">Bank Branch</label>
+              <input
+                type="text"
+                value={formData.bank_branch_snapshot}
+                onChange={(e) => setFormData({ ...formData, bank_branch_snapshot: e.target.value })}
+                className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 mb-1">Account Number</label>
+              <input
+                type="text"
+                value={formData.bank_account_number_snapshot}
+                onChange={(e) => setFormData({ ...formData, bank_account_number_snapshot: e.target.value })}
+                className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 mb-1">Swift Code</label>
+              <input
+                type="text"
+                value={formData.bank_swift_code_snapshot}
+                onChange={(e) => setFormData({ ...formData, bank_swift_code_snapshot: e.target.value })}
+                className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 mb-1">Payment Instructions</label>
+              <input
+                type="text"
+                value={formData.payment_instructions_snapshot}
+                onChange={(e) => setFormData({ ...formData, payment_instructions_snapshot: e.target.value })}
+                className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
+              />
             </div>
           </div>
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Prepared By Name</label>
-              <input
-                type="text"
-                value={formData.prepared_by_name_snapshot}
-                onChange={(e) => setFormData({ ...formData, prepared_by_name_snapshot: e.target.value })}
-                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-bold"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Prepared By Designation</label>
-              <input
-                type="text"
-                value={formData.prepared_by_designation_snapshot}
-                onChange={(e) => setFormData({ ...formData, prepared_by_designation_snapshot: e.target.value })}
-                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Company Name</label>
-              <input
-                type="text"
-                value={formData.company_name_snapshot}
-                onChange={(e) => setFormData({ ...formData, company_name_snapshot: e.target.value })}
-                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
-              />
-            </div>
+        {/* Section 6: Prepared By */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Prepared By Name</label>
+            <input
+              type="text"
+              value={formData.prepared_by_name_snapshot}
+              onChange={(e) => setFormData({ ...formData, prepared_by_name_snapshot: e.target.value })}
+              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-bold"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Prepared By Designation</label>
+            <input
+              type="text"
+              value={formData.prepared_by_designation_snapshot}
+              onChange={(e) => setFormData({ ...formData, prepared_by_designation_snapshot: e.target.value })}
+              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Company Name</label>
+            <input
+              type="text"
+              value={formData.company_name_snapshot}
+              onChange={(e) => setFormData({ ...formData, company_name_snapshot: e.target.value })}
+              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
+            />
           </div>
         </div>
 
