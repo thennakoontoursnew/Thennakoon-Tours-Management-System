@@ -10,112 +10,120 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
     drawLetterheadOnPage(doc, base64Letterhead)
   }
 
-  // 2. Explicitly Set Dark Text Color & Starting Position (Compact top margin)
-  doc.setTextColor(15, 23, 42) // Slate-900 / Black
-  let currentY = 38 // Compact Y-start within A4 safe area
+  // 2. Explicitly Set Dark Text Color & Starting Position
+  doc.setTextColor(17, 17, 17) // #111111 Black
+  let currentY = 38 // Compact top position within safe letterhead area
 
-  // Helper for multi-page overflow (only triggered if content is genuinely long)
+  // Helper for multi-page overflow (only triggered for genuinely long content)
   const ensureSpace = (requiredHeight: number) => {
     if (currentY + requiredHeight > 255) {
       doc.addPage()
       if (base64Letterhead) {
         drawLetterheadOnPage(doc, base64Letterhead)
       }
-      doc.setTextColor(15, 23, 42)
+      doc.setTextColor(17, 17, 17)
       currentY = 38
     }
   }
 
-  // 1. Document Title & Reference (Compact 16pt Black Title)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
-  doc.setTextColor(15, 23, 42)
-  doc.text('QUOTATION', A4_MARGINS.left, currentY)
+  // 1. QUOTATION Title in a White Rounded Card
+  const titleCardHeight = 13
+  doc.setFillColor(255, 255, 255) // White background card
+  doc.setDrawColor(203, 213, 225) // 1px Light Gray border
+  doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, titleCardHeight, 4, 4, 'FD')
 
-  doc.setFontSize(9)
+  // Title Text (Black 18pt Bold)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(18)
+  doc.setTextColor(17, 17, 17) // #111111 Black
+  doc.text('QUOTATION', A4_MARGINS.left + 5, currentY + 9)
+
+  // Reference Text (9.5pt Slate-600)
+  doc.setFontSize(9.5)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(71, 85, 105)
-  doc.text(`Ref: ${quotation.quotation_number}`, A4_MARGINS.right, currentY, { align: 'right' })
+  doc.text(`Ref: ${quotation.quotation_number}`, A4_MARGINS.right - 5, currentY + 8.5, { align: 'right' })
 
-  currentY += 6
+  currentY += titleCardHeight + 5
 
-  // 2. Customer Information Table (Compact 22mm 2-Column Table)
+  // 2. Customer Information Grid Table (Perfect Column & Row Alignment)
   const customer = quotation.customer || {}
-  const cardHeight = 22
+  const cardHeight = 26
   doc.setFillColor(248, 250, 252) // Slate-50 background
-  doc.setDrawColor(226, 232, 240) // Slate-200 border
-  doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, cardHeight, 1.5, 1.5, 'FD')
+  doc.setDrawColor(226, 232, 240) // Light border
+  doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, cardHeight, 3, 3, 'FD')
 
-  // LEFT COLUMN (Single-line Label + Value formatting)
-  const leftColX = A4_MARGINS.left + 4
-  let colY = currentY + 5.5
+  // Fixed Grid Coordinates
+  const leftLabelX = A4_MARGINS.left + 5
+  const leftValueX = A4_MARGINS.left + 35
+  const rightLabelX = A4_MARGINS.left + 95
+  const rightValueX = A4_MARGINS.left + 130
+
+  let rowY = currentY + 6.5
+
+  // Row 1
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8.5)
+  doc.setTextColor(71, 85, 105)
+  doc.text('TO:', leftLabelX, rowY)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  doc.setTextColor(34, 34, 34) // #222222
+  doc.text(customer.full_name || 'Valued Customer', leftValueX, rowY)
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.5)
-  doc.setTextColor(100, 116, 139)
-  doc.text('TO:', leftColX, colY)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.setTextColor(15, 23, 42)
-  doc.text(customer.full_name || 'Valued Customer', leftColX + 8, colY)
-
-  colY += 4.5
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(100, 116, 139)
-  doc.text('Mobile:', leftColX, colY)
+  doc.setTextColor(71, 85, 105)
+  doc.text('Quotation Date:', rightLabelX, rowY)
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  doc.setTextColor(30, 41, 59)
-  doc.text(customer.mobile || customer.phone || 'N/A', leftColX + 13, colY)
+  doc.setFontSize(9.5)
+  doc.setTextColor(34, 34, 34)
+  doc.text(quotation.quotation_date || 'N/A', rightValueX, rowY)
 
-  colY += 4.5
+  // Row 2
+  rowY += 6.5
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(100, 116, 139)
-  doc.text('NIC/Passport:', leftColX, colY)
-  doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
-  doc.setTextColor(30, 41, 59)
-  doc.text(customer.nic || customer.passport_number || 'N/A', leftColX + 22, colY)
-
-  // RIGHT COLUMN (Single-line Label + Value formatting)
-  const rightColX = A4_MARGINS.left + 95
-  let rColY = currentY + 5.5
+  doc.setTextColor(71, 85, 105)
+  doc.text('Mobile:', leftLabelX, rowY)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9.5)
+  doc.setTextColor(34, 34, 34)
+  doc.text(customer.mobile || customer.phone || 'N/A', leftValueX, rowY)
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(100, 116, 139)
-  doc.text('Quotation Date:', rightColX, rColY)
-  doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
-  doc.setTextColor(30, 41, 59)
-  doc.text(quotation.quotation_date || 'N/A', rightColX + 24, rColY)
+  doc.setTextColor(71, 85, 105)
+  doc.text('Rental Period:', rightLabelX, rowY)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9.5)
+  doc.setTextColor(34, 34, 34)
+  doc.text(`${quotation.rental_start_date} – ${quotation.rental_end_date}`, rightValueX, rowY)
 
-  rColY += 4.5
+  // Row 3
+  rowY += 6.5
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(100, 116, 139)
-  doc.text('Rental Period:', rightColX, rColY)
-  doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
-  doc.setTextColor(30, 41, 59)
-  doc.text(`${quotation.rental_start_date} – ${quotation.rental_end_date}`, rightColX + 22, rColY)
+  doc.setTextColor(71, 85, 105)
+  doc.text('NIC / Passport:', leftLabelX, rowY)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9.5)
+  doc.setTextColor(34, 34, 34)
+  doc.text(customer.nic || customer.passport_number || 'N/A', leftValueX, rowY)
 
-  rColY += 4.5
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(100, 116, 139)
-  doc.text('Route:', rightColX, rColY)
-  doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
-  doc.setTextColor(30, 41, 59)
-  const destText = doc.splitTextToSize(quotation.destination || 'As requested', 70)
-  doc.text(destText, rightColX + 12, rColY)
+  doc.setTextColor(71, 85, 105)
+  doc.text('Route / Destination:', rightLabelX, rowY)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9.5)
+  doc.setTextColor(34, 34, 34)
+  const destText = doc.splitTextToSize(quotation.destination || 'As requested', 50)
+  doc.text(destText, rightValueX, rowY)
 
   currentY += cardHeight + 5
 
-  // 3. Compact Vehicle Table
+  // 3. Vehicle Table
   const tableHead = [['#', 'Description', 'Days', 'Rate (LKR)', 'Amount (LKR)']]
   const tableRows = (quotation.items || []).map((item: any, idx: number) => [
     idx + 1,
@@ -130,8 +138,8 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
     head: tableHead,
     body: tableRows,
     margin: { left: A4_MARGINS.left, right: 210 - A4_MARGINS.right },
-    styles: { fontSize: 8, cellPadding: 1.5, textColor: [15, 23, 42] },
-    headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    styles: { fontSize: 8.5, cellPadding: 2, textColor: [34, 34, 34] },
+    headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
     alternateRowStyles: { fillColor: [248, 250, 252] },
     willDrawPage: (data) => {
       if (base64Letterhead && data.pageNumber > 1) {
@@ -140,116 +148,122 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
     },
   })
 
-  currentY = (doc as any).lastAutoTable.finalY + 4
+  currentY = (doc as any).lastAutoTable.finalY + 5
 
-  // 4. Compact Totals Block
-  const totalsX = A4_MARGINS.right - 65
-  doc.setFontSize(8)
+  // 4. Structured Totals Block (Right Aligned Card with 14pt Bold Amber Grand Total)
+  const totalsCardWidth = 80
+  const totalsX = A4_MARGINS.right - totalsCardWidth
+  doc.setFontSize(9.5)
 
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(15, 23, 42)
+  doc.setTextColor(34, 34, 34)
   doc.text('Subtotal:', totalsX, currentY)
   doc.text(`LKR ${Number(quotation.subtotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
-  currentY += 4
+  currentY += 4.5
 
   if (Number(quotation.discount_amount) > 0) {
     doc.text('Discount:', totalsX, currentY)
     doc.text(`- LKR ${Number(quotation.discount_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
-    currentY += 4
+    currentY += 4.5
   }
 
   if (Number(quotation.refundable_deposit) > 0) {
     doc.text('Refundable Deposit:', totalsX, currentY)
     doc.text(`+ LKR ${Number(quotation.refundable_deposit).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
-    currentY += 4
+    currentY += 4.5
   }
 
+  // Divider line above Grand Total
+  doc.setDrawColor(203, 213, 225)
+  doc.line(totalsX, currentY, A4_MARGINS.right, currentY)
+  currentY += 5
+
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.setTextColor(217, 119, 6) // Amber
+  doc.setFontSize(14) // Prominent 14pt Bold
+  doc.setTextColor(217, 119, 6) // Amber #D97706
   doc.text('GRAND TOTAL:', totalsX, currentY)
   doc.text(`LKR ${Number(quotation.grand_total).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
 
-  currentY += 6
+  currentY += 7
 
-  // 5. SPECIAL NOTES (Compact line height)
+  // 5. SPECIAL NOTES (9pt Bold Heading, 8.5pt Body, 4mm Line Height)
   const specialNotesText = normalizeNewlines(quotation.special_notes)
   if (specialNotesText.trim()) {
     const splitNotes = doc.splitTextToSize(specialNotesText, A4_MARGINS.width)
-    const requiredH = splitNotes.length * 3.5 + 6
+    const requiredH = splitNotes.length * 4 + 7
     ensureSpace(requiredH)
 
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(15, 23, 42)
+    doc.setFontSize(9)
+    doc.setTextColor(17, 17, 17)
     doc.text('SPECIAL NOTES', A4_MARGINS.left, currentY)
-    currentY += 3.5
+    currentY += 4.5
 
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.5)
-    doc.setTextColor(71, 85, 105)
+    doc.setFontSize(8.5)
+    doc.setTextColor(51, 65, 85) // Slate-700
     doc.text(splitNotes, A4_MARGINS.left, currentY)
-    currentY += splitNotes.length * 3.5 + 4
+    currentY += splitNotes.length * 4 + 4
   }
 
-  // 6. IMPORTANT (Compact message box)
+  // 6. IMPORTANT (9pt Bold Heading, 8.5pt Body in Amber Box with Generous Padding)
   const importantMsg = normalizeNewlines(quotation.important_message)
   if (importantMsg.trim()) {
-    const splitMsg = doc.splitTextToSize(importantMsg, A4_MARGINS.width - 6)
-    const boxHeight = Math.max(8, splitMsg.length * 3.5 + 4)
-    ensureSpace(boxHeight + 6)
+    const splitMsg = doc.splitTextToSize(importantMsg, A4_MARGINS.width - 8)
+    const boxHeight = Math.max(10, splitMsg.length * 4 + 6)
+    ensureSpace(boxHeight + 7)
 
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
+    doc.setFontSize(9)
     doc.setTextColor(180, 83, 9)
     doc.text('IMPORTANT', A4_MARGINS.left, currentY)
-    currentY += 3.5
+    currentY += 4.5
 
-    doc.setFillColor(254, 243, 199)
-    doc.setDrawColor(245, 158, 11)
-    doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, boxHeight, 1.5, 1.5, 'FD')
+    doc.setFillColor(254, 243, 199) // Amber-100
+    doc.setDrawColor(245, 158, 11) // Amber-500
+    doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, boxHeight, 2, 2, 'FD')
 
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.5)
+    doc.setFontSize(8.5)
     doc.setTextColor(120, 53, 15)
-    doc.text(splitMsg, A4_MARGINS.left + 3, currentY + 4)
-    currentY += boxHeight + 4
+    doc.text(splitMsg, A4_MARGINS.left + 4, currentY + 4.5)
+    currentY += boxHeight + 5
   }
 
-  // 7. BANK DETAILS BOX (Compact 90mm Width Box)
+  // 7. BANK DETAILS BOX (10pt Heading, 8.5pt Labels/Values, Clean Alignment)
   const bankAccName = quotation.bank_account_name_snapshot || companySettings?.bank_account_name || 'Thennakoon Tours (Pvt) Ltd'
   const bankName = quotation.bank_name_snapshot || companySettings?.bank_name || 'Nations Trust Bank'
   const bankBranch = quotation.bank_branch_snapshot || companySettings?.bank_branch || 'Nugegoda'
   const bankAccNum = quotation.bank_account_number_snapshot || companySettings?.bank_account_number || '100530013140'
   const bankSwift = quotation.bank_swift_code_snapshot || companySettings?.bank_swift_code || 'NTBCLKLX'
 
-  const bankBoxWidth = 90 // Compact width (90mm out of 180mm)
-  const bankBoxHeight = 22
+  const bankBoxWidth = 95 // 95mm wide box
+  const bankBoxHeight = 25
   ensureSpace(bankBoxHeight + 25)
 
   const bankBoxStartY = currentY
   doc.setFillColor(248, 250, 252) // Slate-50
   doc.setDrawColor(203, 213, 225) // Slate-300
-  doc.roundedRect(A4_MARGINS.left, bankBoxStartY, bankBoxWidth, bankBoxHeight, 1.5, 1.5, 'FD')
+  doc.roundedRect(A4_MARGINS.left, bankBoxStartY, bankBoxWidth, bankBoxHeight, 2, 2, 'FD')
 
-  let bY = bankBoxStartY + 4.5
+  let bY = bankBoxStartY + 5
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(15, 23, 42)
+  doc.setFontSize(10)
+  doc.setTextColor(17, 17, 17)
   doc.text('BANK DETAILS', A4_MARGINS.left + 4, bY)
 
-  bY += 3.8
+  bY += 4.2
   const renderBankRow = (label: string, value: string, isBoldValue = false) => {
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7.5)
-    doc.setTextColor(100, 116, 139)
+    doc.setFontSize(8.5)
+    doc.setTextColor(71, 85, 105)
     doc.text(label, A4_MARGINS.left + 4, bY)
 
     doc.setFont('helvetica', isBoldValue ? 'bold' : 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(15, 23, 42)
-    doc.text(value, A4_MARGINS.left + 27, bY)
-    bY += 3.5
+    doc.setFontSize(8.5)
+    doc.setTextColor(34, 34, 34)
+    doc.text(value, A4_MARGINS.left + 30, bY)
+    bY += 3.8
   }
 
   renderBankRow('Account Name:', bankAccName)
@@ -258,32 +272,32 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   renderBankRow('Branch:', bankBranch)
   renderBankRow('Swift Code:', bankSwift)
 
-  currentY = bankBoxStartY + bankBoxHeight + 3
+  currentY = bankBoxStartY + bankBoxHeight + 4
 
-  // 8. PREPARED BY BLOCK (Text-Only, NO SIGNATURE LINE OR BLANK AREA)
+  // 8. PREPARED BY BLOCK (9pt Heading, 10pt Bold Name, Text-Only - NO SIGNATURE LINE)
   const prepName = quotation.prepared_by_name_snapshot || 'Authorized Officer'
   const prepDesignation = quotation.prepared_by_designation_snapshot || 'Admin & Marketing Assistant'
   const companyName = quotation.company_name_snapshot || 'Thennakoon Tours (Pvt) Ltd'
 
   const prepX = A4_MARGINS.left + 4
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(100, 116, 139)
+  doc.setFontSize(9)
+  doc.setTextColor(71, 85, 105)
   doc.text('Prepared By:', prepX, currentY)
-  currentY += 3.5
+  currentY += 4.2
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(15, 23, 42)
+  doc.setFontSize(10)
+  doc.setTextColor(17, 17, 17)
   doc.text(prepName, prepX, currentY)
 
-  currentY += 3.5
+  currentY += 3.8
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
+  doc.setFontSize(8.5)
   doc.setTextColor(71, 85, 105)
   doc.text(prepDesignation, prepX, currentY)
 
-  currentY += 3.5
+  currentY += 3.8
   doc.text(companyName, prepX, currentY)
 
   return doc
