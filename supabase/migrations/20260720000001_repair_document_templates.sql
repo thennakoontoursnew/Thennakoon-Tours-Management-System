@@ -1,5 +1,5 @@
 -- Migration: 20260720000001_repair_document_templates.sql
--- Description: Corrective migration for document_templates schema, display_name column, idempotent DO NOTHING seeding, and schema-cache reload.
+-- Description: Strict schema-first execution order for document_templates, ensuring all 19 columns exist before RLS policies, triggers, or seeding.
 
 -- 1. Ensure public.set_current_timestamp_updated_at function exists with explicit search_path
 CREATE OR REPLACE FUNCTION public.set_current_timestamp_updated_at()
@@ -14,7 +14,7 @@ BEGIN
 END;
 $$;
 
--- 2. Create public.document_templates Table if Not Exists
+-- 2. Create public.document_templates Table IF NOT EXISTS
 CREATE TABLE IF NOT EXISTS public.document_templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_type TEXT NOT NULL UNIQUE CHECK (document_type IN ('quotation', 'invoice', 'receipt', 'rental_agreement')),
@@ -31,16 +31,82 @@ CREATE TABLE IF NOT EXISTS public.document_templates (
     company_name TEXT,
     default_terms_and_conditions TEXT,
     is_active BOOLEAN NOT NULL DEFAULT true,
-    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
-    updated_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    created_by UUID,
+    updated_by UUID,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 3. Safely Add display_name Column IF NOT EXISTS to Existing Tables
-ALTER TABLE IF EXISTS public.document_templates ADD COLUMN IF NOT EXISTS display_name TEXT;
+-- 3. Comprehensive Repair Pattern: Guarantee Every Single Column Exists BEFORE Any Seed or Policy
+ALTER TABLE public.document_templates
+    ADD COLUMN IF NOT EXISTS display_name TEXT,
+    ADD COLUMN IF NOT EXISTS special_notes TEXT,
+    ADD COLUMN IF NOT EXISTS important_message TEXT,
+    ADD COLUMN IF NOT EXISTS bank_account_name TEXT,
+    ADD COLUMN IF NOT EXISTS bank_name TEXT,
+    ADD COLUMN IF NOT EXISTS bank_branch TEXT,
+    ADD COLUMN IF NOT EXISTS bank_account_number TEXT,
+    ADD COLUMN IF NOT EXISTS bank_swift_code TEXT,
+    ADD COLUMN IF NOT EXISTS payment_instructions TEXT,
+    ADD COLUMN IF NOT EXISTS prepared_by_designation TEXT,
+    ADD COLUMN IF NOT EXISTS company_name TEXT,
+    ADD COLUMN IF NOT EXISTS default_terms_and_conditions TEXT,
+    ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true,
+    ADD COLUMN IF NOT EXISTS created_by UUID,
+    ADD COLUMN IF NOT EXISTS updated_by UUID,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
--- 4. Idempotent Default Document Templates Seed (DO NOTHING ON CONFLICT to preserve owner edits)
+-- 4. Add Foreign Keys Safely IF NOT EXISTS
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'document_templates_created_by_fkey'
+        AND table_name = 'document_templates'
+    ) THEN
+        ALTER TABLE public.document_templates
+        ADD CONSTRAINT document_templates_created_by_fkey
+        FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'document_templates_updated_by_fkey'
+        AND table_name = 'document_templates'
+    ) THEN
+        ALTER TABLE public.document_templates
+        ADD CONSTRAINT document_templates_updated_by_fkey
+        FOREIGN KEY (updated_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+    END IF;
+END $$;
+
+-- 5. Updated At Trigger & RLS Policies
+DROP TRIGGER IF EXISTS set_document_templates_updated_at ON public.document_templates;
+CREATE TRIGGER set_document_templates_updated_at BEFORE UPDATE ON public.document_templates FOR EACH ROW EXECUTE FUNCTION public.set_current_timestamp_updated_at();
+
+ALTER TABLE public.document_templates ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Document templates select policy" ON public.document_templates;
+CREATE POLICY "Document templates select policy" ON public.document_templates
+    FOR SELECT
+    TO authenticated
+    USING (public.is_user_active(auth.uid()));
+
+DROP POLICY IF EXISTS "Document templates write policy" ON public.document_templates;
+CREATE POLICY "Document templates write policy" ON public.document_templates
+    FOR ALL
+    TO authenticated
+    USING (
+        public.is_user_active(auth.uid()) AND
+        public.get_user_role(auth.uid()) IN ('owner', 'admin', 'manager')
+    )
+    WITH CHECK (
+        public.is_user_active(auth.uid()) AND
+        public.get_user_role(auth.uid()) IN ('owner', 'admin', 'manager')
+    );
+
+-- 6. Seed Default Document Templates (ONLY AFTER Complete Schema Guarantee, ON CONFLICT DO NOTHING)
 INSERT INTO public.document_templates (
     document_type,
     display_name,
@@ -124,34 +190,7 @@ INSERT INTO public.document_templates (
     'Standard Thennakoon Tours vehicle rental agreement terms apply.',
     true
 )
-ON CONFLICT (document_type) DO UPDATE SET
-    display_name = COALESCE(document_templates.display_name, EXCLUDED.display_name);
-
--- 5. Updated At Trigger
-DROP TRIGGER IF EXISTS set_document_templates_updated_at ON public.document_templates;
-CREATE TRIGGER set_document_templates_updated_at BEFORE UPDATE ON public.document_templates FOR EACH ROW EXECUTE FUNCTION public.set_current_timestamp_updated_at();
-
--- 6. Row Level Security Policies
-ALTER TABLE public.document_templates ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Document templates select policy" ON public.document_templates;
-CREATE POLICY "Document templates select policy" ON public.document_templates
-    FOR SELECT
-    TO authenticated
-    USING (public.is_user_active(auth.uid()));
-
-DROP POLICY IF EXISTS "Document templates write policy" ON public.document_templates;
-CREATE POLICY "Document templates write policy" ON public.document_templates
-    FOR ALL
-    TO authenticated
-    USING (
-        public.is_user_active(auth.uid()) AND
-        public.get_user_role(auth.uid()) IN ('owner', 'admin', 'manager')
-    )
-    WITH CHECK (
-        public.is_user_active(auth.uid()) AND
-        public.get_user_role(auth.uid()) IN ('owner', 'admin', 'manager')
-    );
+ON CONFLICT (document_type) DO NOTHING;
 
 -- 7. Broadcast Schema Cache Reload Notification to PostgREST
 NOTIFY pgrst, 'reload schema';
