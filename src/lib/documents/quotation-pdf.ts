@@ -6,7 +6,7 @@ export async function generateQuotationPDF(quotation: any, companySettings: any)
 
   let currentY = A4_MARGINS.top
 
-  // Header Title & Document Number
+  // Header Title & Document Reference
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(18)
   doc.setTextColor(245, 158, 11) // Amber header
@@ -31,7 +31,7 @@ export async function generateQuotationPDF(quotation: any, companySettings: any)
 
   currentY += 8
 
-  // Customer Details Box
+  // 1. Customer Section
   const customer = quotation.customer || {}
   doc.setFillColor(248, 250, 252) // Slate-50 background box
   doc.setDrawColor(226, 232, 240)
@@ -62,7 +62,7 @@ export async function generateQuotationPDF(quotation: any, companySettings: any)
 
   currentY += 28
 
-  // Items Table
+  // 2. Vehicle Table
   const tableHead = [['#', 'Description', 'Days', 'Rate (LKR)', 'Amount (LKR)']]
   const tableRows = (quotation.items || []).map((item: any, idx: number) => [
     idx + 1,
@@ -84,7 +84,7 @@ export async function generateQuotationPDF(quotation: any, companySettings: any)
 
   currentY = (doc as any).lastAutoTable.finalY + 6
 
-  // Totals Summary Box
+  // 3. Totals Section
   const totalsX = A4_MARGINS.right - 70
   doc.setFontSize(8.5)
 
@@ -113,39 +113,81 @@ export async function generateQuotationPDF(quotation: any, companySettings: any)
 
   currentY += 10
 
-  // Bank Details Box
+  // 4. Special Notes
+  const specialNotesText = quotation.special_notes || ''
+  if (specialNotesText.trim()) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8.5)
+    doc.setTextColor(15, 23, 42)
+    doc.text('SPECIAL NOTES:', A4_MARGINS.left, currentY)
+    currentY += 4
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(71, 85, 105)
+    const splitNotes = doc.splitTextToSize(specialNotesText, A4_MARGINS.width)
+    doc.text(splitNotes, A4_MARGINS.left, currentY)
+    currentY += splitNotes.length * 4 + 4
+  }
+
+  // 5. Important Message
+  const importantMsg = quotation.important_message || ''
+  if (importantMsg.trim()) {
+    doc.setFillColor(254, 243, 199) // Light amber highlight box
+    doc.setDrawColor(245, 158, 11)
+    doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, 10, 1.5, 1.5, 'FD')
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(180, 83, 9) // Dark amber text
+    doc.text(importantMsg, A4_MARGINS.left + 4, currentY + 6)
+    currentY += 14
+  }
+
+  // 6. Bank Details (Using saved snapshot)
+  const bank = quotation.bank_details_snapshot || companySettings?.bank_details || {
+    bank_name: companySettings?.bank_name || 'Bank of Ceylon',
+    bank_branch: companySettings?.bank_branch || 'Colombo Super Grade',
+    bank_account_name: companySettings?.bank_account_name || 'Thennakoon Tours (Pvt) Ltd',
+    bank_account_number: companySettings?.bank_account_number || '000123456789',
+    bank_swift_code: companySettings?.bank_swift_code || 'BCEYLKLX',
+  }
+
   doc.setFillColor(241, 245, 249)
-  doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, 22, 2, 2, 'F')
+  doc.setDrawColor(226, 232, 240)
+  doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, 20, 2, 2, 'FD')
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.5)
   doc.setTextColor(15, 23, 42)
-  doc.text('BANK TRANSFER INSTRUCTIONS:', A4_MARGINS.left + 4, currentY + 5)
+  doc.text('BANK PAYMENT INSTRUCTIONS:', A4_MARGINS.left + 4, currentY + 5)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(51, 65, 85)
-  doc.text(`Account Name: ${companySettings?.bank_account_name || 'Thennakoon Tours (Pvt) Ltd'}`, A4_MARGINS.left + 4, currentY + 10)
-  doc.text(`Bank: ${companySettings?.bank_name || 'Nations Trust Bank'} (${companySettings?.bank_branch || 'Nugegoda'})`, A4_MARGINS.left + 4, currentY + 14)
-  doc.text(`Account No: ${companySettings?.bank_account_number || '100-200-300400'}  |  SWIFT: ${companySettings?.bank_swift_code || 'NTBKLKLX'}`, A4_MARGINS.left + 4, currentY + 18)
+  doc.text(`Account Name: ${bank.bank_account_name || 'Thennakoon Tours (Pvt) Ltd'}`, A4_MARGINS.left + 4, currentY + 10)
+  doc.text(`Bank: ${bank.bank_name || 'Bank of Ceylon'} (${bank.bank_branch || 'Colombo Super Grade'})`, A4_MARGINS.left + 4, currentY + 14)
+  doc.text(`Account No: ${bank.bank_account_number || '000123456789'}  |  SWIFT: ${bank.bank_swift_code || 'BCEYLKLX'}`, A4_MARGINS.left + 4, currentY + 18)
 
   currentY += 26
 
-  // Special Notes & Terms
-  if (quotation.special_notes || companySettings?.default_quotation_terms) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-    doc.setTextColor(15, 23, 42)
-    doc.text('TERMS & CONDITIONS:', A4_MARGINS.left, currentY)
-    currentY += 4
+  // 7. Prepared By Block
+  const prepLabel = quotation.prepared_by_label_snapshot || 'Authorized Reservation Officer'
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(100, 116, 139)
 
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.5)
-    doc.setTextColor(71, 85, 105)
-    const terms = quotation.terms_and_conditions || companySettings?.default_quotation_terms || ''
-    const splitTerms = doc.splitTextToSize(terms, A4_MARGINS.width)
-    doc.text(splitTerms, A4_MARGINS.left, currentY)
-  }
+  const prepX = A4_MARGINS.right - 60
+  doc.line(prepX, currentY, A4_MARGINS.right, currentY) // Signature line
+  currentY += 4
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(15, 23, 42)
+  doc.text(prepLabel, prepX + 30, currentY, { align: 'center' })
+  currentY += 3.5
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.setTextColor(100, 116, 139)
+  doc.text('Thennakoon Tours (Pvt) Ltd', prepX + 30, currentY, { align: 'center' })
 
   // Draw Full-Page A4 Letterhead Background Image
   drawLetterheadBackground(doc, base64Letterhead)

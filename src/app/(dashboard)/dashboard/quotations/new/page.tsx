@@ -16,9 +16,15 @@ export default async function NewQuotationPage() {
     .eq('is_archived', false)
     .order('vehicle_name')
 
+  const { data: template } = await supabase
+    .from('document_templates')
+    .select('*')
+    .eq('document_type', 'quotation')
+    .single()
+
   return (
     <div className="max-w-5xl mx-auto">
-      <NewQuotationForm customers={customers || []} vehicles={vehicles || []} />
+      <NewQuotationForm customers={customers || []} vehicles={vehicles || []} template={template} />
     </div>
   )
 }

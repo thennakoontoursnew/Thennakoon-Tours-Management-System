@@ -94,7 +94,29 @@ export async function generateInvoicePDF(invoice: any, companySettings: any) {
 
   currentY += 10
 
-  // Bank Details Box
+  // Important Message
+  const importantMsg = invoice.important_message || ''
+  if (importantMsg.trim()) {
+    doc.setFillColor(254, 243, 199)
+    doc.setDrawColor(245, 158, 11)
+    doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, 10, 1.5, 1.5, 'FD')
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(180, 83, 9)
+    doc.text(importantMsg, A4_MARGINS.left + 4, currentY + 6)
+    currentY += 14
+  }
+
+  // Bank Details Box (Using snapshot)
+  const bank = invoice.bank_details_snapshot || companySettings?.bank_details || {
+    bank_name: companySettings?.bank_name || 'Bank of Ceylon',
+    bank_branch: companySettings?.bank_branch || 'Colombo Super Grade',
+    bank_account_name: companySettings?.bank_account_name || 'Thennakoon Tours (Pvt) Ltd',
+    bank_account_number: companySettings?.bank_account_number || '000123456789',
+    bank_swift_code: companySettings?.bank_swift_code || 'BCEYLKLX',
+  }
+
   doc.setFillColor(241, 245, 249)
   doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, 20, 2, 2, 'F')
 
@@ -106,8 +128,20 @@ export async function generateInvoicePDF(invoice: any, companySettings: any) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(51, 65, 85)
-  doc.text(`Bank: ${companySettings?.bank_name || 'Nations Trust Bank'} (${companySettings?.bank_branch || 'Nugegoda'})`, A4_MARGINS.left + 4, currentY + 10)
-  doc.text(`Account No: ${companySettings?.bank_account_number || '100-200-300400'}  |  Name: ${companySettings?.bank_account_name || 'Thennakoon Tours (Pvt) Ltd'}`, A4_MARGINS.left + 4, currentY + 14)
+  doc.text(`Bank: ${bank.bank_name || 'Bank of Ceylon'} (${bank.bank_branch || 'Colombo Super Grade'})`, A4_MARGINS.left + 4, currentY + 10)
+  doc.text(`Account No: ${bank.bank_account_number || '000123456789'}  |  Name: ${bank.bank_account_name || 'Thennakoon Tours (Pvt) Ltd'}`, A4_MARGINS.left + 4, currentY + 14)
+
+  currentY += 26
+
+  // Prepared By Signature Block
+  const prepLabel = invoice.prepared_by_label_snapshot || 'Accounts Manager'
+  const prepX = A4_MARGINS.right - 60
+  doc.line(prepX, currentY, A4_MARGINS.right, currentY)
+  currentY += 4
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  doc.setTextColor(15, 23, 42)
+  doc.text(prepLabel, prepX + 30, currentY, { align: 'center' })
 
   // Draw Full-Page A4 Letterhead Background Image
   drawLetterheadBackground(doc, base64Letterhead)
