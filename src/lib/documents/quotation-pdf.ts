@@ -1,12 +1,12 @@
 import { jsPDF, autoTable, getLetterheadBase64, drawLetterheadBackground, A4_MARGINS } from './pdf-engine'
 
-export async function generateQuotationPDF(quotation: any, companySettings: any) {
+export async function generateQuotationPDF(quotation: any, companySettings?: any) {
   const doc = new jsPDF('p', 'mm', 'a4')
   const base64Letterhead = await getLetterheadBase64()
 
   let currentY = A4_MARGINS.top
 
-  // Header Title & Document Reference
+  // Document Title & Reference
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(18)
   doc.setTextColor(245, 158, 11) // Amber header
@@ -18,12 +18,12 @@ export async function generateQuotationPDF(quotation: any, companySettings: any)
 
   currentY += 6
 
-  // Date & Validity
+  // 1. Customer & Rental Date Information
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.text(`Date: ${quotation.quotation_date}`, A4_MARGINS.left, currentY)
   doc.text(
-    `Valid Until: ${quotation.valid_until ? new Date(quotation.valid_until).toLocaleDateString() : '7 Days from Issue'}`,
+    `Valid Until: ${quotation.valid_until ? new Date(quotation.valid_until).toLocaleDateString() : '24 Hours from Issue'}`,
     A4_MARGINS.right,
     currentY,
     { align: 'right' }
@@ -31,7 +31,7 @@ export async function generateQuotationPDF(quotation: any, companySettings: any)
 
   currentY += 8
 
-  // 1. Customer Section
+  // Customer Details Box
   const customer = quotation.customer || {}
   doc.setFillColor(248, 250, 252) // Slate-50 background box
   doc.setDrawColor(226, 232, 240)
@@ -62,7 +62,7 @@ export async function generateQuotationPDF(quotation: any, companySettings: any)
 
   currentY += 28
 
-  // 2. Vehicle Table
+  // 3. Vehicle Table
   const tableHead = [['#', 'Description', 'Days', 'Rate (LKR)', 'Amount (LKR)']]
   const tableRows = (quotation.items || []).map((item: any, idx: number) => [
     idx + 1,
@@ -84,7 +84,7 @@ export async function generateQuotationPDF(quotation: any, companySettings: any)
 
   currentY = (doc as any).lastAutoTable.finalY + 6
 
-  // 3. Totals Section
+  // 4. Refundable Deposit and Totals
   const totalsX = A4_MARGINS.right - 70
   doc.setFontSize(8.5)
 
@@ -113,81 +113,100 @@ export async function generateQuotationPDF(quotation: any, companySettings: any)
 
   currentY += 10
 
-  // 4. Special Notes
+  // 5. SPECIAL NOTES
   const specialNotesText = quotation.special_notes || ''
   if (specialNotesText.trim()) {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8.5)
     doc.setTextColor(15, 23, 42)
-    doc.text('SPECIAL NOTES:', A4_MARGINS.left, currentY)
+    doc.text('SPECIAL NOTES', A4_MARGINS.left, currentY)
     currentY += 4
 
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
+    doc.setFontSize(7.5)
     doc.setTextColor(71, 85, 105)
     const splitNotes = doc.splitTextToSize(specialNotesText, A4_MARGINS.width)
     doc.text(splitNotes, A4_MARGINS.left, currentY)
-    currentY += splitNotes.length * 4 + 4
+    currentY += splitNotes.length * 3.8 + 4
   }
 
-  // 5. Important Message
+  // 6. IMPORTANT
   const importantMsg = quotation.important_message || ''
   if (importantMsg.trim()) {
-    doc.setFillColor(254, 243, 199) // Light amber highlight box
-    doc.setDrawColor(245, 158, 11)
-    doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, 10, 1.5, 1.5, 'FD')
-
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-    doc.setTextColor(180, 83, 9) // Dark amber text
-    doc.text(importantMsg, A4_MARGINS.left + 4, currentY + 6)
-    currentY += 14
+    doc.setFontSize(8.5)
+    doc.setTextColor(180, 83, 9)
+    doc.text('IMPORTANT', A4_MARGINS.left, currentY)
+    currentY += 4
+
+    const splitMsg = doc.splitTextToSize(importantMsg, A4_MARGINS.width - 8)
+    const boxHeight = Math.max(10, splitMsg.length * 3.8 + 5)
+
+    doc.setFillColor(254, 243, 199)
+    doc.setDrawColor(245, 158, 11)
+    doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, boxHeight, 1.5, 1.5, 'FD')
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.setTextColor(120, 53, 15)
+    doc.text(splitMsg, A4_MARGINS.left + 4, currentY + 4.5)
+    currentY += boxHeight + 6
   }
 
-  // 6. Bank Details (Using saved snapshot)
-  const bank = quotation.bank_details_snapshot || companySettings?.bank_details || {
-    bank_name: companySettings?.bank_name || 'Bank of Ceylon',
-    bank_branch: companySettings?.bank_branch || 'Colombo Super Grade',
-    bank_account_name: companySettings?.bank_account_name || 'Thennakoon Tours (Pvt) Ltd',
-    bank_account_number: companySettings?.bank_account_number || '000123456789',
-    bank_swift_code: companySettings?.bank_swift_code || 'BCEYLKLX',
-  }
+  // 7. BANK DETAILS (Read strictly from saved snapshot columns)
+  const bankAccName = quotation.bank_account_name_snapshot || companySettings?.bank_account_name || 'Thennakoon Tours (Pvt) Ltd'
+  const bankName = quotation.bank_name_snapshot || companySettings?.bank_name || 'Nations Trust Bank'
+  const bankBranch = quotation.bank_branch_snapshot || companySettings?.bank_branch || 'Nugegoda'
+  const bankAccNum = quotation.bank_account_number_snapshot || companySettings?.bank_account_number || '100530013140'
+  const bankSwift = quotation.bank_swift_code_snapshot || companySettings?.bank_swift_code || 'NTBCLKLX'
+  const paymentInstructions = quotation.payment_instructions_snapshot || ''
 
   doc.setFillColor(241, 245, 249)
   doc.setDrawColor(226, 232, 240)
-  doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, 20, 2, 2, 'FD')
+  doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, 22, 2, 2, 'FD')
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.5)
   doc.setTextColor(15, 23, 42)
-  doc.text('BANK PAYMENT INSTRUCTIONS:', A4_MARGINS.left + 4, currentY + 5)
+  doc.text('BANK DETAILS', A4_MARGINS.left + 4, currentY + 5)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(51, 65, 85)
-  doc.text(`Account Name: ${bank.bank_account_name || 'Thennakoon Tours (Pvt) Ltd'}`, A4_MARGINS.left + 4, currentY + 10)
-  doc.text(`Bank: ${bank.bank_name || 'Bank of Ceylon'} (${bank.bank_branch || 'Colombo Super Grade'})`, A4_MARGINS.left + 4, currentY + 14)
-  doc.text(`Account No: ${bank.bank_account_number || '000123456789'}  |  SWIFT: ${bank.bank_swift_code || 'BCEYLKLX'}`, A4_MARGINS.left + 4, currentY + 18)
+  doc.text(`Account Name: ${bankAccName}`, A4_MARGINS.left + 4, currentY + 10)
+  doc.text(`Bank: ${bankName} (${bankBranch})`, A4_MARGINS.left + 4, currentY + 14)
+  doc.text(`Account No: ${bankAccNum}  |  SWIFT Code: ${bankSwift}`, A4_MARGINS.left + 4, currentY + 18)
 
-  currentY += 26
+  if (paymentInstructions.trim()) {
+    currentY += 24
+    doc.setFont('helvetica', 'italic')
+    doc.setFontSize(7.5)
+    doc.setTextColor(100, 116, 139)
+    doc.text(`Payment Note: ${paymentInstructions}`, A4_MARGINS.left, currentY)
+    currentY += 4
+  } else {
+    currentY += 26
+  }
 
-  // 7. Prepared By Block
-  const prepLabel = quotation.prepared_by_label_snapshot || 'Authorized Reservation Officer'
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(100, 116, 139)
+  // 8. Prepared By Block (Read strictly from saved snapshot columns)
+  const prepName = quotation.prepared_by_name_snapshot || 'Authorized Officer'
+  const prepDesignation = quotation.prepared_by_designation_snapshot || 'Admin & Marketing Assistant'
+  const companyName = quotation.company_name_snapshot || 'Thennakoon Tours (Pvt) Ltd'
 
-  const prepX = A4_MARGINS.right - 60
+  const prepX = A4_MARGINS.right - 65
   doc.line(prepX, currentY, A4_MARGINS.right, currentY) // Signature line
-  currentY += 4
+  currentY += 4.5
   doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8.5)
   doc.setTextColor(15, 23, 42)
-  doc.text(prepLabel, prepX + 30, currentY, { align: 'center' })
-  currentY += 3.5
+  doc.text(prepName, prepX + 32.5, currentY, { align: 'center' })
+  currentY += 3.8
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
-  doc.setTextColor(100, 116, 139)
-  doc.text('Thennakoon Tours (Pvt) Ltd', prepX + 30, currentY, { align: 'center' })
+  doc.setTextColor(71, 85, 105)
+  doc.text(prepDesignation, prepX + 32.5, currentY, { align: 'center' })
+  currentY += 3.5
+  doc.text(companyName, prepX + 32.5, currentY, { align: 'center' })
 
   // Draw Full-Page A4 Letterhead Background Image
   drawLetterheadBackground(doc, base64Letterhead)

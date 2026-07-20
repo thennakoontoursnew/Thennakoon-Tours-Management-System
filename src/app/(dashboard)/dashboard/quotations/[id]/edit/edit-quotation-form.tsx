@@ -3,66 +3,65 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createQuotation } from '../quotation-actions'
+import { updateQuotation } from '../../quotation-actions'
 import { ArrowLeft, Save, Plus, Trash2, AlertCircle, FileText, Building2, User, Info } from 'lucide-react'
 
 interface Props {
+  quotation: any
   customers: any[]
   vehicles: any[]
-  template?: any
-  userProfile?: any
 }
 
-export default function NewQuotationForm({ customers, vehicles, template, userProfile }: Props) {
+export default function EditQuotationForm({ quotation, customers, vehicles }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
-    customer_id: '',
-    quotation_date: new Date().toISOString().split('T')[0],
-    rental_start_date: new Date().toISOString().split('T')[0],
-    rental_end_date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-    pickup_location: '',
-    dropoff_location: '',
-    destination: '',
-    passenger_count: 1,
-    purpose: '',
-    discount_type: 'none',
-    discount_value: 0,
-    tax_rate: 0,
-    refundable_deposit: 0,
-    additional_charges: 0,
-    notes: '',
-    // 12 Snapshot Fields
-    special_notes: template?.special_notes || '• 700km allowed.\n• This quotation is valid for 24 hours only.\n• Vehicles are subject to availability.',
-    important_message: template?.important_message || 'Please find the account details below. Kindly ensure payment is made on or before due date.',
-    bank_account_name_snapshot: template?.bank_account_name || 'Thennakoon Tours (Pvt) Ltd',
-    bank_name_snapshot: template?.bank_name || 'Nations Trust Bank',
-    bank_branch_snapshot: template?.bank_branch || 'Nugegoda',
-    bank_account_number_snapshot: template?.bank_account_number || '100530013140',
-    bank_swift_code_snapshot: template?.bank_swift_code || 'NTBCLKLX',
-    payment_instructions_snapshot: template?.payment_instructions || 'Kindly ensure payment is completed on or before due date.',
-    prepared_by_name_snapshot: userProfile?.full_name || 'Authorized Officer',
-    prepared_by_designation_snapshot: template?.prepared_by_designation || 'Admin & Marketing Assistant',
-    company_name_snapshot: template?.company_name || 'Thennakoon Tours (Pvt) Ltd',
-    terms_and_conditions_snapshot: template?.default_terms_and_conditions || 'Standard Thennakoon Tours quotation terms apply.',
+    customer_id: quotation.customer_id || '',
+    quotation_date: quotation.quotation_date || new Date().toISOString().split('T')[0],
+    rental_start_date: quotation.rental_start_date || new Date().toISOString().split('T')[0],
+    rental_end_date: quotation.rental_end_date || new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    pickup_location: quotation.pickup_location || '',
+    dropoff_location: quotation.dropoff_location || '',
+    destination: quotation.destination || '',
+    passenger_count: quotation.passenger_count || 1,
+    purpose: quotation.purpose || '',
+    discount_type: quotation.discount_type || 'none',
+    discount_value: quotation.discount_value || 0,
+    tax_rate: quotation.tax_rate || 0,
+    refundable_deposit: quotation.refundable_deposit || 0,
+    additional_charges: quotation.additional_charges || 0,
+    notes: quotation.notes || '',
+    // 12 Saved Snapshot Fields directly from quotation record
+    special_notes: quotation.special_notes || '',
+    important_message: quotation.important_message || '',
+    bank_account_name_snapshot: quotation.bank_account_name_snapshot || '',
+    bank_name_snapshot: quotation.bank_name_snapshot || '',
+    bank_branch_snapshot: quotation.bank_branch_snapshot || '',
+    bank_account_number_snapshot: quotation.bank_account_number_snapshot || '',
+    bank_swift_code_snapshot: quotation.bank_swift_code_snapshot || '',
+    payment_instructions_snapshot: quotation.payment_instructions_snapshot || '',
+    prepared_by_name_snapshot: quotation.prepared_by_name_snapshot || '',
+    prepared_by_designation_snapshot: quotation.prepared_by_designation_snapshot || '',
+    company_name_snapshot: quotation.company_name_snapshot || '',
+    terms_and_conditions_snapshot: quotation.terms_and_conditions_snapshot || quotation.terms_and_conditions || '',
   })
 
-  const [items, setItems] = useState([
-    {
-      vehicle_id: '',
-      description: 'Vehicle Rental Service',
-      quantity: 1,
-      number_of_days: 1,
-      unit_rate: 0,
-      driver_charge: 0,
-      additional_charge: 0,
-      deposit_amount: 0,
-      allowed_km: 100,
-      extra_km_charge: 50,
-    },
-  ])
+  const [items, setItems] = useState<any[]>(
+    (quotation.items || []).map((it: any) => ({
+      vehicle_id: it.vehicle_id || '',
+      description: it.description || 'Vehicle Rental Service',
+      quantity: it.quantity || 1,
+      number_of_days: it.number_of_days || 1,
+      unit_rate: it.unit_rate || 0,
+      driver_charge: it.driver_charge || 0,
+      additional_charge: it.additional_charge || 0,
+      deposit_amount: it.deposit_amount || 0,
+      allowed_km: it.allowed_km || 100,
+      extra_km_charge: it.extra_km_charge || 50,
+    }))
+  )
 
   const handleVehicleSelect = (idx: number, vehicleId: string) => {
     const selected = vehicles.find((v) => v.id === vehicleId)
@@ -105,10 +104,6 @@ export default function NewQuotationForm({ customers, vehicles, template, userPr
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.customer_id) {
-      setError('Please select a customer.')
-      return
-    }
     setLoading(true)
     setError(null)
 
@@ -128,7 +123,7 @@ export default function NewQuotationForm({ customers, vehicles, template, userPr
       refundable_deposit: Number(formData.refundable_deposit),
       additional_charges: Number(formData.additional_charges),
       notes: formData.notes,
-      // 12 Snapshot Fields
+      // 12 Saved Snapshot Fields
       special_notes: formData.special_notes,
       important_message: formData.important_message,
       bank_account_name_snapshot: formData.bank_account_name_snapshot,
@@ -155,28 +150,28 @@ export default function NewQuotationForm({ customers, vehicles, template, userPr
       })),
     }
 
-    const res = await createQuotation(payload as any)
+    const res = await updateQuotation(quotation.id, payload as any)
     if (!res.success) {
-      setError(res.error || 'Failed to create quotation.')
+      setError(res.error || 'Failed to update quotation.')
       setLoading(false)
       return
     }
 
-    router.push(`/dashboard/quotations/${res.quotationId}`)
+    router.push(`/dashboard/quotations/${quotation.id}`)
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Link
-          href="/dashboard/quotations"
+          href={`/dashboard/quotations/${quotation.id}`}
           className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100"
         >
           <ArrowLeft size={18} />
         </Link>
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white">Create New Quotation</h1>
-          <p className="text-xs text-slate-500">Calculate rates, review pre-filled template snapshots, and generate official price quotes.</p>
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white">Edit Quotation ({quotation.quotation_number})</h1>
+          <p className="text-xs text-slate-500">Edit quotation details and instance snapshot fields.</p>
         </div>
       </div>
 
@@ -233,7 +228,7 @@ export default function NewQuotationForm({ customers, vehicles, template, userPr
           </div>
         </div>
 
-        {/* Section 2: Vehicle Items & Rates */}
+        {/* Section 2: Vehicle Line Items */}
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500">2. Vehicle Items & Rates</h3>
@@ -317,16 +312,16 @@ export default function NewQuotationForm({ customers, vehicles, template, userPr
           ))}
         </div>
 
-        {/* Section 3: Quotation Snapshot Customization (Pre-filled from Template & Logged-in User) */}
+        {/* Section 3: Saved Snapshot Fields */}
         <div className="space-y-4">
           <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-1.5">
             <FileText size={15} />
-            <span>3. Special Notes, Important Message & Bank Details</span>
+            <span>3. Saved Instance Snapshot Fields</span>
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Special Notes (Textarea)</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Special Notes</label>
               <textarea
                 rows={5}
                 value={formData.special_notes}
@@ -335,7 +330,7 @@ export default function NewQuotationForm({ customers, vehicles, template, userPr
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Important Message (Textarea)</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Important Message</label>
               <textarea
                 rows={5}
                 value={formData.important_message}
@@ -345,11 +340,10 @@ export default function NewQuotationForm({ customers, vehicles, template, userPr
             </div>
           </div>
 
-          {/* Bank Details Inputs */}
           <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 space-y-3">
             <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <Building2 size={14} className="text-amber-500" />
-              <span>Bank Payment Details</span>
+              <span>Saved Bank Payment Details Snapshot</span>
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
@@ -409,7 +403,6 @@ export default function NewQuotationForm({ customers, vehicles, template, userPr
             </div>
           </div>
 
-          {/* Section 4: Prepared By & Terms */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Prepared By Name</label>
@@ -439,22 +432,12 @@ export default function NewQuotationForm({ customers, vehicles, template, userPr
               />
             </div>
           </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Terms and Conditions (Textarea)</label>
-            <textarea
-              rows={3}
-              value={formData.terms_and_conditions_snapshot}
-              onChange={(e) => setFormData({ ...formData, terms_and_conditions_snapshot: e.target.value })}
-              className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
-            />
-          </div>
         </div>
 
         {/* Submit Bar */}
         <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
           <Link
-            href="/dashboard/quotations"
+            href={`/dashboard/quotations/${quotation.id}`}
             className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100"
           >
             Cancel
@@ -465,7 +448,7 @@ export default function NewQuotationForm({ customers, vehicles, template, userPr
             className="px-6 py-2.5 rounded-xl bg-amber-400 text-slate-950 text-xs font-bold hover:bg-amber-300 transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer"
           >
             <Save size={16} />
-            <span>{loading ? 'Creating...' : 'Generate Quotation'}</span>
+            <span>{loading ? 'Updating...' : 'Update Quotation'}</span>
           </button>
         </div>
       </form>

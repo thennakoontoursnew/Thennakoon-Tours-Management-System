@@ -1,15 +1,24 @@
 import { createClient } from '@/lib/supabase/server'
-import NewQuotationForm from './new-quotation-form'
-import { getDocumentTemplateByType } from '../../document-templates/template-actions'
+import { notFound } from 'next/navigation'
+import EditQuotationForm from './edit-quotation-form'
 
-export default async function NewQuotationPage() {
+interface PageProps {
+  params: Promise<{ id: string }>
+}
+
+export default async function EditQuotationPage({ params }: PageProps) {
+  const { id } = await params
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: quotation } = await supabase
+    .from('quotations')
+    .select('*, customer:customers(*), items:quotation_items(*)')
+    .eq('id', id)
+    .single()
 
-  const { data: userProfile } = user
-    ? await supabase.from('profiles').select('full_name').eq('id', user.id).single()
-    : { data: null }
+  if (!quotation) {
+    notFound()
+  }
 
   const { data: customers } = await supabase
     .from('customers')
@@ -23,16 +32,12 @@ export default async function NewQuotationPage() {
     .eq('is_archived', false)
     .order('vehicle_name')
 
-  const res = await getDocumentTemplateByType('quotation')
-  const template = res.template
-
   return (
     <div className="max-w-5xl mx-auto">
-      <NewQuotationForm
+      <EditQuotationForm
+        quotation={quotation}
         customers={customers || []}
         vehicles={vehicles || []}
-        template={template}
-        userProfile={userProfile}
       />
     </div>
   )

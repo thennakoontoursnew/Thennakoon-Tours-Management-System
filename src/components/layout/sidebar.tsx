@@ -193,7 +193,7 @@ export function Sidebar({ role, fullName, onLogout }: SidebarProps) {
           title: 'Document Templates',
           href: '/dashboard/document-templates',
           icon: FileSpreadsheet,
-          roles: ['owner', 'manager'],
+          roles: ['owner', 'admin', 'manager'],
         },
       ],
     },

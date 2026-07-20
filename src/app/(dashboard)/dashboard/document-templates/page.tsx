@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import TemplateForm from './template-form'
-import { FileSpreadsheet, Receipt, FileText, CheckCircle2, ShieldAlert } from 'lucide-react'
+import { getDocumentTemplateByType } from './template-actions'
+import { FileSpreadsheet, Receipt, FileText, CheckCircle2, ShieldAlert, Lock } from 'lucide-react'
 
 interface PageProps {
   searchParams: Promise<{ type?: string }>
@@ -11,12 +12,45 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
   const { type = 'quotation' } = await searchParams
   const supabase = await createClient()
 
-  const { data: templates } = await supabase
-    .from('document_templates')
-    .select('*')
-    .order('document_type')
+  // 1. Authenticated User & Profile Role Verification
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return (
+      <div className="p-8 text-center space-y-3 max-w-md mx-auto my-12 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+        <Lock size={36} className="mx-auto text-rose-500" />
+        <h2 className="text-base font-black text-slate-900 dark:text-white">Authentication Required</h2>
+        <p className="text-xs text-slate-500">Please sign in to access document template administration.</p>
+      </div>
+    )
+  }
 
-  const activeTemplate = templates?.find((t) => t.document_type === type) || templates?.[0]
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, is_active')
+    .eq('id', user.id)
+    .single()
+
+  const allowedRoles = ['owner', 'admin', 'manager']
+  const isAuthorized = profile && profile.is_active && allowedRoles.includes(profile.role)
+
+  if (!isAuthorized) {
+    return (
+      <div className="p-8 text-center space-y-3 max-w-md mx-auto my-12 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <Lock size={36} className="mx-auto text-rose-500" />
+        <h2 className="text-base font-black text-slate-900 dark:text-white">Access Denied</h2>
+        <p className="text-xs text-slate-500">Only Owner, Admin, or Manager roles are authorized to edit document templates.</p>
+        <div className="pt-2">
+          <Link href="/dashboard" className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800">
+            Return to Dashboard
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // 2. Fetch or Auto-Create Document Template
+  const res = await getDocumentTemplateByType(type)
+  const activeTemplate = res.template
 
   const tabs = [
     { type: 'quotation', label: 'Quotation Template', icon: FileSpreadsheet },
@@ -29,7 +63,7 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
     <div className="space-y-6 max-w-5xl mx-auto">
       <div>
         <h1 className="text-2xl font-black text-slate-900 dark:text-white">Document Templates</h1>
-        <p className="text-xs text-slate-500">Configure default special notes, messages, bank instructions, and prepared-by signatures.</p>
+        <p className="text-xs text-slate-500">Configure global default special notes, messages, bank instructions, and prepared-by signatures.</p>
       </div>
 
       {/* Tabs */}
@@ -62,11 +96,11 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
         </span>
       </div>
 
-      {/* Template Form */}
+      {/* Template Editor */}
       {activeTemplate ? (
         <TemplateForm key={activeTemplate.document_type} template={activeTemplate} />
       ) : (
-        <div className="p-8 text-center text-xs text-slate-400">Template not found.</div>
+        <div className="p-8 text-center text-xs text-rose-500">Failed to load template.</div>
       )}
     </div>
   )
