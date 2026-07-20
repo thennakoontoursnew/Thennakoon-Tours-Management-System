@@ -469,7 +469,19 @@ CREATE INDEX IF NOT EXISTS idx_receipts_payment_id ON public.receipts(payment_id
 CREATE INDEX IF NOT EXISTS idx_rental_agreements_booking_id ON public.rental_agreements(booking_id);
 CREATE INDEX IF NOT EXISTS idx_doc_activity_doc ON public.document_activity_logs(document_type, document_id);
 
--- 11. Idempotent Triggers for Updated At
+-- 11. Idempotent Shared Trigger Function & Triggers for Updated At
+CREATE OR REPLACE FUNCTION public.set_current_timestamp_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS set_quotations_updated_at ON public.quotations;
 CREATE TRIGGER set_quotations_updated_at BEFORE UPDATE ON public.quotations FOR EACH ROW EXECUTE FUNCTION public.set_current_timestamp_updated_at();
 
