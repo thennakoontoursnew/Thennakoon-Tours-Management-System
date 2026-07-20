@@ -1,5 +1,5 @@
 -- Migration: 20260720000001_repair_document_templates.sql
--- Description: Strict schema-first execution order for document_templates, ensuring all 19 columns exist before RLS policies, triggers, or seeding.
+-- Description: Backward-compatible schema repair for document_templates, supporting legacy columns (title, bank_details, prepared_by_label, terms_and_conditions) and new normalized columns.
 
 -- 1. Ensure public.set_current_timestamp_updated_at function exists with explicit search_path
 CREATE OR REPLACE FUNCTION public.set_current_timestamp_updated_at()
@@ -18,6 +18,7 @@ $$;
 CREATE TABLE IF NOT EXISTS public.document_templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_type TEXT NOT NULL UNIQUE CHECK (document_type IN ('quotation', 'invoice', 'receipt', 'rental_agreement')),
+    title TEXT,
     display_name TEXT,
     special_notes TEXT,
     important_message TEXT,
@@ -30,6 +31,9 @@ CREATE TABLE IF NOT EXISTS public.document_templates (
     prepared_by_designation TEXT,
     company_name TEXT,
     default_terms_and_conditions TEXT,
+    bank_details JSONB,
+    prepared_by_label TEXT,
+    terms_and_conditions TEXT,
     is_active BOOLEAN NOT NULL DEFAULT true,
     created_by UUID,
     updated_by UUID,
@@ -37,8 +41,9 @@ CREATE TABLE IF NOT EXISTS public.document_templates (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 3. Comprehensive Repair Pattern: Guarantee Every Single Column Exists BEFORE Any Seed or Policy
+-- 3. Comprehensive Column Addition (IF NOT EXISTS)
 ALTER TABLE public.document_templates
+    ADD COLUMN IF NOT EXISTS title TEXT,
     ADD COLUMN IF NOT EXISTS display_name TEXT,
     ADD COLUMN IF NOT EXISTS special_notes TEXT,
     ADD COLUMN IF NOT EXISTS important_message TEXT,
@@ -51,13 +56,28 @@ ALTER TABLE public.document_templates
     ADD COLUMN IF NOT EXISTS prepared_by_designation TEXT,
     ADD COLUMN IF NOT EXISTS company_name TEXT,
     ADD COLUMN IF NOT EXISTS default_terms_and_conditions TEXT,
+    ADD COLUMN IF NOT EXISTS bank_details JSONB,
+    ADD COLUMN IF NOT EXISTS prepared_by_label TEXT,
+    ADD COLUMN IF NOT EXISTS terms_and_conditions TEXT,
     ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true,
     ADD COLUMN IF NOT EXISTS created_by UUID,
     ADD COLUMN IF NOT EXISTS updated_by UUID,
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
--- 4. Add Foreign Keys Safely IF NOT EXISTS
+-- 4. Safely Drop NOT NULL on legacy title column if present to prevent insert crashes
+ALTER TABLE public.document_templates ALTER COLUMN title DROP NOT NULL;
+
+-- 5. Bi-Directional Backfilling for Title and Display Name
+UPDATE public.document_templates
+SET display_name = COALESCE(display_name, title)
+WHERE display_name IS NULL AND title IS NOT NULL;
+
+UPDATE public.document_templates
+SET title = COALESCE(title, display_name, initcap(replace(document_type, '_', ' ')) || ' Template')
+WHERE title IS NULL;
+
+-- 6. Add Foreign Keys Safely IF NOT EXISTS
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -81,7 +101,7 @@ BEGIN
     END IF;
 END $$;
 
--- 5. Updated At Trigger & RLS Policies
+-- 7. Updated At Trigger & RLS Policies
 DROP TRIGGER IF EXISTS set_document_templates_updated_at ON public.document_templates;
 CREATE TRIGGER set_document_templates_updated_at BEFORE UPDATE ON public.document_templates FOR EACH ROW EXECUTE FUNCTION public.set_current_timestamp_updated_at();
 
@@ -106,9 +126,10 @@ CREATE POLICY "Document templates write policy" ON public.document_templates
         public.get_user_role(auth.uid()) IN ('owner', 'admin', 'manager')
     );
 
--- 6. Seed Default Document Templates (ONLY AFTER Complete Schema Guarantee, ON CONFLICT DO NOTHING)
+-- 8. Backward-Compatible Seed Data (Populates BOTH legacy and new fields)
 INSERT INTO public.document_templates (
     document_type,
+    title,
     display_name,
     special_notes,
     important_message,
@@ -121,9 +142,13 @@ INSERT INTO public.document_templates (
     prepared_by_designation,
     company_name,
     default_terms_and_conditions,
+    bank_details,
+    prepared_by_label,
+    terms_and_conditions,
     is_active
 ) VALUES (
     'quotation',
+    'Standard Quotation Template',
     'Standard Quotation Template',
     '• 700km allowed.
 • This quotation is valid for 24 hours only.
@@ -141,9 +166,19 @@ INSERT INTO public.document_templates (
     'Admin & Marketing Assistant',
     'Thennakoon Tours (Pvt) Ltd',
     'Standard Thennakoon Tours quotation terms and conditions apply.',
+    jsonb_build_object(
+        'account_name', 'Thennakoon Tours (Pvt) Ltd',
+        'bank_name', 'Nations Trust Bank',
+        'bank_branch', 'Nugegoda',
+        'account_number', '100530013140',
+        'swift_code', 'NTBCLKLX'
+    ),
+    'Admin & Marketing Assistant',
+    'Standard Thennakoon Tours quotation terms and conditions apply.',
     true
 ), (
     'invoice',
+    'Standard Invoice Template',
     'Standard Invoice Template',
     '• Payment due within 7 days of invoice date.
 • Late payments subject to a 2% monthly surcharge.',
@@ -157,9 +192,19 @@ INSERT INTO public.document_templates (
     'Accounts Manager',
     'Thennakoon Tours (Pvt) Ltd',
     'Standard Thennakoon Tours billing terms apply.',
+    jsonb_build_object(
+        'account_name', 'Thennakoon Tours (Pvt) Ltd',
+        'bank_name', 'Nations Trust Bank',
+        'bank_branch', 'Nugegoda',
+        'account_number', '100530013140',
+        'swift_code', 'NTBCLKLX'
+    ),
+    'Accounts Manager',
+    'Standard Thennakoon Tours billing terms apply.',
     true
 ), (
     'receipt',
+    'Standard Receipt Template',
     'Standard Receipt Template',
     'Official Proof of Payment. Retain this receipt for your records.',
     'Payment received with thanks. We appreciate your business!',
@@ -172,9 +217,19 @@ INSERT INTO public.document_templates (
     'Finance Cashier',
     'Thennakoon Tours (Pvt) Ltd',
     'This is a computer-generated receipt.',
+    jsonb_build_object(
+        'account_name', 'Thennakoon Tours (Pvt) Ltd',
+        'bank_name', 'Nations Trust Bank',
+        'bank_branch', 'Nugegoda',
+        'account_number', '100530013140',
+        'swift_code', 'NTBCLKLX'
+    ),
+    'Finance Cashier',
+    'This is a computer-generated receipt.',
     true
 ), (
     'rental_agreement',
+    'Standard Rental Agreement Template',
     'Standard Rental Agreement Template',
     '• Hirer is fully responsible for vehicle condition during the rental period.
 • Any traffic fines or toll charges incurred will be charged to the hirer.',
@@ -188,9 +243,18 @@ INSERT INTO public.document_templates (
     'Fleet Manager',
     'Thennakoon Tours (Pvt) Ltd',
     'Standard Thennakoon Tours vehicle rental agreement terms apply.',
+    jsonb_build_object(
+        'account_name', 'Thennakoon Tours (Pvt) Ltd',
+        'bank_name', 'Nations Trust Bank',
+        'bank_branch', 'Nugegoda',
+        'account_number', '100530013140',
+        'swift_code', 'NTBCLKLX'
+    ),
+    'Fleet Manager',
+    'Standard Thennakoon Tours vehicle rental agreement terms apply.',
     true
 )
 ON CONFLICT (document_type) DO NOTHING;
 
--- 7. Broadcast Schema Cache Reload Notification to PostgREST
+-- 9. Broadcast Schema Cache Reload Notification to PostgREST
 NOTIFY pgrst, 'reload schema';
