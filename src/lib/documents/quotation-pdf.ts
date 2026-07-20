@@ -1,11 +1,30 @@
-import { jsPDF, autoTable, getLetterheadBase64, drawLetterheadBackground, A4_MARGINS } from './pdf-engine'
+import { jsPDF, autoTable, getLetterheadBase64, drawLetterheadOnPage, A4_MARGINS } from './pdf-engine'
 import { normalizeNewlines } from '@/lib/utils/formatters'
 
 export async function generateQuotationPDF(quotation: any, companySettings?: any) {
   const doc = new jsPDF('p', 'mm', 'a4')
   const base64Letterhead = await getLetterheadBase64()
 
+  // 1. Draw Letterhead Background FIRST on Page 1 (Layer 0)
+  if (base64Letterhead) {
+    drawLetterheadOnPage(doc, base64Letterhead)
+  }
+
+  // 2. Explicitly Set Dark Text Color & Starting Position
+  doc.setTextColor(15, 23, 42) // Slate-900 / Black
   let currentY = A4_MARGINS.top
+
+  // Helper for multi-page overflow
+  const ensureSpace = (requiredHeight: number) => {
+    if (currentY + requiredHeight > A4_MARGINS.bottom) {
+      doc.addPage()
+      if (base64Letterhead) {
+        drawLetterheadOnPage(doc, base64Letterhead)
+      }
+      doc.setTextColor(15, 23, 42)
+      currentY = A4_MARGINS.top
+    }
+  }
 
   // Document Title & Reference
   doc.setFont('helvetica', 'bold')
@@ -22,6 +41,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   // 1. Customer & Rental Date Information
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
+  doc.setTextColor(15, 23, 42)
   doc.text(`Date: ${quotation.quotation_date}`, A4_MARGINS.left, currentY)
   doc.text(
     `Valid Until: ${quotation.valid_until ? new Date(quotation.valid_until).toLocaleDateString() : '24 Hours from Issue'}`,
@@ -78,18 +98,25 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
     head: tableHead,
     body: tableRows,
     margin: { left: A4_MARGINS.left, right: 210 - A4_MARGINS.right },
-    styles: { fontSize: 8, cellPadding: 2.5 },
+    styles: { fontSize: 8, cellPadding: 2.5, textColor: [15, 23, 42] },
     headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [248, 250, 252] },
+    willDrawPage: (data) => {
+      if (base64Letterhead && data.pageNumber > 1) {
+        drawLetterheadOnPage(doc, base64Letterhead)
+      }
+    },
   })
 
   currentY = (doc as any).lastAutoTable.finalY + 6
 
   // 4. Refundable Deposit and Totals
+  ensureSpace(25)
   const totalsX = A4_MARGINS.right - 70
   doc.setFontSize(8.5)
 
   doc.setFont('helvetica', 'normal')
+  doc.setTextColor(15, 23, 42)
   doc.text('Subtotal:', totalsX, currentY)
   doc.text(`LKR ${Number(quotation.subtotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
   currentY += 4.5
@@ -117,6 +144,10 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   // 5. SPECIAL NOTES (Pre-normalized line breaks)
   const specialNotesText = normalizeNewlines(quotation.special_notes)
   if (specialNotesText.trim()) {
+    const splitNotes = doc.splitTextToSize(specialNotesText, A4_MARGINS.width)
+    const requiredH = splitNotes.length * 3.8 + 10
+    ensureSpace(requiredH)
+
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8.5)
     doc.setTextColor(15, 23, 42)
@@ -126,22 +157,22 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7.5)
     doc.setTextColor(71, 85, 105)
-    const splitNotes = doc.splitTextToSize(specialNotesText, A4_MARGINS.width)
     doc.text(splitNotes, A4_MARGINS.left, currentY)
-    currentY += splitNotes.length * 3.8 + 4
+    currentY += splitNotes.length * 3.8 + 6
   }
 
   // 6. IMPORTANT (Pre-normalized line breaks)
   const importantMsg = normalizeNewlines(quotation.important_message)
   if (importantMsg.trim()) {
+    const splitMsg = doc.splitTextToSize(importantMsg, A4_MARGINS.width - 8)
+    const boxHeight = Math.max(10, splitMsg.length * 3.8 + 5)
+    ensureSpace(boxHeight + 10)
+
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8.5)
     doc.setTextColor(180, 83, 9)
     doc.text('IMPORTANT', A4_MARGINS.left, currentY)
     currentY += 4
-
-    const splitMsg = doc.splitTextToSize(importantMsg, A4_MARGINS.width - 8)
-    const boxHeight = Math.max(10, splitMsg.length * 3.8 + 5)
 
     doc.setFillColor(254, 243, 199)
     doc.setDrawColor(245, 158, 11)
@@ -161,6 +192,8 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   const bankAccNum = quotation.bank_account_number_snapshot || companySettings?.bank_account_number || '100530013140'
   const bankSwift = quotation.bank_swift_code_snapshot || companySettings?.bank_swift_code || 'NTBCLKLX'
   const paymentInstructions = normalizeNewlines(quotation.payment_instructions_snapshot)
+
+  ensureSpace(32)
 
   doc.setFillColor(241, 245, 249)
   doc.setDrawColor(226, 232, 240)
@@ -194,7 +227,10 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   const prepDesignation = quotation.prepared_by_designation_snapshot || 'Admin & Marketing Assistant'
   const companyName = quotation.company_name_snapshot || 'Thennakoon Tours (Pvt) Ltd'
 
+  ensureSpace(20)
+
   const prepX = A4_MARGINS.right - 65
+  doc.setDrawColor(148, 163, 184)
   doc.line(prepX, currentY, A4_MARGINS.right, currentY) // Signature line
   currentY += 4.5
   doc.setFont('helvetica', 'bold')
@@ -208,9 +244,6 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   doc.text(prepDesignation, prepX + 32.5, currentY, { align: 'center' })
   currentY += 3.5
   doc.text(companyName, prepX + 32.5, currentY, { align: 'center' })
-
-  // Draw Full-Page A4 Letterhead Background Image
-  drawLetterheadBackground(doc, base64Letterhead)
 
   return doc
 }

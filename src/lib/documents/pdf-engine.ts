@@ -11,7 +11,7 @@ export interface DocumentMargins {
 
 export const A4_MARGINS: DocumentMargins = {
   top: 48,
-  bottom: 270,
+  bottom: 260,
   left: 15,
   right: 195,
   width: 180,
@@ -22,6 +22,7 @@ export async function getLetterheadBase64(): Promise<string | null> {
   try {
     if (typeof window !== 'undefined') {
       const response = await fetch('/documents/thennakoon-tours-letterhead.png')
+      if (!response.ok) return null
       const blob = await response.blob()
       return new Promise((resolve) => {
         const reader = new FileReader()
@@ -37,7 +38,17 @@ export async function getLetterheadBase64(): Promise<string | null> {
   }
 }
 
-// Draw letterhead background image on all pages of a jsPDF document
+// Draw letterhead background image on the CURRENT page
+export function drawLetterheadOnPage(doc: jsPDF, base64Img: string | null) {
+  if (!base64Img) return
+  try {
+    doc.addImage(base64Img, 'PNG', 0, 0, 210, 297)
+  } catch (err) {
+    console.error('Error drawing letterhead on page', err)
+  }
+}
+
+// Draw letterhead background image on all existing pages of a jsPDF document
 export function drawLetterheadBackground(doc: jsPDF, base64Img: string | null) {
   if (!base64Img) return
   const totalPages = (doc as any).internal.getNumberOfPages()

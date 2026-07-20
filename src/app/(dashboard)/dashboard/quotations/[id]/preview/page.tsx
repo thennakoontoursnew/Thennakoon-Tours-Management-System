@@ -4,7 +4,7 @@ import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { generateQuotationPDF } from '@/lib/documents/quotation-pdf'
-import { ArrowLeft, Download, Share2, Printer, Loader2 } from 'lucide-react'
+import { ArrowLeft, Download, Share2, Loader2, AlertCircle } from 'lucide-react'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -15,42 +15,77 @@ export default function QuotationPreviewPage({ params }: PageProps) {
   const [quotation, setQuotation] = useState<any>(null)
   const [companySettings, setCompanySettings] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null)
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [renderError, setRenderError] = useState<string | null>(null)
 
   useEffect(() => {
+    let objectUrl: string | null = null
+
     async function loadData() {
-      const supabase = createClient()
+      try {
+        const supabase = createClient()
 
-      const { data: q } = await supabase
-        .from('quotations')
-        .select('*, customer:customers(*), items:quotation_items(*)')
-        .eq('id', id)
-        .single()
+        const { data: q, error: qErr } = await supabase
+          .from('quotations')
+          .select('*, customer:customers(*), items:quotation_items(*)')
+          .eq('id', id)
+          .single()
 
-      const { data: settings } = await supabase
-        .from('company_settings')
-        .select('*')
-        .limit(1)
-        .single()
+        if (qErr || !q) {
+          setRenderError('Quotation record could not be loaded.')
+          setLoading(false)
+          return
+        }
 
-      if (q) {
+        const { data: settings } = await supabase
+          .from('company_settings')
+          .select('*')
+          .limit(1)
+          .maybeSingle()
+
         setQuotation(q)
         setCompanySettings(settings)
 
         const pdfDoc = await generateQuotationPDF(q, settings)
-        const dataUrl = pdfDoc.output('dataurlstring')
-        setPdfDataUrl(dataUrl)
+        const blob = pdfDoc.output('blob')
+
+        // Temporary Development Diagnostics
+        console.log(`[PDF Preview Diagnostic] Quotation Number: ${q.quotation_number}, Blob Size: ${blob.size} bytes, Pages: ${pdfDoc.getNumberOfPages()}`)
+
+        if (blob.size < 5000) {
+          setRenderError('PDF generation produced an incomplete document.')
+          setLoading(false)
+          return
+        }
+
+        objectUrl = URL.createObjectURL(blob)
+        setPdfUrl(objectUrl)
+      } catch (err: any) {
+        console.error('Error generating PDF preview:', err)
+        setRenderError(err.message || 'Unable to generate quotation preview.')
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
 
     loadData()
+
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl)
+      }
+    }
   }, [id])
 
   const handleDownload = async () => {
     if (!quotation) return
-    const pdfDoc = await generateQuotationPDF(quotation, companySettings)
-    pdfDoc.save(`Quotation-${quotation.quotation_number}.pdf`)
+    try {
+      const pdfDoc = await generateQuotationPDF(quotation, companySettings)
+      pdfDoc.save(`Quotation-${quotation.quotation_number}.pdf`)
+    } catch (err: any) {
+      console.error('Download PDF Error:', err)
+      alert('Failed to download PDF. Please try again.')
+    }
   }
 
   const handleWhatsAppShare = () => {
@@ -69,8 +104,16 @@ export default function QuotationPreviewPage({ params }: PageProps) {
     )
   }
 
-  if (!quotation) {
-    return <div className="p-8 text-center text-xs text-rose-500">Quotation not found.</div>
+  if (renderError || !quotation) {
+    return (
+      <div className="p-8 max-w-md mx-auto my-12 text-center space-y-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+        <AlertCircle size={32} className="mx-auto text-rose-500" />
+        <h2 className="text-sm font-bold text-slate-900 dark:text-white">{renderError || 'Quotation not found.'}</h2>
+        <Link href="/dashboard/quotations" className="inline-block px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold">
+          Back to Quotations List
+        </Link>
+      </div>
+    )
   }
 
   return (
@@ -85,20 +128,20 @@ export default function QuotationPreviewPage({ params }: PageProps) {
           </Link>
           <div>
             <h1 className="text-xl font-black text-slate-900 dark:text-white">PDF Preview ({quotation.quotation_number})</h1>
-            <p className="text-xs text-slate-500">Official letterhead background rendered.</p>
+            <p className="text-xs text-slate-500">Official Thennakoon Tours A4 document preview.</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={handleWhatsAppShare}
-            className="px-3.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-bold hover:bg-emerald-500/20 flex items-center gap-1.5"
+            className="px-3.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-bold hover:bg-emerald-500/20 flex items-center gap-1.5 cursor-pointer"
           >
             <Share2 size={15} />
             <span>WhatsApp</span>
           </button>
           <button
             onClick={handleDownload}
-            className="px-4 py-2 bg-amber-400 text-slate-950 font-bold rounded-xl text-xs hover:bg-amber-300 transition-all flex items-center gap-1.5 shadow-sm"
+            className="px-4 py-2 bg-amber-400 text-slate-950 font-bold rounded-xl text-xs hover:bg-amber-300 transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
             <Download size={15} />
             <span>Download PDF</span>
@@ -108,8 +151,8 @@ export default function QuotationPreviewPage({ params }: PageProps) {
 
       {/* PDF Viewer Frame */}
       <div className="bg-slate-800 p-2 rounded-2xl border border-slate-700 shadow-xl overflow-hidden min-h-[700px]">
-        {pdfDataUrl ? (
-          <iframe src={pdfDataUrl} className="w-full h-[750px] rounded-xl bg-white" title="Quotation PDF" />
+        {pdfUrl ? (
+          <iframe src={pdfUrl} className="w-full h-[750px] rounded-xl bg-white" title="Quotation PDF" />
         ) : (
           <div className="p-12 text-center text-white text-xs">Failed to render PDF.</div>
         )}
