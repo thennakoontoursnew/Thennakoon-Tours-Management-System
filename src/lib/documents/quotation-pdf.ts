@@ -193,67 +193,77 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
 
   currentY += 7
 
-  // 5. SPECIAL NOTES (10pt Bold Heading, 8.9pt Body, 4mm Line Height)
+  // 5. SPECIAL NOTES (Minimal Corporate Bordered Layout)
   const specialNotesText = normalizeNewlines(quotation.special_notes)
   if (specialNotesText.trim()) {
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.9)
+    doc.setFontSize(9)
     const splitNotes = doc.splitTextToSize(specialNotesText, A4_MARGINS.width)
-    const requiredH = splitNotes.length * 4 + 7
+    const requiredH = splitNotes.length * 4 + 12
     ensureSpace(requiredH)
 
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.setTextColor(17, 17, 17)
-    doc.text('SPECIAL NOTES', A4_MARGINS.left, currentY)
-    currentY += 4.5
+    // Heading Strip (1px Thin Black Border, No Fill)
+    doc.setDrawColor(17, 17, 17)
+    doc.setLineWidth(0.3)
+    doc.rect(A4_MARGINS.left, currentY, A4_MARGINS.width, 6, 'S')
 
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    doc.setTextColor(17, 17, 17)
+    doc.text('SPECIAL NOTES', A4_MARGINS.left + 3, currentY + 4.2)
+    currentY += 6 + 4 // Heading strip -> Body spacing: 4 mm
+
+    // Body Text (9pt Black, 4mm Line Spacing)
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.9)
-    doc.setTextColor(51, 65, 85) // Slate-700
+    doc.setFontSize(9)
+    doc.setTextColor(17, 17, 17)
     doc.text(splitNotes, A4_MARGINS.left, currentY)
-    currentY += splitNotes.length * 4 + 4
+    currentY += splitNotes.length * 4 + 7 // Body -> Next section spacing: 7 mm
   }
 
-  // 6. IMPORTANT (10pt Bold Heading, 8.9pt Body in Amber Box with Generous Padding)
+  // 6. IMPORTANT (Minimal Corporate Bordered Layout)
   const importantMsg = normalizeNewlines(quotation.important_message)
   if (importantMsg.trim()) {
-    const splitMsg = doc.splitTextToSize(importantMsg, A4_MARGINS.width - 8)
-    const boxHeight = Math.max(10, splitMsg.length * 4 + 6)
-    ensureSpace(boxHeight + 7)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    const splitMsg = doc.splitTextToSize(importantMsg, A4_MARGINS.width)
+    const requiredH = splitMsg.length * 4 + 12
+    ensureSpace(requiredH)
+
+    // Heading Strip (1px Thin Black Border, No Fill)
+    doc.setDrawColor(17, 17, 17)
+    doc.setLineWidth(0.3)
+    doc.rect(A4_MARGINS.left, currentY, A4_MARGINS.width, 6, 'S')
 
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.setTextColor(180, 83, 9)
-    doc.text('IMPORTANT', A4_MARGINS.left, currentY)
-    currentY += 4.5
+    doc.setFontSize(9.5)
+    doc.setTextColor(17, 17, 17)
+    doc.text('IMPORTANT', A4_MARGINS.left + 3, currentY + 4.2)
+    currentY += 6 + 4 // Heading strip -> Body spacing: 4 mm
 
-    doc.setFillColor(254, 243, 199) // Amber-100
-    doc.setDrawColor(245, 158, 11) // Amber-500
-    doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, boxHeight, 2, 2, 'FD')
-
+    // Body Text (9pt Black, 4mm Line Spacing)
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.9)
-    doc.setTextColor(120, 53, 15)
-    doc.text(splitMsg, A4_MARGINS.left + 4, currentY + 4.5)
-    currentY += boxHeight + 5
+    doc.setFontSize(9)
+    doc.setTextColor(17, 17, 17)
+    doc.text(splitMsg, A4_MARGINS.left, currentY)
+    currentY += splitMsg.length * 4 + 7 // Body -> Next section spacing: 7 mm
   }
 
-  // 7. BANK DETAILS BOX (10pt Heading, 8.9pt Labels/Values, 5mm Line Spacing, Fixed X-align)
+  // 7. BANK DETAILS (Simple Rectangular Box, Thin Black Border, No Rounded Corners, No Background Fill)
   const bankAccName = quotation.bank_account_name_snapshot || companySettings?.bank_account_name || 'Thennakoon Tours (Pvt) Ltd'
   const bankName = quotation.bank_name_snapshot || companySettings?.bank_name || 'Nations Trust Bank'
   const bankBranch = quotation.bank_branch_snapshot || companySettings?.bank_branch || 'Nugegoda'
   const bankAccNum = quotation.bank_account_number_snapshot || companySettings?.bank_account_number || '100530013140'
   const bankSwift = quotation.bank_swift_code_snapshot || companySettings?.bank_swift_code || 'NTBCLKLX'
 
-  const bankBoxWidth = 105 // 105mm wide box
+  const bankBoxWidth = 110
   const bankBoxHeight = 28
   ensureSpace(bankBoxHeight + 25)
 
   const bankBoxStartY = currentY
-  doc.setFillColor(248, 250, 252) // Slate-50
-  doc.setDrawColor(203, 213, 225) // Slate-300
-  doc.roundedRect(A4_MARGINS.left, bankBoxStartY, bankBoxWidth, bankBoxHeight, 2, 2, 'FD')
+  doc.setDrawColor(17, 17, 17)
+  doc.setLineWidth(0.3)
+  doc.rect(A4_MARGINS.left, bankBoxStartY, bankBoxWidth, bankBoxHeight, 'S')
 
   let bY = bankBoxStartY + 5
   doc.setFont('helvetica', 'bold')
@@ -261,49 +271,46 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   doc.setTextColor(17, 17, 17)
   doc.text('BANK DETAILS', A4_MARGINS.left + 4, bY)
 
+  bY += 5
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(17, 17, 17)
+  doc.text(bankAccName, A4_MARGINS.left + 4, bY)
+
   bY += 4.5
-  const renderBankRow = (label: string, value: string, isBoldValue = false) => {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.9)
-    doc.setTextColor(71, 85, 105)
-    doc.text(label, A4_MARGINS.left + 4, bY)
+  doc.setFont('helvetica', 'bold')
+  doc.text(`Account # ${bankAccNum}`, A4_MARGINS.left + 4, bY)
 
-    doc.setFont('helvetica', isBoldValue ? 'bold' : 'normal')
-    doc.setFontSize(8.9)
-    doc.setTextColor(34, 34, 34)
-    doc.text(value, A4_MARGINS.left + 36, bY)
-    bY += 4.5 // 4.5mm - 5mm row spacing
-  }
+  bY += 4.5
+  doc.setFont('helvetica', 'normal')
+  doc.text(`${bankName} - ${bankBranch}`, A4_MARGINS.left + 4, bY)
 
-  renderBankRow('Account Name:', bankAccName)
-  renderBankRow('Account Number:', bankAccNum, true)
-  renderBankRow('Bank:', bankName)
-  renderBankRow('Branch:', bankBranch)
-  renderBankRow('Swift Code:', bankSwift)
+  bY += 4.5
+  doc.text(`Swift Code : ${bankSwift}`, A4_MARGINS.left + 4, bY)
 
-  currentY = bankBoxStartY + bankBoxHeight + 5 // 5mm gap below Bank Box
+  currentY = bankBoxStartY + bankBoxHeight + 6 // Bank Details -> Prepared By: 6 mm
 
-  // 8. PREPARED BY BLOCK (10pt Heading, 10.5pt Bold Name, Text-Only - NO SIGNATURE LINE)
-  const prepName = quotation.prepared_by_name_snapshot || 'Authorized Officer'
+  // 8. PREPARED BY BLOCK (No Box, No Signature Line, Text-Only Directly Below Bank Details)
+  const prepName = quotation.prepared_by_name_snapshot || 'Anuba Kudaligama'
   const prepDesignation = quotation.prepared_by_designation_snapshot || 'Admin & Marketing Assistant'
   const companyName = quotation.company_name_snapshot || 'Thennakoon Tours (Pvt) Ltd'
 
-  const prepX = A4_MARGINS.left + 4
+  const prepX = A4_MARGINS.left
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.setTextColor(71, 85, 105)
+  doc.setFontSize(9.5)
+  doc.setTextColor(17, 17, 17)
   doc.text('Prepared By:', prepX, currentY)
   currentY += 4.5
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10.5)
+  doc.setFontSize(10)
   doc.setTextColor(17, 17, 17)
   doc.text(prepName, prepX, currentY)
 
   currentY += 4
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
-  doc.setTextColor(71, 85, 105)
+  doc.setTextColor(17, 17, 17)
   doc.text(prepDesignation, prepX, currentY)
 
   currentY += 4
