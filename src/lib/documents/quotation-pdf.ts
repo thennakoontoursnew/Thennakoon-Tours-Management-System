@@ -196,6 +196,8 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   // 5. SPECIAL NOTES (10pt Bold Heading, 8.9pt Body, 4mm Line Height)
   const specialNotesText = normalizeNewlines(quotation.special_notes)
   if (specialNotesText.trim()) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.9)
     const splitNotes = doc.splitTextToSize(specialNotesText, A4_MARGINS.width)
     const requiredH = splitNotes.length * 4 + 7
     ensureSpace(requiredH)
