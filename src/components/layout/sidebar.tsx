@@ -195,6 +195,12 @@ export function Sidebar({ role, fullName, onLogout }: SidebarProps) {
           icon: FileSpreadsheet,
           roles: ['owner', 'admin', 'manager'],
         },
+        {
+          title: 'Go Live Reset',
+          href: '/dashboard/go-live-reset',
+          icon: ShieldCheck,
+          roles: ['owner'],
+        },
       ],
     },
   ]
