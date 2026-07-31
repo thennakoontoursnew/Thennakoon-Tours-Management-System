@@ -38,3 +38,17 @@ export function calculateRentalDays(startDateStr: string | null | undefined, end
     return 1
   }
 }
+
+/**
+ * Builds the standard pre-filled WhatsApp quotation message.
+ */
+export function buildWhatsAppQuotationMessage(quotation: any, companyName: string = 'Thennakoon Tours'): string {
+  const customerName = quotation?.customer?.full_name || 'Valued Customer'
+  const quotationNumber = quotation?.quotation_number || 'N/A'
+  const currency = quotation?.currency || 'LKR'
+  const grandTotal = Number(quotation?.grand_total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })
+  const rentalStart = quotation?.rental_start_date || 'N/A'
+  const rentalEnd = quotation?.rental_end_date || 'N/A'
+
+  return `Hello ${customerName},\n\nPlease find your Quotation (${quotationNumber}) details:\n\nAmount: ${currency} ${grandTotal}\n\nRental Dates:\n${rentalStart} to ${rentalEnd}\n\nThank you,\n${companyName}`
+}

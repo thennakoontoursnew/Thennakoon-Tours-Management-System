@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 import { generateQuotationPDF } from '@/lib/documents/quotation-pdf'
 import { ArrowLeft, Download, Share2, Loader2, AlertCircle } from 'lucide-react'
 
+import { buildWhatsAppQuotationMessage } from '@/lib/utils/formatters'
+
 interface PageProps {
   params: Promise<{ id: string }>
 }
@@ -17,6 +19,7 @@ export default function QuotationPreviewPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [renderError, setRenderError] = useState<string | null>(null)
+  const [sharing, setSharing] = useState(false)
 
   useEffect(() => {
     let objectUrl: string | null = null
@@ -77,8 +80,6 @@ export default function QuotationPreviewPage({ params }: PageProps) {
     }
   }, [id])
 
-  const [sharing, setSharing] = useState(false)
-
   const handleDownload = async () => {
     if (!quotation) return
     try {
@@ -100,14 +101,11 @@ export default function QuotationPreviewPage({ params }: PageProps) {
       // 1. Download PDF first
       pdfDoc.save(filename)
 
-      // 2. Prepare message text
-      const customerName = quotation.customer?.full_name || 'Valued Customer'
-      const amount = Number(quotation.grand_total).toLocaleString('en-US', { minimumFractionDigits: 2 })
-      const validUntil = quotation.valid_until ? new Date(quotation.valid_until).toLocaleDateString() : 'N/A'
+      // 2. Build exact required WhatsApp message
+      const companyName = quotation.company_name_snapshot || companySettings?.company_name || 'Thennakoon Tours'
+      const messageText = buildWhatsAppQuotationMessage(quotation, companyName)
 
-      const messageText = `Hello ${customerName},\n\nPlease find quotation ${quotation.quotation_number}.\nTotal: LKR ${amount}\nValid until: ${validUntil}\n\nKindly attach the downloaded quotation PDF before sending.`
-
-      // 3. Optional Web Share API for mobile browsers
+      // 3. Optional Web Share API for supported mobile browsers
       const blob = pdfDoc.output('blob')
       const file = new File([blob], filename, { type: 'application/pdf' })
       if (typeof navigator !== 'undefined' && 'canShare' in navigator && (navigator as any).canShare({ files: [file] })) {
@@ -119,17 +117,20 @@ export default function QuotationPreviewPage({ params }: PageProps) {
           })
           return
         } catch (shareErr) {
-          console.log('Web Share API dismissed or unhandled, falling back to wa.me URL', shareErr)
+          console.log('Web Share API dismissed or unhandled, falling back to WhatsApp web link', shareErr)
         }
       }
 
-      // 4. Fallback baseline flow: Open wa.me with customer-ready prefilled text
+      // 4. Format phone number & URL using official WhatsApp Universal Link
       const rawPhone = quotation.customer?.mobile || quotation.customer?.phone || ''
-      const phone = rawPhone.replace(/[^0-9]/g, '')
-      const waUrl = phone
-        ? `https://wa.me/${phone}?text=${encodeURIComponent(messageText)}`
-        : `https://wa.me/?text=${encodeURIComponent(messageText)}`
+      const phone = rawPhone ? rawPhone.replace(/[^0-9]/g, '') : ''
+      const encodedMsg = encodeURIComponent(messageText)
 
+      const waUrl = phone
+        ? `https://api.whatsapp.com/send?phone=${phone}&text=${encodedMsg}`
+        : `https://api.whatsapp.com/send?text=${encodedMsg}`
+
+      // Open WhatsApp with prefilled message in a new window/tab
       window.open(waUrl, '_blank')
     } catch (err: any) {
       console.error('WhatsApp PDF Share Error:', err)

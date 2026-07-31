@@ -1,12 +1,16 @@
 -- Migration: 20260731000000_fix_quotation_conversion_and_availability.sql
--- Description: Adds unique constraint to prevent duplicate booking conversion per quotation, and provides atomic RPC convert_quotation_to_booking_rpc.
+-- Description: Ensures bookings table schema has purpose and notes columns, adds unique constraint for 1:1 active booking conversion, and provides atomic conversion RPC.
 
--- 1. Unique constraint: Prevents more than one active booking per quotation
+-- 1. Ensure required columns exist on public.bookings
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS purpose TEXT;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS notes TEXT;
+
+-- 2. Unique constraint: Prevents more than one active booking per quotation
 CREATE UNIQUE INDEX IF NOT EXISTS unique_active_booking_per_quotation
 ON public.bookings (quotation_id)
 WHERE (status NOT IN ('cancelled', 'no_show') AND quotation_id IS NOT NULL);
 
--- 2. Transaction-Safe Atomic Conversion RPC
+-- 3. Transaction-Safe Atomic Conversion RPC
 CREATE OR REPLACE FUNCTION public.convert_quotation_to_booking_rpc(
     p_quotation_id UUID,
     p_user_id UUID DEFAULT NULL
