@@ -1,8 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Printer, Copy, CheckCircle, Clock, XCircle, ArrowRightLeft, Building2, User } from 'lucide-react'
-import { changeQuotationStatus, convertQuotationToBooking, duplicateQuotation } from '../quotation-actions'
+import { ArrowLeft, Printer, CheckCircle, ArrowRightLeft, Calendar } from 'lucide-react'
+import { changeQuotationStatus } from '../quotation-actions'
+import { ConvertBookingButton } from './convert-booking-button'
+import { calculateRentalDays } from '@/lib/utils/formatters'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -22,15 +24,15 @@ export default async function QuotationDetailPage({ params }: PageProps) {
     notFound()
   }
 
-  const handleStatusUpdate = async (status: string) => {
-    'use server'
-    await changeQuotationStatus(id, status)
-  }
+  // Check if active booking already exists for this quotation
+  const { data: existingBooking } = await supabase
+    .from('bookings')
+    .select('id, booking_number')
+    .eq('quotation_id', id)
+    .not('status', 'in', '("cancelled","no_show")')
+    .maybeSingle()
 
-  const handleConversion = async () => {
-    'use server'
-    await convertQuotationToBooking(id)
-  }
+  const canonicalDays = calculateRentalDays(quotation.rental_start_date, quotation.rental_end_date)
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -55,7 +57,7 @@ export default async function QuotationDetailPage({ params }: PageProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {quotation.status !== 'accepted' && (
+          {quotation.status !== 'accepted' && !existingBooking && (
             <Link
               href={`/dashboard/quotations/${quotation.id}/edit`}
               className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5"
@@ -72,17 +74,17 @@ export default async function QuotationDetailPage({ params }: PageProps) {
             <span>PDF Preview</span>
           </Link>
 
-          {quotation.status === 'accepted' && (
-            <form action={handleConversion}>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-xs font-bold hover:bg-emerald-600 transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
-              >
-                <ArrowRightLeft size={15} />
-                <span>Convert to Booking</span>
-              </button>
-            </form>
-          )}
+          {existingBooking ? (
+            <Link
+              href={`/dashboard/bookings/${existingBooking.id}`}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-500 transition-all flex items-center gap-1.5 shadow-sm"
+            >
+              <CheckCircle size={15} />
+              <span>View Booking ({existingBooking.booking_number})</span>
+            </Link>
+          ) : quotation.status === 'accepted' ? (
+            <ConvertBookingButton quotationId={quotation.id} quotationNumber={quotation.quotation_number} />
+          ) : null}
         </div>
       </div>
 
@@ -121,7 +123,7 @@ export default async function QuotationDetailPage({ params }: PageProps) {
             Rental Schedule & Route
           </h2>
           <div className="space-y-2 text-xs">
-            <div><span className="font-bold text-slate-700 dark:text-slate-300">Rental Dates:</span> {quotation.rental_start_date} to {quotation.rental_end_date}</div>
+            <div><span className="font-bold text-slate-700 dark:text-slate-300">Rental Schedule:</span> {quotation.rental_start_date} to {quotation.rental_end_date} ({canonicalDays} day(s))</div>
             <div><span className="font-bold text-slate-700 dark:text-slate-300">Pickup Location:</span> {quotation.pickup_location || 'N/A'}</div>
             <div><span className="font-bold text-slate-700 dark:text-slate-300">Destination:</span> {quotation.destination || 'N/A'}</div>
             <div><span className="font-bold text-slate-700 dark:text-slate-300">Passengers:</span> {quotation.passenger_count || 1}</div>
@@ -149,7 +151,7 @@ export default async function QuotationDetailPage({ params }: PageProps) {
               {(quotation.items || []).map((it: any) => (
                 <tr key={it.id}>
                   <td className="py-3 px-3 font-semibold text-slate-900 dark:text-white">{it.description}</td>
-                  <td className="py-3 px-3">{it.number_of_days}</td>
+                  <td className="py-3 px-3 font-bold">{it.number_of_days || canonicalDays}</td>
                   <td className="py-3 px-3 font-mono">LKR {Number(it.unit_rate).toLocaleString()}</td>
                   <td className="py-3 px-3 font-mono">LKR {Number(it.driver_charge).toLocaleString()}</td>
                   <td className="py-3 px-3 font-mono font-bold text-right text-slate-900 dark:text-white">LKR {Number(it.line_total).toLocaleString()}</td>

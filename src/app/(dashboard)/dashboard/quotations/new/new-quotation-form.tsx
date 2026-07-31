@@ -405,20 +405,15 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Rental Days</label>
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                    Rental Days <span className="text-[10px] font-normal text-slate-400">(Schedule Sync)</span>
+                  </label>
                   <input
                     type="number"
-                    min="1"
-                    value={item.number_of_days}
-                    onChange={(e) => {
-                      const val = Number(e.target.value)
-                      setItems((prev) => {
-                        const copy = [...prev]
-                        copy[idx].number_of_days = val
-                        return copy
-                      })
-                    }}
-                    className="w-full p-2.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
+                    readOnly
+                    value={rentalDays}
+                    title="Rental days automatically equal schedule duration"
+                    className="w-full p-2.5 bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:outline-none cursor-not-allowed font-bold"
                   />
                 </div>
                 <div>

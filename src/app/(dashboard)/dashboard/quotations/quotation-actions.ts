@@ -36,10 +36,10 @@ export async function createQuotation(values: QuotationInput) {
 
     const { items, ...headerData } = parsed.data
 
+    const canonicalDays = calculateRentalDays(headerData.rental_start_date, headerData.rental_end_date)
     let subtotal = 0
     const processedItems = items.map((item) => {
-      const days = calculateRentalDays(headerData.rental_start_date, headerData.rental_end_date)
-      const numDays = item.number_of_days || days
+      const numDays = canonicalDays
       const baseLineTotal = Number(numDays) * Number(item.unit_rate) * Number(item.quantity || 1)
       const lineTotal = baseLineTotal + Number(item.driver_charge || 0) + Number(item.additional_charge || 0)
       subtotal += lineTotal
@@ -159,10 +159,10 @@ export async function updateQuotation(id: string, values: QuotationInput) {
 
     const { items, ...headerData } = parsed.data
 
+    const canonicalDays = calculateRentalDays(headerData.rental_start_date, headerData.rental_end_date)
     let subtotal = 0
     const processedItems = items.map((item) => {
-      const days = calculateRentalDays(headerData.rental_start_date, headerData.rental_end_date)
-      const numDays = item.number_of_days || days
+      const numDays = canonicalDays
       const baseLineTotal = Number(numDays) * Number(item.unit_rate) * Number(item.quantity || 1)
       const lineTotal = baseLineTotal + Number(item.driver_charge || 0) + Number(item.additional_charge || 0)
       subtotal += lineTotal
@@ -322,72 +322,27 @@ export async function convertQuotationToBooking(id: string) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated.' }
 
-    const { data: qt, error: fetchErr } = await supabase
-      .from('quotations')
-      .select('*, customer:customers(*), items:quotation_items(*)')
-      .eq('id', id)
-      .single()
+    const { data: res, error: rpcErr } = await supabase.rpc('convert_quotation_to_booking_rpc', {
+      p_quotation_id: id,
+      p_user_id: user.id,
+    })
 
-    if (fetchErr || !qt) return { success: false, error: 'Quotation not found.' }
-
-    // Generate Booking Number (BK-2026-000001)
-    const year = new Date().getFullYear()
-    const { data: maxBk } = await supabase
-      .from('bookings')
-      .select('booking_number')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    let nextSeq = 1
-    if (maxBk?.booking_number) {
-      const parts = maxBk.booking_number.split('-')
-      const lastSeq = parseInt(parts[parts.length - 1], 10)
-      if (!isNaN(lastSeq)) nextSeq = lastSeq + 1
+    if (rpcErr || !res || !res.success) {
+      return {
+        success: false,
+        error: rpcErr?.message || res?.error || 'Booking conversion failed. No partial booking was created.',
+      }
     }
-    const bookingNumber = `BK-${year}-${String(nextSeq).padStart(6, '0')}`
-
-    const bookingPayload = {
-      booking_number: bookingNumber,
-      quotation_id: qt.id,
-      customer_id: qt.customer_id,
-      rental_start_date: qt.rental_start_date,
-      rental_end_date: qt.rental_end_date,
-      pickup_location: qt.pickup_location,
-      dropoff_location: qt.dropoff_location,
-      destination: qt.destination,
-      passenger_count: qt.passenger_count,
-      purpose: qt.purpose,
-      subtotal: qt.subtotal,
-      discount_type: qt.discount_type,
-      discount_value: qt.discount_value,
-      discount_amount: qt.discount_amount,
-      tax_rate: qt.tax_rate,
-      tax_amount: qt.tax_amount,
-      refundable_deposit: qt.refundable_deposit,
-      additional_charges: qt.additional_charges,
-      grand_total: qt.grand_total,
-      status: 'confirmed',
-      notes: qt.notes,
-      created_by: user.id,
-      updated_by: user.id,
-    }
-
-    const { data: booking, error: bkErr } = await supabase
-      .from('bookings')
-      .insert(bookingPayload)
-      .select()
-      .single()
-
-    if (bkErr || !booking) return { success: false, error: bkErr?.message || 'Failed to create booking.' }
-
-    // Update Quotation Status to 'accepted'
-    await supabase.from('quotations').update({ status: 'accepted', updated_by: user.id }).eq('id', id)
 
     revalidatePath('/dashboard/quotations')
+    revalidatePath(`/dashboard/quotations/${id}`)
     revalidatePath('/dashboard/bookings')
-    return { success: true, bookingId: booking.id }
+    return {
+      success: true,
+      bookingId: res.booking_id,
+      bookingNumber: res.booking_number,
+    }
   } catch (err: any) {
-    return { success: false, error: err.message || 'Failed to convert quotation to booking.' }
+    return { success: false, error: err.message || 'Booking conversion failed. No partial booking was created.' }
   }
 }

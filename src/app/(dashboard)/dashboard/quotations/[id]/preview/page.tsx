@@ -77,6 +77,8 @@ export default function QuotationPreviewPage({ params }: PageProps) {
     }
   }, [id])
 
+  const [sharing, setSharing] = useState(false)
+
   const handleDownload = async () => {
     if (!quotation) return
     try {
@@ -88,11 +90,53 @@ export default function QuotationPreviewPage({ params }: PageProps) {
     }
   }
 
-  const handleWhatsAppShare = () => {
-    if (!quotation) return
-    const text = `Hello ${quotation.customer?.full_name || 'Customer'},\n\nPlease find your Quotation (${quotation.quotation_number}) details:\nAmount: LKR ${Number(quotation.grand_total).toLocaleString()}\nRental Dates: ${quotation.rental_start_date} to ${quotation.rental_end_date}\n\nThank you,\nThennakoon Tours`
-    const phone = quotation.customer?.mobile ? quotation.customer.mobile.replace(/[^0-9]/g, '') : ''
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank')
+  const handleDownloadAndWhatsAppShare = async () => {
+    if (!quotation || sharing) return
+    try {
+      setSharing(true)
+      const pdfDoc = await generateQuotationPDF(quotation, companySettings)
+      const filename = `Quotation-${quotation.quotation_number}.pdf`
+
+      // 1. Download PDF first
+      pdfDoc.save(filename)
+
+      // 2. Prepare message text
+      const customerName = quotation.customer?.full_name || 'Valued Customer'
+      const amount = Number(quotation.grand_total).toLocaleString('en-US', { minimumFractionDigits: 2 })
+      const validUntil = quotation.valid_until ? new Date(quotation.valid_until).toLocaleDateString() : 'N/A'
+
+      const messageText = `Hello ${customerName},\n\nPlease find quotation ${quotation.quotation_number}.\nTotal: LKR ${amount}\nValid until: ${validUntil}\n\nKindly attach the downloaded quotation PDF before sending.`
+
+      // 3. Optional Web Share API for mobile browsers
+      const blob = pdfDoc.output('blob')
+      const file = new File([blob], filename, { type: 'application/pdf' })
+      if (typeof navigator !== 'undefined' && 'canShare' in navigator && (navigator as any).canShare({ files: [file] })) {
+        try {
+          await (navigator as any).share({
+            files: [file],
+            title: `Quotation ${quotation.quotation_number}`,
+            text: messageText,
+          })
+          return
+        } catch (shareErr) {
+          console.log('Web Share API dismissed or unhandled, falling back to wa.me URL', shareErr)
+        }
+      }
+
+      // 4. Fallback baseline flow: Open wa.me with customer-ready prefilled text
+      const rawPhone = quotation.customer?.mobile || quotation.customer?.phone || ''
+      const phone = rawPhone.replace(/[^0-9]/g, '')
+      const waUrl = phone
+        ? `https://wa.me/${phone}?text=${encodeURIComponent(messageText)}`
+        : `https://wa.me/?text=${encodeURIComponent(messageText)}`
+
+      window.open(waUrl, '_blank')
+    } catch (err: any) {
+      console.error('WhatsApp PDF Share Error:', err)
+      alert('Failed to generate PDF for WhatsApp. Please try downloading directly.')
+    } finally {
+      setSharing(false)
+    }
   }
 
   if (loading) {
@@ -131,13 +175,18 @@ export default function QuotationPreviewPage({ params }: PageProps) {
             <p className="text-xs text-slate-500">Official Thennakoon Tours A4 document preview.</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={handleWhatsAppShare}
-            className="px-3.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-bold hover:bg-emerald-500/20 flex items-center gap-1.5 cursor-pointer"
+            onClick={handleDownloadAndWhatsAppShare}
+            disabled={sharing}
+            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
           >
-            <Share2 size={15} />
-            <span>WhatsApp</span>
+            {sharing ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <Share2 size={15} />
+            )}
+            <span>Download PDF & Open WhatsApp</span>
           </button>
           <button
             onClick={handleDownload}
@@ -147,6 +196,12 @@ export default function QuotationPreviewPage({ params }: PageProps) {
             <span>Download PDF</span>
           </button>
         </div>
+      </div>
+
+      {/* WhatsApp Baseline Explanation Banner */}
+      <div className="bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 p-3.5 rounded-xl text-xs flex items-center gap-2 font-medium">
+        <AlertCircle size={16} className="shrink-0 text-amber-500" />
+        <span>WhatsApp Web cannot attach files automatically. The PDF will be downloaded first; please attach it in WhatsApp.</span>
       </div>
 
       {/* PDF Viewer Frame */}
