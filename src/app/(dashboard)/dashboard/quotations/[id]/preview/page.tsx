@@ -123,6 +123,10 @@ export default function QuotationPreviewPage({ params }: PageProps) {
 
       // 4. Generate URL with normalized phone number and open WhatsApp directly to customer chat
       const waUrl = buildWhatsAppQuotationUrl(quotation, companyName)
+      console.log('WhatsApp Final Generated URL:', waUrl)
+      if (!waUrl.includes('text=')) {
+        throw new Error('WhatsApp URL validation failed: missing text= parameter')
+      }
       window.open(waUrl, '_blank')
     } catch (err: any) {
       console.error('WhatsApp PDF Share Error:', err)

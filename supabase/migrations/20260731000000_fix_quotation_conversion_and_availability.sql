@@ -211,14 +211,20 @@ BEGIN
             document_type,
             document_id,
             action,
-            actor_id,
-            details
+            previous_status,
+            new_status,
+            change_summary,
+            metadata,
+            user_id
         ) VALUES (
             'quotation',
             v_qt.id,
             'converted_to_booking',
-            COALESCE(p_user_id, auth.uid()),
-            jsonb_build_object('booking_id', v_booking_id, 'booking_number', v_booking_number)
+            'accepted',
+            'converted',
+            'Converted quotation ' || v_qt.quotation_number || ' to booking ' || v_booking_number,
+            jsonb_build_object('booking_id', v_booking_id, 'booking_number', v_booking_number),
+            COALESCE(p_user_id, auth.uid())
         );
     END IF;
 

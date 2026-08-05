@@ -77,11 +77,11 @@ export function buildWhatsAppQuotationMessage(quotation: any, companyName: strin
   const rentalStart = quotation?.rental_start_date || 'N/A'
   const rentalEnd = quotation?.rental_end_date || 'N/A'
 
-  return `Hello ${customerName},\n\nPlease find your Quotation (${quotationNumber}).\n\nAmount:\nLKR ${grandTotal}\n\nRental Dates:\n${rentalStart}\nto\n${rentalEnd}\n\nThank you,\n${companyName}`
+  return `Hello ${customerName},\n\nPlease find your Quotation (${quotationNumber}) details:\n\nAmount: LKR ${grandTotal}\n\nRental Dates:\n${rentalStart} to ${rentalEnd}\n\nThank you,\n${companyName}`
 }
 
 /**
- * Builds the complete WhatsApp direct message URL including the normalized customer phone number.
+ * Builds the complete WhatsApp direct message URL including the normalized customer phone number and encoded text message.
  */
 export function buildWhatsAppQuotationUrl(quotation: any, companyName: string = 'Thennakoon Tours'): string {
   const messageText = buildWhatsAppQuotationMessage(quotation, companyName)
@@ -89,8 +89,13 @@ export function buildWhatsAppQuotationUrl(quotation: any, companyName: string = 
   const phone = normalizeSriLankanPhone(rawPhone)
   const encodedMsg = encodeURIComponent(messageText)
 
-  if (phone) {
-    return `https://api.whatsapp.com/send?phone=${phone}&text=${encodedMsg}`
+  const url = phone
+    ? `https://api.whatsapp.com/send?phone=${phone}&text=${encodedMsg}`
+    : `https://api.whatsapp.com/send?text=${encodedMsg}`
+
+  if (!url.includes('text=')) {
+    throw new Error('WhatsApp URL assertion failure: Generated URL must contain text= parameter.')
   }
-  return `https://api.whatsapp.com/send?text=${encodedMsg}`
+
+  return url
 }
