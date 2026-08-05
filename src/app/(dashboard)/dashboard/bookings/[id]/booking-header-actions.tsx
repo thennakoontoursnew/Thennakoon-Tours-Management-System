@@ -123,10 +123,16 @@ export default function BookingHeaderActions({
     try {
       setLoadingAction('AGREEMENT')
       const res = await createAgreementFromBooking(bookingId)
+
       if (!res.success || !res.agreementId) {
         alert(`Agreement Generation Failed: ${res.error || 'Unknown error'}`)
         return
       }
+
+      if (res.existing) {
+        alert(`An active Rental Agreement already exists (${res.agreementNumber || 'AGR'}). Redirecting to the existing agreement.`)
+      }
+
       router.push(`/dashboard/agreements/${res.agreementId}/preview`)
     } catch (err: any) {
       alert(`Agreement Exception: ${err.message}`)

@@ -18,19 +18,22 @@ export async function createAgreementFromBooking(bookingId: string) {
 
     if (bErr || !b) return { success: false, error: 'Booking not found.' }
 
-    // 2. Prevent Duplicate Agreement Generation
+    // 2. Search for existing ACTIVE agreement for the booking
     const { data: existingAgr } = await supabase
       .from('rental_agreements')
-      .select('id, agreement_number')
+      .select('id, agreement_number, status')
       .eq('booking_id', bookingId)
+      .neq('status', 'cancelled')
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle()
 
     if (existingAgr) {
       return {
         success: true,
+        existing: true,
         agreementId: existingAgr.id,
         agreementNumber: existingAgr.agreement_number,
-        alreadyExisted: true,
       }
     }
 
@@ -63,7 +66,7 @@ export async function createAgreementFromBooking(bookingId: string) {
       companySettings?.default_agreement_terms ||
       '1. Hirer is responsible for vehicle during rental period. 2. Fuel level must match pickup level. 3. Vehicle must be returned on time.'
 
-    // 5. Generate agreement record
+    // 5. Generate agreement record with race-condition safety
     const { data: agr, error: aErr } = await supabase
       .from('rental_agreements')
       .insert({
@@ -79,7 +82,31 @@ export async function createAgreementFromBooking(bookingId: string) {
       .select()
       .single()
 
-    if (aErr || !agr) return { success: false, error: aErr?.message || 'Failed to create agreement.' }
+    if (aErr) {
+      // Gracefully handle concurrent request unique constraint violation
+      if (aErr.code === '23505' || aErr.message.includes('unique_active_agreement_per_booking')) {
+        const { data: reQueried } = await supabase
+          .from('rental_agreements')
+          .select('id, agreement_number')
+          .eq('booking_id', bookingId)
+          .neq('status', 'cancelled')
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+
+        if (reQueried) {
+          return {
+            success: true,
+            existing: true,
+            agreementId: reQueried.id,
+            agreementNumber: reQueried.agreement_number,
+          }
+        }
+      }
+      return { success: false, error: aErr.message || 'Failed to create agreement.' }
+    }
+
+    if (!agr) return { success: false, error: 'Failed to create agreement record.' }
 
     // 6. Write document activity log
     await supabase.from('document_activity_logs').insert({

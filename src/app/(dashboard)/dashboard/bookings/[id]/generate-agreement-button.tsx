@@ -47,6 +47,10 @@ export default function GenerateAgreementButton({
         return
       }
 
+      if (res.existing) {
+        alert(`An active Rental Agreement already exists (${res.agreementNumber || 'AGR'}). Redirecting to the existing agreement.`)
+      }
+
       router.push(`/dashboard/agreements/${res.agreementId}/preview`)
     } catch (err: any) {
       alert(`Agreement Generation Exception: ${err.message || 'An error occurred.'}`)
