@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { generateQuotationPDF } from '@/lib/documents/quotation-pdf'
 import { ArrowLeft, Download, Share2, Loader2, AlertCircle } from 'lucide-react'
-
 import { buildWhatsAppQuotationMessage, buildWhatsAppQuotationUrl } from '@/lib/utils/formatters'
 
 interface PageProps {
@@ -52,9 +51,6 @@ export default function QuotationPreviewPage({ params }: PageProps) {
         const pdfDoc = await generateQuotationPDF(q, settings)
         const blob = pdfDoc.output('blob')
 
-        // Temporary Development Diagnostics
-        console.log(`[PDF Preview Diagnostic] Quotation Number: ${q.quotation_number}, Blob Size: ${blob.size} bytes, Pages: ${pdfDoc.getNumberOfPages()}`)
-
         if (blob.size < 5000) {
           setRenderError('PDF generation produced an incomplete document.')
           setLoading(false)
@@ -94,39 +90,26 @@ export default function QuotationPreviewPage({ params }: PageProps) {
   const handleDownloadAndWhatsAppShare = async () => {
     if (!quotation || sharing) return
     try {
+      console.log('STEP 1 - Button Clicked')
       setSharing(true)
+
+      console.log('STEP 2 - Starting PDF Download')
       const pdfDoc = await generateQuotationPDF(quotation, companySettings)
       const filename = `Quotation-${quotation.quotation_number}.pdf`
-
-      // 1. Download PDF first
       pdfDoc.save(filename)
 
-      // 2. Build exact required WhatsApp message & URL with normalized Sri Lankan phone number
+      console.log('STEP 3 - Building WhatsApp Message')
       const companyName = quotation.company_name_snapshot || companySettings?.company_name || 'Thennakoon Tours'
       const messageText = buildWhatsAppQuotationMessage(quotation, companyName)
 
-      // 3. Optional Web Share API for supported mobile browsers
-      const blob = pdfDoc.output('blob')
-      const file = new File([blob], filename, { type: 'application/pdf' })
-      if (typeof navigator !== 'undefined' && 'canShare' in navigator && (navigator as any).canShare({ files: [file] })) {
-        try {
-          await (navigator as any).share({
-            files: [file],
-            title: `Quotation ${quotation.quotation_number}`,
-            text: messageText,
-          })
-          return
-        } catch (shareErr) {
-          console.log('Web Share API dismissed or unhandled, falling back to WhatsApp web link', shareErr)
-        }
-      }
-
-      // 4. Generate URL with normalized phone number and open WhatsApp directly to customer chat
       const waUrl = buildWhatsAppQuotationUrl(quotation, companyName)
-      console.log('WhatsApp Final Generated URL:', waUrl)
+      console.log('STEP 4 - WhatsApp URL', waUrl)
+
       if (!waUrl.includes('text=')) {
         throw new Error('WhatsApp URL validation failed: missing text= parameter')
       }
+
+      console.log('STEP 5 - Opening WhatsApp')
       window.open(waUrl, '_blank')
     } catch (err: any) {
       console.error('WhatsApp PDF Share Error:', err)
