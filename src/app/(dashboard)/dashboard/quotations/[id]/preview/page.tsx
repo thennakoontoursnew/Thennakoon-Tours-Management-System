@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { generateQuotationPDF } from '@/lib/documents/quotation-pdf'
 import { ArrowLeft, Download, Share2, Loader2, AlertCircle } from 'lucide-react'
 
-import { buildWhatsAppQuotationMessage } from '@/lib/utils/formatters'
+import { buildWhatsAppQuotationMessage, buildWhatsAppQuotationUrl } from '@/lib/utils/formatters'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -101,7 +101,7 @@ export default function QuotationPreviewPage({ params }: PageProps) {
       // 1. Download PDF first
       pdfDoc.save(filename)
 
-      // 2. Build exact required WhatsApp message
+      // 2. Build exact required WhatsApp message & URL with normalized Sri Lankan phone number
       const companyName = quotation.company_name_snapshot || companySettings?.company_name || 'Thennakoon Tours'
       const messageText = buildWhatsAppQuotationMessage(quotation, companyName)
 
@@ -121,16 +121,8 @@ export default function QuotationPreviewPage({ params }: PageProps) {
         }
       }
 
-      // 4. Format phone number & URL using official WhatsApp Universal Link
-      const rawPhone = quotation.customer?.mobile || quotation.customer?.phone || ''
-      const phone = rawPhone ? rawPhone.replace(/[^0-9]/g, '') : ''
-      const encodedMsg = encodeURIComponent(messageText)
-
-      const waUrl = phone
-        ? `https://api.whatsapp.com/send?phone=${phone}&text=${encodedMsg}`
-        : `https://api.whatsapp.com/send?text=${encodedMsg}`
-
-      // Open WhatsApp with prefilled message in a new window/tab
+      // 4. Generate URL with normalized phone number and open WhatsApp directly to customer chat
+      const waUrl = buildWhatsAppQuotationUrl(quotation, companyName)
       window.open(waUrl, '_blank')
     } catch (err: any) {
       console.error('WhatsApp PDF Share Error:', err)

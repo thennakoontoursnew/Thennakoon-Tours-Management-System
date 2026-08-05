@@ -40,15 +40,57 @@ export function calculateRentalDays(startDateStr: string | null | undefined, end
 }
 
 /**
- * Builds the standard pre-filled WhatsApp quotation message.
+ * Normalizes Sri Lankan phone numbers into international country code format (94XXXXXXXXX).
+ * Examples:
+ * 0777273820 -> 94777273820
+ * +94777273820 -> 94777273820
+ * 0771234567 -> 94771234567
+ * 94771234567 -> 94771234567
+ */
+export function normalizeSriLankanPhone(phone: string | null | undefined): string {
+  if (!phone) return ''
+  let clean = String(phone).replace(/[^0-9]/g, '')
+  if (!clean) return ''
+
+  if (clean.startsWith('94') && clean.length >= 11) {
+    return clean
+  }
+
+  if (clean.startsWith('0')) {
+    return '94' + clean.slice(1)
+  }
+
+  if (clean.length === 9 && clean.startsWith('7')) {
+    return '94' + clean
+  }
+
+  return clean
+}
+
+/**
+ * Builds the standard pre-filled WhatsApp quotation message text.
  */
 export function buildWhatsAppQuotationMessage(quotation: any, companyName: string = 'Thennakoon Tours'): string {
   const customerName = quotation?.customer?.full_name || 'Valued Customer'
   const quotationNumber = quotation?.quotation_number || 'N/A'
-  const currency = quotation?.currency || 'LKR'
   const grandTotal = Number(quotation?.grand_total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })
   const rentalStart = quotation?.rental_start_date || 'N/A'
   const rentalEnd = quotation?.rental_end_date || 'N/A'
 
-  return `Hello ${customerName},\n\nPlease find your Quotation (${quotationNumber}) details:\n\nAmount: ${currency} ${grandTotal}\n\nRental Dates:\n${rentalStart} to ${rentalEnd}\n\nThank you,\n${companyName}`
+  return `Hello ${customerName},\n\nPlease find your Quotation (${quotationNumber}).\n\nAmount:\nLKR ${grandTotal}\n\nRental Dates:\n${rentalStart}\nto\n${rentalEnd}\n\nThank you,\n${companyName}`
+}
+
+/**
+ * Builds the complete WhatsApp direct message URL including the normalized customer phone number.
+ */
+export function buildWhatsAppQuotationUrl(quotation: any, companyName: string = 'Thennakoon Tours'): string {
+  const messageText = buildWhatsAppQuotationMessage(quotation, companyName)
+  const rawPhone = quotation?.customer?.mobile || quotation?.customer?.phone || quotation?.customer?.whatsapp || ''
+  const phone = normalizeSriLankanPhone(rawPhone)
+  const encodedMsg = encodeURIComponent(messageText)
+
+  if (phone) {
+    return `https://api.whatsapp.com/send?phone=${phone}&text=${encodedMsg}`
+  }
+  return `https://api.whatsapp.com/send?text=${encodedMsg}`
 }
