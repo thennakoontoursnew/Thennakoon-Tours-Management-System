@@ -80,12 +80,20 @@ export function buildWhatsAppQuotationMessage(quotation: any, companyName: strin
   return `Hello ${customerName},\n\nPlease find your Quotation (${quotationNumber}) details:\n\nAmount: LKR ${grandTotal}\n\nRental Dates:\n${rentalStart} to ${rentalEnd}\n\nThank you,\n${companyName}`
 }
 
-/**
- * Builds the complete WhatsApp direct message URL including the normalized customer phone number and encoded text message.
- */
 export function buildWhatsAppQuotationUrl(quotation: any, companyName: string = 'Thennakoon Tours'): string {
   const messageText = buildWhatsAppQuotationMessage(quotation, companyName)
-  const rawPhone = quotation?.customer?.mobile || quotation?.customer?.phone || quotation?.customer?.whatsapp || ''
+  const cust = quotation?.customer || {}
+  
+  // Priority: 1. customers.whatsapp -> 2. quotations.whatsapp_snapshot -> 3. customers.mobile_phone / mobile -> 4. quotations.customer_phone
+  const rawPhone =
+    cust.whatsapp ||
+    quotation?.whatsapp_snapshot ||
+    cust.mobile_phone ||
+    cust.mobile ||
+    cust.phone ||
+    quotation?.customer_phone ||
+    ''
+
   const phone = normalizeSriLankanPhone(rawPhone)
   const encodedMsg = encodeURIComponent(messageText)
 
