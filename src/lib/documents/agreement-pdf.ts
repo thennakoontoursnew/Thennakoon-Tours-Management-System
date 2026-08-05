@@ -25,7 +25,18 @@ function formatNumberSafe(val: any, decimals: number = 2): string {
 }
 
 export async function generateAgreementPDF(agreement: any, companySettings: any) {
+  console.log('AgreementDocument mounted')
+
+  if (!agreement) {
+    console.error('Agreement data missing in generateAgreementPDF')
+    throw new Error('Agreement data missing')
+  }
+
   const doc = new jsPDF('p', 'mm', 'a4')
+
+  console.log('Rendering Page 1')
+  console.log('Rendering Header')
+
   const base64Letterhead = await getLetterheadBase64()
 
   let currentY = A4_MARGINS.top
@@ -48,7 +59,8 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
 
   currentY += 8
 
-  // Customer & Vehicle Details Box
+  // Customer Section
+  console.log('Rendering Customer')
   const customer = agreement.customer || {}
   const booking = agreement.booking || {}
   const vehiclesList = agreement.vehicles || []
@@ -80,6 +92,8 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
   const endStr = formatDateSafe(agreement.rental_end_at || booking.rental_end_at)
   doc.text(`${startStr} to ${endStr}`, A4_MARGINS.left + 35, boxY)
 
+  // Vehicle Section
+  console.log('Rendering Vehicle')
   boxY += 6
   if (vehiclesList.length > 0) {
     const firstV = vehiclesList[0]
@@ -104,7 +118,8 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
     currentY += 8
   }
 
-  // Terms & Conditions Text
+  // Terms Section
+  console.log('Rendering Terms')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.5)
   doc.setTextColor(15, 23, 42)
@@ -121,7 +136,8 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
 
   currentY += Math.min(splitTerms.length * 3.5, 80) + 15
 
-  // Signature Block
+  // Footer / Signature Section
+  console.log('Rendering Footer')
   const sigY = Math.max(currentY, 225)
 
   doc.setFont('helvetica', 'bold')
@@ -145,8 +161,10 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
   doc.setFontSize(7.5)
   doc.text('Authorized Signature & Stamp', compX, sigY + 8)
 
-  // Draw Full-Page A4 Letterhead Background Image
-  drawLetterheadBackground(doc, base64Letterhead)
+  // Draw Letterhead Background Image
+  if (base64Letterhead) {
+    drawLetterheadBackground(doc, base64Letterhead)
+  }
 
   return doc
 }

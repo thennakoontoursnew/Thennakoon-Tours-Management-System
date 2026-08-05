@@ -4,7 +4,7 @@ import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { generateAgreementPDF } from '@/lib/documents/agreement-pdf'
-import { ArrowLeft, Download, Loader2, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, AlertTriangle, FileText } from 'lucide-react'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -16,7 +16,7 @@ export default function AgreementPreviewPage({ params }: PageProps) {
   const [companySettings, setCompanySettings] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null)
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadData() {
@@ -42,10 +42,13 @@ export default function AgreementPreviewPage({ params }: PageProps) {
 
         if (aErr || !agr) {
           console.error('STEP 2 FAILED - Agreement not found', aErr)
-          setErrorMsg('Agreement not found.')
+          setErrorMsg('Agreement data missing')
           setLoading(false)
           return
         }
+
+        console.log('agreement.id:', agr.id)
+        console.log('agreement.agreement_number:', agr.agreement_number)
         console.log('STEP 2 Agreement loaded', agr.agreement_number)
 
         // STEP 3: Fetch Linked Booking
@@ -73,7 +76,7 @@ export default function AgreementPreviewPage({ params }: PageProps) {
         }
         console.log('STEP 4 Customer loaded', customer?.full_name || 'N/A')
 
-        // Fetch Booking Vehicles & Vehicles & Drivers
+        // Fetch Booking Vehicles
         let vehiclesList: any[] = []
         if (booking?.id) {
           const { data: bvs } = await supabase
@@ -104,8 +107,9 @@ export default function AgreementPreviewPage({ params }: PageProps) {
         // STEP 6: Render PDF
         console.log('STEP 6 Rendering PDF')
         const pdfDoc = await generateAgreementPDF(fullAgreementData, settings)
-        const dataUrl = pdfDoc.output('dataurlstring')
-        setPdfDataUrl(dataUrl)
+        const pdfBlob = pdfDoc.output('blob')
+        const blobUrl = URL.createObjectURL(pdfBlob)
+        setPdfBlobUrl(blobUrl)
       } catch (err: any) {
         console.error('AGREEMENT PREVIEW EXCEPTION', err)
         setErrorMsg(err.message || 'An unexpected error occurred.')
@@ -136,8 +140,8 @@ export default function AgreementPreviewPage({ params }: PageProps) {
     return (
       <div className="max-w-md mx-auto my-16 p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center space-y-4 shadow-xl">
         <AlertTriangle size={36} className="mx-auto text-rose-500" />
-        <h2 className="text-base font-bold text-slate-900 dark:text-white">Agreement Not Found</h2>
-        <p className="text-xs text-slate-500">{errorMsg || 'The requested rental agreement does not exist or has been removed.'}</p>
+        <h2 className="text-base font-bold text-slate-900 dark:text-white">Agreement Data Missing</h2>
+        <p className="text-xs text-slate-500">{errorMsg || 'The requested rental agreement data is missing or invalid.'}</p>
         <Link
           href="/dashboard/bookings"
           className="inline-block px-4 py-2 bg-amber-400 text-slate-950 font-bold rounded-xl text-xs hover:bg-amber-300 transition-all shadow-xs"
@@ -148,13 +152,17 @@ export default function AgreementPreviewPage({ params }: PageProps) {
     )
   }
 
+  const custName = agreement.customer?.full_name || 'N/A'
+  const bookingNo = agreement.booking?.booking_number || 'N/A'
+
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto pb-12">
+      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/agreements"
-            className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100"
+            className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
           >
             <ArrowLeft size={18} />
           </Link>
@@ -174,11 +182,25 @@ export default function AgreementPreviewPage({ params }: PageProps) {
         </button>
       </div>
 
+      {/* Visible Data Summary Test Block */}
+      <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-1">
+        <div className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+          <FileText size={14} />
+          <span>RENTAL AGREEMENT PREVIEW DATA</span>
+        </div>
+        <div className="text-slate-700 dark:text-slate-300 space-x-4">
+          <span>Agreement: <strong className="font-mono">{agreement.agreement_number}</strong></span>
+          <span>Customer: <strong>{custName}</strong></span>
+          <span>Booking: <strong className="font-mono">{bookingNo}</strong></span>
+        </div>
+      </div>
+
+      {/* PDF Viewer Container */}
       <div className="bg-slate-800 p-2 rounded-2xl border border-slate-700 shadow-xl overflow-hidden min-h-[700px]">
-        {pdfDataUrl ? (
-          <iframe src={pdfDataUrl} className="w-full h-[750px] rounded-xl bg-white" title="Agreement PDF" />
+        {pdfBlobUrl ? (
+          <iframe src={pdfBlobUrl} className="w-full h-[750px] rounded-xl bg-white" title="Agreement PDF Viewer" />
         ) : (
-          <div className="p-12 text-center text-white text-xs">Failed to render PDF.</div>
+          <div className="p-12 text-center text-white text-xs">Failed to render PDF preview blob.</div>
         )}
       </div>
     </div>
