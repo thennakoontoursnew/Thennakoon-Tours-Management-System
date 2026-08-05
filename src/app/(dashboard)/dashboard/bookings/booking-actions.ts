@@ -109,13 +109,42 @@ export async function createBooking(values: BookingInput) {
   }
 }
 
-export async function updateBookingStatus(id: string, newStatus: string) {
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  pending: ['confirmed', 'cancelled'],
+  confirmed: ['in_progress', 'on_trip', 'completed', 'cancelled', 'no_show'],
+  in_progress: ['completed', 'cancelled'],
+  on_trip: ['completed', 'cancelled'],
+  completed: ['closed'],
+  closed: [],
+  cancelled: [],
+  no_show: [],
+}
+
+export async function updateBookingStatus(id: string, newStatus: string, reason?: string) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated.' }
 
-    const updatePayload: any = { status: newStatus, updated_by: user.id }
+    const { data: currentB, error: curErr } = await supabase
+      .from('bookings')
+      .select('status, booking_number')
+      .eq('id', id)
+      .single()
+
+    if (curErr || !currentB) return { success: false, error: 'Booking not found.' }
+
+    const oldStatus = currentB.status
+    const allowed = VALID_TRANSITIONS[oldStatus] || []
+
+    if (oldStatus !== newStatus && !allowed.includes(newStatus)) {
+      return {
+        success: false,
+        error: `Cannot transition booking status from "${oldStatus.toUpperCase()}" to "${newStatus.toUpperCase()}".`,
+      }
+    }
+
+    const updatePayload: any = { status: newStatus, updated_by: user.id, updated_at: new Date().toISOString() }
     if (newStatus === 'confirmed') updatePayload.confirmed_at = new Date().toISOString()
     if (newStatus === 'completed') updatePayload.completed_at = new Date().toISOString()
     if (newStatus === 'cancelled') updatePayload.cancelled_at = new Date().toISOString()
@@ -127,11 +156,61 @@ export async function updateBookingStatus(id: string, newStatus: string) {
 
     if (error) return { success: false, error: error.message }
 
+    const summaryText = reason
+      ? `Changed status from ${oldStatus.toUpperCase()} to ${newStatus.toUpperCase()} (Reason: ${reason})`
+      : `Changed status from ${oldStatus.toUpperCase()} to ${newStatus.toUpperCase()}`
+
+    await supabase.from('document_activity_logs').insert({
+      document_type: 'booking',
+      document_id: id,
+      action: 'UPDATE_STATUS',
+      change_summary: summaryText,
+      previous_status: oldStatus,
+      new_status: newStatus,
+      metadata: { reason: reason || null },
+      user_id: user.id,
+    })
+
+    await supabase.rpc('log_audit_action_internal', {
+      p_action: 'UPDATE_BOOKING_STATUS',
+      p_entity_type: 'booking',
+      p_entity_id: id,
+      p_description: summaryText,
+    })
+
     revalidatePath('/dashboard/bookings')
     revalidatePath(`/dashboard/bookings/${id}`)
     return { success: true }
   } catch (err: any) {
-    return { success: false, error: err.message }
+    return { success: false, error: err.message || 'Failed to update booking status.' }
+  }
+}
+
+export async function archiveBookingAction(bookingId: string) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated.' }
+
+    const { error } = await supabase
+      .from('bookings')
+      .update({ is_archived: true, archived_at: new Date().toISOString(), updated_by: user.id })
+      .eq('id', bookingId)
+
+    if (error) return { success: false, error: error.message }
+
+    await supabase.from('document_activity_logs').insert({
+      document_type: 'booking',
+      document_id: bookingId,
+      action: 'ARCHIVE_BOOKING',
+      change_summary: 'Archived booking',
+      user_id: user.id,
+    })
+
+    revalidatePath('/dashboard/bookings')
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to archive booking.' }
   }
 }
 

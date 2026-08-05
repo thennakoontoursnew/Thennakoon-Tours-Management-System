@@ -10,13 +10,14 @@ import {
   Calendar,
   FileCheck,
   Receipt,
-  History,
+  Clock,
+  UserCheck,
+  MapPin,
 } from 'lucide-react'
-import { updateBookingStatus } from '../booking-actions'
-import { createInvoiceFromBooking } from '../../invoices/invoice-actions'
 import { calculateRentalDays } from '@/lib/utils/formatters'
 import VehicleDriverAssignmentRow from './vehicle-driver-assignment-row'
-import GenerateAgreementButton from './generate-agreement-button'
+import BookingHeaderActions from './booking-header-actions'
+import ActivityTimeline from './activity-timeline'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -26,7 +27,8 @@ function formatDateSafe(val: any): string {
   if (!val) return 'N/A'
   try {
     const d = new Date(val)
-    return isNaN(d.getTime()) ? 'N/A' : d.toLocaleDateString()
+    if (isNaN(d.getTime())) return 'N/A'
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
   } catch {
     return 'N/A'
   }
@@ -36,7 +38,16 @@ function formatDateTimeSafe(val: any): string {
   if (!val) return 'N/A'
   try {
     const d = new Date(val)
-    return isNaN(d.getTime()) ? 'N/A' : d.toLocaleString()
+    if (isNaN(d.getTime())) return 'N/A'
+    return d.toLocaleString('en-GB', {
+      timeZone: 'Asia/Colombo',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
   } catch {
     return 'N/A'
   }
@@ -46,17 +57,6 @@ function formatNumberSafe(val: any, decimals: number = 2): string {
   const num = Number(val ?? 0)
   if (isNaN(num)) return '0.00'
   return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
-}
-
-// Module-level Server Action Handlers returning Promise<void>
-async function handleUpdateStatusAction(bookingId: string) {
-  'use server'
-  await updateBookingStatus(bookingId, 'confirmed')
-}
-
-async function handleCreateInvoiceAction(bookingId: string) {
-  'use server'
-  await createInvoiceFromBooking(bookingId)
 }
 
 export default async function BookingDetailPage({ params }: PageProps) {
@@ -97,6 +97,21 @@ export default async function BookingDetailPage({ params }: PageProps) {
     notFound()
   }
 
+  // Fetch Created By Profile Name
+  let createdByName = 'System User'
+  if (booking.created_by) {
+    try {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', booking.created_by)
+        .maybeSingle()
+      if (prof?.full_name) createdByName = prof.full_name
+    } catch (err) {
+      console.warn('Failed to fetch creator profile', err)
+    }
+  }
+
   // STEP 2: Customer Query
   let customer: any = null
   if (booking.customer_id) {
@@ -116,8 +131,6 @@ export default async function BookingDetailPage({ params }: PageProps) {
     } catch (err: any) {
       console.error('BOOKING DETAIL STEP 2 FAILED', err?.message)
     }
-  } else {
-    console.log('BOOKING DETAIL STEP 2 PASSED (No customer_id)')
   }
 
   // STEP 3: booking_vehicles Query
@@ -150,8 +163,6 @@ export default async function BookingDetailPage({ params }: PageProps) {
         vehicleMap = new Map((data || []).map((v: any) => [v.id, v]))
         console.log('BOOKING DETAIL STEP 4 PASSED')
       }
-    } else {
-      console.log('BOOKING DETAIL STEP 4 PASSED (No vehicle_ids)')
     }
   } catch (err: any) {
     console.error('BOOKING DETAIL STEP 4 FAILED', err?.message)
@@ -202,8 +213,6 @@ export default async function BookingDetailPage({ params }: PageProps) {
     } catch (err: any) {
       console.error('BOOKING DETAIL STEP 6 FAILED', err?.message)
     }
-  } else {
-    console.log('BOOKING DETAIL STEP 6 PASSED (No quotation_id)')
   }
 
   // STEP 7: Invoices Query
@@ -228,38 +237,33 @@ export default async function BookingDetailPage({ params }: PageProps) {
   let linkedPayments: any[] = []
   let linkedReceipts: any[] = []
   try {
-    const { data: pData, error: pErr } = await supabase
+    const { data: pData } = await supabase
       .from('payments')
       .select('id, payment_number, amount, payment_date, payment_method, status')
       .eq('booking_id', id)
-    if (pErr) console.error('BOOKING DETAIL STEP 8 (Payments) FAILED', pErr.code, pErr.message)
-    else linkedPayments = pData || []
+    linkedPayments = pData || []
 
-    const { data: rData, error: rErr } = await supabase
+    const { data: rData } = await supabase
       .from('receipts')
       .select('id, receipt_number, amount_paid, issued_at')
       .eq('booking_id', id)
-    if (rErr) console.error('BOOKING DETAIL STEP 8 (Receipts) FAILED', rErr.code, rErr.message)
-    else linkedReceipts = rData || []
-
-    console.log('BOOKING DETAIL STEP 8 PASSED')
+    linkedReceipts = rData || []
   } catch (err: any) {
     console.error('BOOKING DETAIL STEP 8 FAILED', err?.message)
   }
 
-  // STEP 9: Rental Agreement Query
-  let linkedAgreements: any[] = []
+  // STEP 9: Rental Agreement Query (Enforce active agreement filtering)
+  let activeAgreements: any[] = []
+  let archivedAgreements: any[] = []
   try {
     const { data, error } = await supabase
       .from('rental_agreements')
-      .select('id, agreement_number, status')
+      .select('id, agreement_number, status, created_at')
       .eq('booking_id', id)
 
-    if (error) {
-      console.error('BOOKING DETAIL STEP 9 FAILED', error.code, error.message)
-    } else {
-      linkedAgreements = data || []
-      console.log('BOOKING DETAIL STEP 9 PASSED')
+    if (!error && data) {
+      activeAgreements = data.filter((a: any) => a.status !== 'cancelled')
+      archivedAgreements = data.filter((a: any) => a.status === 'cancelled')
     }
   } catch (err: any) {
     console.error('BOOKING DETAIL STEP 9 FAILED', err?.message)
@@ -274,11 +278,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
       .eq('document_id', id)
       .order('created_at', { ascending: false })
 
-    if (error) {
-      console.error('BOOKING DETAIL STEP 10 FAILED', error.code, error.message)
-    } else {
-      activityLogs = data || []
-      console.log('BOOKING DETAIL STEP 10 PASSED')
+    if (!error && data) {
+      activityLogs = data
     }
   } catch (err: any) {
     console.error('BOOKING DETAIL STEP 10 FAILED', err?.message)
@@ -292,7 +293,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
     rentalDays = 1
   }
 
-  const primaryAgreement = linkedAgreements && linkedAgreements.length > 0 ? linkedAgreements[0] : null
+  const primaryAgreement = activeAgreements.length > 0 ? activeAgreements[0] : null
+  const primaryInvoice = linkedInvoices.length > 0 ? linkedInvoices[0] : null
 
   // Build Plain Serializable DTOs for Client Components
   const serializableDrivers = (driversList || []).map((d: any) => ({
@@ -305,9 +307,22 @@ export default async function BookingDetailPage({ params }: PageProps) {
     license_number: d.license_number ? String(d.license_number) : null,
   }))
 
+  const serializableLogs = (activityLogs || []).map((log: any) => ({
+    id: String(log.id),
+    action: log.action ? String(log.action) : null,
+    change_summary: log.change_summary ? String(log.change_summary) : null,
+    previous_status: log.previous_status ? String(log.previous_status) : null,
+    new_status: log.new_status ? String(log.new_status) : null,
+    created_at: String(log.created_at),
+    user_name: createdByName,
+  }))
+
+  const firstVeh = bookingVehicles.length > 0 ? vehicleMap.get(bookingVehicles[0].vehicle_id) : null
+  const firstVehName = firstVeh ? `${firstVeh.vehicle_name} (${firstVeh.registration_number})` : 'Vehicle'
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
-      {/* Header */}
+      {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link
@@ -323,47 +338,51 @@ export default async function BookingDetailPage({ params }: PageProps) {
                 {String(booking.status ?? 'Confirmed')}
               </span>
             </div>
-            <p className="text-xs text-slate-500">
-              Booked on {formatDateSafe(booking.booking_date)}
-            </p>
+            {/* Header Metadata Summary Line */}
+            <div className="text-xs text-slate-500 flex flex-wrap items-center gap-2 mt-1">
+              <span>Date: <strong className="text-slate-700 dark:text-slate-300">{formatDateSafe(booking.booking_date)}</strong></span>
+              <span>&bull;</span>
+              <span>By: <strong className="text-slate-700 dark:text-slate-300">{createdByName}</strong></span>
+              {customer?.full_name && (
+                <>
+                  <span>&bull;</span>
+                  <span>Customer: <strong className="text-slate-700 dark:text-slate-300">{customer.full_name}</strong></span>
+                </>
+              )}
+              {linkedQuotation && (
+                <>
+                  <span>&bull;</span>
+                  <Link href={`/dashboard/quotations/${linkedQuotation.id}`} className="text-amber-500 hover:underline font-mono font-bold">
+                    Quotation: {linkedQuotation.quotation_number}
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Status Change Action */}
-          <form action={handleUpdateStatusAction.bind(null, id)}>
-            <button
-              type="submit"
-              className="px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl text-xs border border-slate-200 dark:border-slate-700 font-bold hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
-            >
-              Status: {String(booking.status ?? 'Confirmed').toUpperCase()}
-            </button>
-          </form>
-
-          {/* Invoice Generation */}
-          <form action={handleCreateInvoiceAction.bind(null, id)}>
-            <button
-              type="submit"
-              className="px-3.5 py-2 bg-slate-900 text-white dark:bg-slate-800 rounded-xl text-xs font-bold hover:bg-slate-800 dark:hover:bg-slate-700 flex items-center gap-1.5 shadow-sm cursor-pointer"
-            >
-              <DollarSign size={15} />
-              <span>Generate Invoice</span>
-            </button>
-          </form>
-
-          {/* Rental Agreement Action Button (Generate vs View Agreement) */}
-          <GenerateAgreementButton
-            bookingId={String(id)}
-            existingAgreementId={primaryAgreement ? String(primaryAgreement.id) : null}
-            existingAgreementNumber={primaryAgreement ? String(primaryAgreement.agreement_number) : null}
-          />
-        </div>
+        {/* Booking Header Action Buttons */}
+        <BookingHeaderActions
+          bookingId={String(id)}
+          bookingNumber={String(booking.booking_number ?? '')}
+          currentStatus={String(booking.status ?? 'confirmed')}
+          customerName={customer?.full_name || 'Customer'}
+          customerPhone={customer?.whatsapp || customer?.mobile || customer?.phone || ''}
+          rentalStart={formatDateSafe(booking.rental_start_at)}
+          rentalEnd={formatDateSafe(booking.rental_end_at)}
+          vehicleName={firstVehName}
+          grandTotal={Number(booking.grand_total || 0)}
+          existingInvoiceId={primaryInvoice ? String(primaryInvoice.id) : null}
+          existingInvoiceNumber={primaryInvoice ? String(primaryInvoice.invoice_number) : null}
+          existingAgreementId={primaryAgreement ? String(primaryAgreement.id) : null}
+          existingAgreementNumber={primaryAgreement ? String(primaryAgreement.agreement_number) : null}
+        />
       </div>
 
       {/* Linked Sales Documents Bar */}
-      {(linkedQuotation || (linkedInvoices?.length || 0) > 0 || (linkedAgreements?.length || 0) > 0 || (linkedPayments?.length || 0) > 0) && (
+      {(linkedQuotation || (linkedInvoices?.length || 0) > 0 || activeAgreements.length > 0 || (linkedPayments?.length || 0) > 0) && (
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex flex-wrap items-center gap-3 text-xs">
-          <span className="font-bold text-amber-800 dark:text-amber-300">Linked Records:</span>
+          <span className="font-bold text-amber-800 dark:text-amber-300">Linked Documents:</span>
           {linkedQuotation && (
             <Link
               href={`/dashboard/quotations/${linkedQuotation.id}`}
@@ -380,10 +399,10 @@ export default async function BookingDetailPage({ params }: PageProps) {
               className="px-2.5 py-1 bg-white dark:bg-slate-800 rounded-lg border border-amber-500/30 text-amber-700 dark:text-amber-300 font-mono font-bold hover:underline flex items-center gap-1"
             >
               <DollarSign size={13} />
-              <span>Invoice: {String(inv.invoice_number ?? 'N/A')} ({String(inv.status ?? 'draft')})</span>
+              <span>Invoice: {String(inv.invoice_number ?? 'N/A')}</span>
             </Link>
           ))}
-          {linkedAgreements?.map((agr: any) => (
+          {activeAgreements.map((agr: any) => (
             <Link
               key={String(agr.id)}
               href={`/dashboard/agreements/${agr.id}/preview`}
@@ -405,7 +424,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Customer & Rental Overview Grid */}
+      {/* Customer & Financial Summary Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Customer Details */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-4 shadow-xs">
@@ -427,43 +446,53 @@ export default async function BookingDetailPage({ params }: PageProps) {
           )}
         </div>
 
-        {/* Schedule & Financial Summary */}
+        {/* Schedule & Financial Summary Overview */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-4 shadow-xs">
           <h2 className="text-xs font-bold uppercase tracking-wider text-amber-500 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-1.5">
             <Calendar size={15} />
             <span>Rental Schedule & Financial Overview</span>
           </h2>
-          <div className="space-y-2 text-xs">
-            <div>
-              <span className="font-bold text-slate-700 dark:text-slate-300">Schedule:</span>{' '}
-              {formatDateTimeSafe(booking.rental_start_at)} to {formatDateTimeSafe(booking.rental_end_at)}{' '}
-              <span className="font-bold text-amber-500">({rentalDays} day(s))</span>
-            </div>
-            <div>
-              <span className="font-bold text-slate-700 dark:text-slate-300">Pickup Location:</span> {String(booking.pickup_location ?? 'Not specified')}
-            </div>
-            <div>
-              <span className="font-bold text-slate-700 dark:text-slate-300">Drop-off Location:</span> {String(booking.dropoff_location ?? 'Not specified')}
-            </div>
-            <div>
-              <span className="font-bold text-slate-700 dark:text-slate-300">Destination:</span> {String(booking.destination ?? 'Standard Route')}
-            </div>
-            {booking.purpose && (
+          <div className="space-y-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200/60 dark:border-slate-700">
               <div>
-                <span className="font-bold text-slate-700 dark:text-slate-300">Purpose:</span> {String(booking.purpose)}
+                <span className="text-[10px] uppercase font-bold text-slate-400">Pickup</span>
+                <div className="font-semibold text-slate-800 dark:text-slate-200">{String(booking.pickup_location ?? 'Not specified')}</div>
+                <div className="text-[11px] text-slate-500">{formatDateTimeSafe(booking.rental_start_at)}</div>
               </div>
-            )}
-            {(booking.special_requests || booking.notes) && (
               <div>
-                <span className="font-bold text-slate-700 dark:text-slate-300">Notes / Requests:</span> {String(booking.special_requests ?? booking.notes)}
+                <span className="text-[10px] uppercase font-bold text-slate-400">Drop-off</span>
+                <div className="font-semibold text-slate-800 dark:text-slate-200">{String(booking.dropoff_location ?? 'Not specified')}</div>
+                <div className="text-[11px] text-slate-500">{formatDateTimeSafe(booking.rental_end_at)}</div>
               </div>
-            )}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2 text-xs">
-              <div><span className="text-slate-500">Subtotal:</span> LKR {formatNumberSafe(booking.subtotal)}</div>
-              <div><span className="text-slate-500">Deposit:</span> LKR {formatNumberSafe(booking.refundable_deposit)}</div>
-              <div><span className="text-slate-500 font-bold">Grand Total:</span> <span className="font-mono font-bold text-amber-500">LKR {formatNumberSafe(booking.grand_total)}</span></div>
-              <div><span className="text-slate-500 font-bold">Advance Paid:</span> <span className="font-mono text-emerald-500 font-bold">LKR {formatNumberSafe(booking.advance_paid)}</span></div>
-              <div className="col-span-2"><span className="text-slate-500 font-bold">Balance Due:</span> <span className="font-mono text-rose-500 font-bold text-sm">LKR {formatNumberSafe(booking.balance_due)}</span></div>
+            </div>
+
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <span>Inclusive Duration:</span>
+              <span className="font-bold text-amber-500">{rentalDays} Day(s)</span>
+            </div>
+
+            {/* Financial Grid */}
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2 text-xs">
+              <div className="text-slate-500">Subtotal:</div>
+              <div className="text-right font-mono text-slate-800 dark:text-slate-200">LKR {formatNumberSafe(booking.subtotal)}</div>
+
+              <div className="text-slate-500">Discount:</div>
+              <div className="text-right font-mono text-slate-800 dark:text-slate-200">LKR {formatNumberSafe(booking.discount_amount)}</div>
+
+              <div className="text-slate-500">Tax Amount:</div>
+              <div className="text-right font-mono text-slate-800 dark:text-slate-200">LKR {formatNumberSafe(booking.tax_amount)}</div>
+
+              <div className="text-slate-500">Refundable Deposit:</div>
+              <div className="text-right font-mono text-slate-800 dark:text-slate-200">LKR {formatNumberSafe(booking.refundable_deposit)}</div>
+
+              <div className="text-slate-900 dark:text-white font-bold pt-1 border-t border-slate-200 dark:border-slate-700">Grand Total:</div>
+              <div className="text-right font-mono font-bold text-amber-500 text-sm pt-1 border-t border-slate-200 dark:border-slate-700">LKR {formatNumberSafe(booking.grand_total)}</div>
+
+              <div className="text-slate-900 dark:text-white font-bold">Advance Paid:</div>
+              <div className="text-right font-mono font-bold text-emerald-500 text-sm">LKR {formatNumberSafe(booking.advance_paid)}</div>
+
+              <div className="text-slate-900 dark:text-white font-bold">Balance Due:</div>
+              <div className="text-right font-mono font-bold text-rose-500 text-base">LKR {formatNumberSafe(booking.balance_due)}</div>
             </div>
           </div>
         </div>
@@ -490,9 +519,12 @@ export default async function BookingDetailPage({ params }: PageProps) {
                   depositAmount={Number(bv.deposit_amount || 0)}
                   allowedKm={bv.allowed_km ? Number(bv.allowed_km) : null}
                   extraKmCharge={bv.extra_km_charge ? Number(bv.extra_km_charge) : null}
+                  rentalDays={rentalDays}
                   currentDriverId={bv.driver_id ? String(bv.driver_id) : null}
                   currentDriverName={drv ? String(drv.full_name) : null}
                   currentDriverCode={drv ? String(drv.driver_code) : null}
+                  currentDriverMobile={drv ? String(drv.mobile) : null}
+                  currentDriverStatus={drv ? String(drv.status) : null}
                   rentalStartAt={String(booking.rental_start_at ?? '')}
                   rentalEndAt={String(booking.rental_end_at ?? '')}
                   drivers={serializableDrivers}
@@ -505,32 +537,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
         )}
       </div>
 
-      {/* Document Activity History */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-4 shadow-xs">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-amber-500 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-1.5">
-          <History size={15} />
-          <span>Activity & Audit History</span>
-        </h2>
-        {activityLogs && activityLogs.length > 0 ? (
-          <div className="space-y-3">
-            {activityLogs.map((log: any) => (
-              <div key={String(log.id)} className="text-xs border-b border-slate-100 dark:border-slate-850 pb-2 flex items-start justify-between">
-                <div>
-                  <div className="font-bold text-slate-800 dark:text-slate-200">{String(log.change_summary ?? log.action ?? 'Activity event')}</div>
-                  <div className="text-[11px] text-slate-400">{String(log.action ?? 'EVENT')}</div>
-                </div>
-                <div className="text-[11px] text-slate-400 font-mono">
-                  {formatDateTimeSafe(log.created_at)}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-xs text-slate-400 italic">
-            Created on {formatDateTimeSafe(booking.created_at)}
-          </div>
-        )}
-      </div>
+      {/* Activity Log Timeline */}
+      <ActivityTimeline logs={serializableLogs} bookingCreatedAt={String(booking.created_at)} />
     </div>
   )
 }
