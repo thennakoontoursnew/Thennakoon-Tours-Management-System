@@ -5,7 +5,10 @@ import { revalidatePath } from 'next/cache'
 import { invoiceSchema, sanitizePayload } from '@/lib/validations/sales-documents'
 import { z } from 'zod'
 
-type InvoiceInput = z.infer<typeof invoiceSchema>
+type InvoiceInput = z.infer<typeof invoiceSchema> & {
+  invoice_number?: string | null
+  override_reason?: string | null
+}
 
 export async function createInvoice(values: InvoiceInput) {
   try {
@@ -13,10 +16,51 @@ export async function createInvoice(values: InvoiceInput) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated.' }
 
+    // Role check for manual editing authorization
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    const userRole = profile?.role || 'viewer'
+    const isAuthorizedToEdit = ['owner', 'admin', 'finance', 'manager'].includes(userRole)
+
     const parsed = invoiceSchema.safeParse(values)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
     const { items, ...headerData } = parsed.data
+
+    // Handle Invoice Numbering logic
+    let customInvoiceNo: string | null = null
+    const rawCustomNo = (values.invoice_number || '').trim().toUpperCase()
+
+    if (rawCustomNo) {
+      if (!isAuthorizedToEdit) {
+        return { success: false, error: 'Permission denied. Only Owner, Admin, Finance, or Manager can specify custom invoice numbers.' }
+      }
+
+      if (!rawCustomNo.startsWith('TT-IN-')) {
+        return { success: false, error: 'Invoice number must start with TT-IN-.' }
+      }
+
+      if (!/^TT-IN-[A-Z0-9-]+$/.test(rawCustomNo)) {
+        return { success: false, error: 'Invalid invoice number format. Allowed characters: A–Z, 0–9, hyphens.' }
+      }
+
+      // Check unique constraint across all existing invoices
+      const { data: existingInv } = await supabase
+        .from('invoices')
+        .select('id')
+        .eq('invoice_number', rawCustomNo)
+        .maybeSingle()
+
+      if (existingInv) {
+        return { success: false, error: `Invoice number ${rawCustomNo} already exists.` }
+      }
+
+      customInvoiceNo = rawCustomNo
+    }
 
     let subtotal = 0
     const processedItems = items.map((it, idx) => {
@@ -36,7 +80,7 @@ export async function createInvoice(values: InvoiceInput) {
     )
 
     const sanitizedHeader = sanitizePayload(headerData)
-    const payload = {
+    const payload: any = {
       ...sanitizedHeader,
       subtotal,
       tax_amount: taxAmount,
@@ -46,6 +90,10 @@ export async function createInvoice(values: InvoiceInput) {
       prepared_by: user.id,
       created_by: user.id,
       updated_by: user.id,
+    }
+
+    if (customInvoiceNo) {
+      payload.invoice_number = customInvoiceNo
     }
 
     const { data: invoice, error: invError } = await supabase
@@ -63,26 +111,56 @@ export async function createInvoice(values: InvoiceInput) {
 
     await supabase.from('invoice_items').insert(itemRows)
 
-    await supabase.rpc('log_audit_action_internal', {
-      p_action: 'CREATE_INVOICE',
-      p_entity_type: 'invoice',
-      p_entity_id: invoice.id,
-      p_description: `Created invoice ${invoice.invoice_number}`,
-    })
+    // Synchronize number_counters if manual high invoice number was specified
+    if (customInvoiceNo) {
+      await supabase.rpc('sync_invoice_counter', { p_invoice_number: customInvoiceNo })
+
+      // Audit Log for manual override
+      await supabase.rpc('log_audit_action_internal', {
+        p_action: 'INVOICE_NUMBER_OVERRIDE',
+        p_entity_type: 'invoice',
+        p_entity_id: invoice.id,
+        p_description: `Manual invoice number override: ${customInvoiceNo}`,
+      })
+    } else {
+      await supabase.rpc('log_audit_action_internal', {
+        p_action: 'CREATE_INVOICE',
+        p_entity_type: 'invoice',
+        p_entity_id: invoice.id,
+        p_description: `Created invoice ${invoice.invoice_number}`,
+      })
+    }
 
     revalidatePath('/dashboard/invoices')
     revalidatePath('/dashboard')
-    return { success: true, invoiceId: invoice.id }
+    return { success: true, invoiceId: invoice.id, invoiceNumber: invoice.invoice_number }
   } catch (err: any) {
     return { success: false, error: err.message || 'Failed to create invoice.' }
   }
 }
 
-export async function createInvoiceFromBooking(bookingId: string) {
+export async function createInvoiceFromBooking(bookingId: string, customInvoiceNumber?: string) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated.' }
+
+    // Check if an active invoice already exists for this booking
+    const { data: existingInv } = await supabase
+      .from('invoices')
+      .select('id, invoice_number')
+      .eq('booking_id', bookingId)
+      .neq('status', 'cancelled')
+      .maybeSingle()
+
+    if (existingInv) {
+      return {
+        success: true,
+        existing: true,
+        invoiceId: existingInv.id,
+        invoiceNumber: existingInv.invoice_number,
+      }
+    }
 
     const { data: b, error: bError } = await supabase
       .from('bookings')
@@ -113,6 +191,7 @@ export async function createInvoiceFromBooking(bookingId: string) {
       booking_id: b.id,
       quotation_id: b.quotation_id,
       customer_id: b.customer_id,
+      invoice_number: customInvoiceNumber || undefined,
       invoice_date: new Date().toISOString().split('T')[0],
       currency: 'LKR',
       discount_amount: b.discount_amount,

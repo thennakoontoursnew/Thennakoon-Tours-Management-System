@@ -13,6 +13,8 @@ import {
   ChevronDown,
   Loader2,
   AlertTriangle,
+  Edit3,
+  RefreshCw,
 } from 'lucide-react'
 import { updateBookingStatus, archiveBookingAction } from '../booking-actions'
 import { createInvoiceFromBooking } from '../../invoices/invoice-actions'
@@ -76,6 +78,11 @@ export default function BookingHeaderActions({
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  // Invoice Modal State
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false)
+  const [customInvoiceNumber, setCustomInvoiceNumber] = useState('')
+  const [isEditingInvoiceNo, setIsEditingInvoiceNo] = useState(false)
+
   const allowedTransitions = VALID_TRANSITIONS[currentStatus] || []
 
   const handleStatusChange = async () => {
@@ -99,19 +106,27 @@ export default function BookingHeaderActions({
     }
   }
 
-  const handleGenerateInvoice = async () => {
+  const handleConfirmInvoice = async () => {
     if (loadingAction) return
-    if (!window.confirm('Generate official invoice for this booking?')) return
     try {
       setLoadingAction('INVOICE')
-      const res = await createInvoiceFromBooking(bookingId)
+      setErrorMessage(null)
+
+      const inputNumber = isEditingInvoiceNo ? customInvoiceNumber.trim().toUpperCase() : undefined
+      const res = await createInvoiceFromBooking(bookingId, inputNumber)
+
       if (!res.success || !res.invoiceId) {
-        alert(`Invoice Generation Failed: ${res.error || 'Unknown error'}`)
+        setErrorMessage((res as any).error || 'Invoice Generation Failed.')
         return
+      }
+
+      setShowInvoiceModal(false)
+      if ((res as any).existing) {
+        alert(`An active Invoice already exists (${(res as any).invoiceNumber || 'INV'}). Redirecting to existing invoice.`)
       }
       router.push(`/dashboard/invoices/${res.invoiceId}`)
     } catch (err: any) {
-      alert(`Invoice Exception: ${err.message}`)
+      setErrorMessage(err.message || 'Invoice Exception')
     } finally {
       setLoadingAction(null)
     }
@@ -216,7 +231,10 @@ export default function BookingHeaderActions({
         </Link>
       ) : (
         <button
-          onClick={handleGenerateInvoice}
+          onClick={() => {
+            setErrorMessage(null)
+            setShowInvoiceModal(true)
+          }}
           disabled={loadingAction === 'INVOICE'}
           className="px-3.5 py-2 bg-slate-900 text-white dark:bg-slate-800 rounded-xl text-xs font-bold hover:bg-slate-800 dark:hover:bg-slate-700 flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
         >
@@ -272,6 +290,115 @@ export default function BookingHeaderActions({
       >
         <Archive size={15} />
       </button>
+
+      {/* Generate Invoice Modal with Editable Numbering */}
+      {showInvoiceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-2 text-slate-900 dark:text-white">
+              <DollarSign size={20} className="text-amber-400" />
+              <h3 className="text-sm font-bold">Generate Official Invoice</h3>
+            </div>
+
+            {errorMessage && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs rounded-xl font-medium">
+                {errorMessage}
+              </div>
+            )}
+
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Create an official invoice for booking <strong>{bookingNumber}</strong> ({customerName}).
+            </p>
+
+            {/* Responsive Non-Overlapping Input & Edit Row */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Invoice Number <span className="text-rose-500">*</span>
+                </label>
+                {isEditingInvoiceNo ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                    Manual Number
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500">
+                    Auto Generated
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <input
+                    type="text"
+                    value={isEditingInvoiceNo ? customInvoiceNumber : 'TT-IN-10001'}
+                    onChange={(e) => setCustomInvoiceNumber(e.target.value.toUpperCase().trim())}
+                    readOnly={!isEditingInvoiceNo}
+                    placeholder="TT-IN-10001"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono font-bold transition-all ${
+                      isEditingInvoiceNo
+                        ? 'bg-white dark:bg-slate-900 border-amber-400 focus:outline-none ring-2 ring-amber-400/20 text-slate-900 dark:text-white'
+                        : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 cursor-not-allowed'
+                    }`}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isEditingInvoiceNo) {
+                      setIsEditingInvoiceNo(false)
+                      setCustomInvoiceNumber('')
+                    } else {
+                      setIsEditingInvoiceNo(true)
+                      setCustomInvoiceNumber('TT-IN-10001')
+                    }
+                  }}
+                  className="shrink-0 px-3.5 py-2.5 rounded-xl bg-slate-900 text-white dark:bg-slate-800 text-xs font-bold hover:bg-slate-800 dark:hover:bg-slate-700 transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                >
+                  {isEditingInvoiceNo ? (
+                    <>
+                      <RefreshCw size={13} />
+                      <span>Use Auto Number</span>
+                    </>
+                  ) : (
+                    <>
+                      <Edit3 size={13} />
+                      <span>Edit</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {isEditingInvoiceNo && (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                  You may change this number before saving. Duplicate invoice numbers are not allowed. Must start with <strong className="font-mono text-amber-500">TT-IN-</strong>.
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                onClick={() => {
+                  setShowInvoiceModal(false)
+                  setErrorMessage(null)
+                }}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmInvoice}
+                disabled={loadingAction === 'INVOICE'}
+                className="px-4 py-2 bg-amber-400 text-slate-950 text-xs font-bold rounded-xl hover:bg-amber-300 flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {loadingAction === 'INVOICE' && <Loader2 size={13} className="animate-spin" />}
+                <span>Confirm & Create Invoice</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Status Confirmation Modal */}
       {pendingStatus && (

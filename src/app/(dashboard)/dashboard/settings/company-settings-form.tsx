@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { saveCompanySettings } from './settings-actions'
-import { Loader2, Save, CheckCircle } from 'lucide-react'
+import { Loader2, Save, CheckCircle, Hash } from 'lucide-react'
 
 interface CompanySettings {
   company_name: string
@@ -19,8 +19,17 @@ interface CompanySettings {
   receipt_prefix: string | null
 }
 
+interface NumberCounter {
+  document_type: string
+  prefix: string
+  last_value: number
+  padding: number
+  allow_manual_edit: boolean
+}
+
 interface CompanySettingsFormProps {
   initialValues: CompanySettings | null
+  invoiceCounter?: NumberCounter | null
 }
 
 function FormField({
@@ -29,12 +38,14 @@ function FormField({
   defaultValue,
   placeholder,
   type = 'text',
+  readOnly = false,
 }: {
   label: string
   name: string
   defaultValue?: string | null
   placeholder?: string
   type?: string
+  readOnly?: boolean
 }) {
   return (
     <div>
@@ -46,16 +57,25 @@ function FormField({
         name={name}
         defaultValue={defaultValue ?? ''}
         placeholder={placeholder}
-        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-amber-400 transition-colors"
+        readOnly={readOnly}
+        className={`w-full border text-slate-900 dark:text-white rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-amber-400 transition-colors ${
+          readOnly
+            ? 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 font-mono font-bold'
+            : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
+        }`}
       />
     </div>
   )
 }
 
-export function CompanySettingsForm({ initialValues }: CompanySettingsFormProps) {
+export function CompanySettingsForm({ initialValues, invoiceCounter }: CompanySettingsFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+
+  const invPrefix = invoiceCounter?.prefix || initialValues?.invoice_prefix || 'TT-IN-'
+  const invLastVal = invoiceCounter?.last_value ?? 10000
+  const invNextNo = `${invPrefix}${String(invLastVal + 1).padStart(5, '0')}`
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -141,6 +161,56 @@ export function CompanySettingsForm({ initialValues }: CompanySettingsFormProps)
         </div>
       </div>
 
+      {/* Numbering Settings (Administration -> Numbering Settings -> Invoice) */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-800 overflow-hidden shadow-sm">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-5 bg-amber-400 rounded-full"></div>
+            <div>
+              <h2 className="font-bold text-slate-900 dark:text-white text-sm">Invoice Numbering Settings</h2>
+              <p className="text-[11px] text-slate-500">Configure prefix, starting number, and manual edit permissions.</p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 flex items-center gap-1">
+            <Hash size={12} />
+            Next: {invNextNo}
+          </span>
+        </div>
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+          <FormField
+            label="Invoice Prefix"
+            name="invoice_prefix"
+            defaultValue={invPrefix}
+            placeholder="TT-IN-"
+          />
+          <FormField
+            label="Starting Number"
+            name="starting_number"
+            defaultValue="10001"
+            readOnly
+          />
+          <FormField
+            label="Next Number (Auto)"
+            name="next_number"
+            defaultValue={invNextNo}
+            readOnly
+          />
+          <div>
+            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+              Allow Manual Editing
+            </label>
+            <select
+              name="allow_manual_edit"
+              defaultValue={invoiceCounter?.allow_manual_edit !== false ? 'true' : 'false'}
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-amber-400 transition-colors"
+            >
+              <option value="true">Enabled (Authorized Users)</option>
+              <option value="false">Disabled (Auto Only)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
       {/* System Preferences */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-800 overflow-hidden shadow-sm">
         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
@@ -184,25 +254,19 @@ export function CompanySettingsForm({ initialValues }: CompanySettingsFormProps)
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-800 overflow-hidden shadow-sm">
         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
           <div className="w-2 h-5 bg-amber-400 rounded-full"></div>
-          <h2 className="font-bold text-slate-900 dark:text-white text-sm">Document Number Prefixes</h2>
+          <h2 className="font-bold text-slate-900 dark:text-white text-sm">Other Document Prefixes</h2>
         </div>
-        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
           <FormField
             label="Quotation Prefix"
             name="quotation_prefix"
-            defaultValue={initialValues?.quotation_prefix}
+            defaultValue={initialValues?.quotation_prefix || 'QT'}
             placeholder="QT"
-          />
-          <FormField
-            label="Invoice Prefix"
-            name="invoice_prefix"
-            defaultValue={initialValues?.invoice_prefix}
-            placeholder="INV"
           />
           <FormField
             label="Receipt Prefix"
             name="receipt_prefix"
-            defaultValue={initialValues?.receipt_prefix}
+            defaultValue={initialValues?.receipt_prefix || 'RCPT'}
             placeholder="RCPT"
           />
         </div>
@@ -217,7 +281,7 @@ export function CompanySettingsForm({ initialValues }: CompanySettingsFormProps)
       {saved && (
         <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-semibold flex items-center gap-2">
           <CheckCircle size={14} />
-          Company settings saved successfully.
+          Company and Numbering settings saved successfully.
         </div>
       )}
 
