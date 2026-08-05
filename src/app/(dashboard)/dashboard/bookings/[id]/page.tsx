@@ -294,6 +294,17 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
   const primaryAgreement = linkedAgreements && linkedAgreements.length > 0 ? linkedAgreements[0] : null
 
+  // Build Plain Serializable DTOs for Client Components
+  const serializableDrivers = (driversList || []).map((d: any) => ({
+    id: String(d.id),
+    driver_code: String(d.driver_code ?? ''),
+    full_name: String(d.full_name ?? ''),
+    mobile: d.mobile ? String(d.mobile) : null,
+    status: d.status ? String(d.status) : null,
+    license_expiry: d.license_expiry ? String(d.license_expiry) : null,
+    license_number: d.license_number ? String(d.license_number) : null,
+  }))
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
       {/* Header */}
@@ -341,7 +352,11 @@ export default async function BookingDetailPage({ params }: PageProps) {
           </form>
 
           {/* Rental Agreement Action Button (Generate vs View Agreement) */}
-          <GenerateAgreementButton bookingId={id} linkedAgreement={primaryAgreement} />
+          <GenerateAgreementButton
+            bookingId={String(id)}
+            existingAgreementId={primaryAgreement ? String(primaryAgreement.id) : null}
+            existingAgreementNumber={primaryAgreement ? String(primaryAgreement.agreement_number) : null}
+          />
         </div>
       </div>
 
@@ -468,14 +483,19 @@ export default async function BookingDetailPage({ params }: PageProps) {
               return (
                 <VehicleDriverAssignmentRow
                   key={String(bv.id)}
-                  bv={bv}
-                  veh={veh}
-                  drv={drv}
-                  bookingId={id}
-                  rentalStartAt={booking.rental_start_at}
-                  rentalEndAt={booking.rental_end_at}
-                  drivers={driversList}
-                  formatNumberSafe={formatNumberSafe}
+                  bookingVehicleId={String(bv.id)}
+                  bookingId={String(id)}
+                  vehicleName={veh ? `${veh.vehicle_name} (${veh.registration_number})` : `Vehicle ID: ${bv.vehicle_id}`}
+                  vehicleRate={Number(bv.vehicle_rate || 0)}
+                  depositAmount={Number(bv.deposit_amount || 0)}
+                  allowedKm={bv.allowed_km ? Number(bv.allowed_km) : null}
+                  extraKmCharge={bv.extra_km_charge ? Number(bv.extra_km_charge) : null}
+                  currentDriverId={bv.driver_id ? String(bv.driver_id) : null}
+                  currentDriverName={drv ? String(drv.full_name) : null}
+                  currentDriverCode={drv ? String(drv.driver_code) : null}
+                  rentalStartAt={String(booking.rental_start_at ?? '')}
+                  rentalEndAt={String(booking.rental_end_at ?? '')}
+                  drivers={serializableDrivers}
                 />
               )
             })}

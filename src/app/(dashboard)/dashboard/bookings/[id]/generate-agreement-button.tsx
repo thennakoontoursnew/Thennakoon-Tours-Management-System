@@ -8,24 +8,26 @@ import { createAgreementFromBooking } from '../../agreements/agreement-actions'
 
 interface GenerateAgreementButtonProps {
   bookingId: string
-  linkedAgreement?: { id: string; agreement_number: string } | null
+  existingAgreementId?: string | null
+  existingAgreementNumber?: string | null
 }
 
 export default function GenerateAgreementButton({
   bookingId,
-  linkedAgreement,
+  existingAgreementId,
+  existingAgreementNumber,
 }: GenerateAgreementButtonProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
-  if (linkedAgreement) {
+  if (existingAgreementId) {
     return (
       <Link
-        href={`/dashboard/agreements/${linkedAgreement.id}/preview`}
+        href={`/dashboard/agreements/${existingAgreementId}/preview`}
         className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all"
       >
         <CheckCircle2 size={15} />
-        <span>View Agreement ({linkedAgreement.agreement_number})</span>
+        <span>View Agreement ({existingAgreementNumber || 'AGR'})</span>
       </Link>
     )
   }
@@ -45,7 +47,6 @@ export default function GenerateAgreementButton({
         return
       }
 
-      // Redirect immediately to agreement preview page
       router.push(`/dashboard/agreements/${res.agreementId}/preview`)
     } catch (err: any) {
       alert(`Agreement Generation Exception: ${err.message || 'An error occurred.'}`)

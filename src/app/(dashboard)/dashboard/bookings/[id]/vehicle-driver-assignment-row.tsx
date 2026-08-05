@@ -4,30 +4,54 @@ import { useState } from 'react'
 import { Car, User, UserCheck, UserPlus } from 'lucide-react'
 import DriverAssignmentModal from './driver-assignment-modal'
 
+interface DriverDTO {
+  id: string
+  driver_code: string
+  full_name: string
+  mobile?: string | null
+  status?: string | null
+  license_expiry?: string | null
+  license_number?: string | null
+}
+
 interface VehicleDriverAssignmentRowProps {
-  bv: any
-  veh: any
-  drv: any
+  bookingVehicleId: string
   bookingId: string
+  vehicleName: string
+  vehicleRate: number
+  depositAmount: number
+  allowedKm?: number | null
+  extraKmCharge?: number | null
+  currentDriverId?: string | null
+  currentDriverName?: string | null
+  currentDriverCode?: string | null
   rentalStartAt: string
   rentalEndAt: string
-  drivers: any[]
-  formatNumberSafe: (val: any) => string
+  drivers: DriverDTO[]
+}
+
+function formatNumberSafe(val: any, decimals: number = 2): string {
+  const num = Number(val ?? 0)
+  if (isNaN(num)) return '0.00'
+  return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
 }
 
 export default function VehicleDriverAssignmentRow({
-  bv,
-  veh,
-  drv,
+  bookingVehicleId,
   bookingId,
+  vehicleName,
+  vehicleRate,
+  depositAmount,
+  allowedKm,
+  extraKmCharge,
+  currentDriverId,
+  currentDriverName,
+  currentDriverCode,
   rentalStartAt,
   rentalEndAt,
   drivers,
-  formatNumberSafe,
 }: VehicleDriverAssignmentRowProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
-
-  const vehicleName = veh ? `${veh.vehicle_name} (${veh.registration_number})` : `Vehicle ID: ${bv.vehicle_id}`
 
   return (
     <>
@@ -39,21 +63,21 @@ export default function VehicleDriverAssignmentRow({
             <span>{vehicleName}</span>
           </div>
           <div className="text-xs text-slate-500 mt-1 space-x-3">
-            <span>Rate: <strong className="font-mono">LKR {formatNumberSafe(bv.vehicle_rate)}</strong></span>
-            <span>Deposit: <strong className="font-mono">LKR {formatNumberSafe(bv.deposit_amount)}</strong></span>
-            {bv.allowed_km && <span>Allowed: <strong>{String(bv.allowed_km)} KM/day</strong></span>}
-            {bv.extra_km_charge && <span>Extra KM: <strong>LKR {formatNumberSafe(bv.extra_km_charge)}/KM</strong></span>}
+            <span>Rate: <strong className="font-mono">LKR {formatNumberSafe(vehicleRate)}</strong></span>
+            <span>Deposit: <strong className="font-mono">LKR {formatNumberSafe(depositAmount)}</strong></span>
+            {allowedKm && <span>Allowed: <strong>{String(allowedKm)} KM/day</strong></span>}
+            {extraKmCharge && <span>Extra KM: <strong>LKR {formatNumberSafe(extraKmCharge)}/KM</strong></span>}
           </div>
         </div>
 
         {/* Right: Driver Assignment Controls */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          {drv ? (
+          {currentDriverId && currentDriverName ? (
             <div className="flex items-center gap-2">
               <div className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20">
                 <UserCheck size={14} className="text-amber-500" />
                 <span>
-                  Driver: <strong className="text-slate-900 dark:text-white">{drv.full_name}</strong> ({drv.driver_code})
+                  Driver: <strong className="text-slate-900 dark:text-white">{currentDriverName}</strong> ({currentDriverCode || 'DRV'})
                 </span>
               </div>
               <button
@@ -85,9 +109,9 @@ export default function VehicleDriverAssignmentRow({
       <DriverAssignmentModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        bookingVehicleId={bv.id}
+        bookingVehicleId={bookingVehicleId}
         bookingId={bookingId}
-        currentDriverId={bv.driver_id}
+        currentDriverId={currentDriverId}
         rentalStartAt={rentalStartAt}
         rentalEndAt={rentalEndAt}
         drivers={drivers}
