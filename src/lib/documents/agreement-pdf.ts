@@ -1,4 +1,4 @@
-import { jsPDF, getLetterheadBase64, drawLetterheadBackground, A4_MARGINS } from './pdf-engine'
+import { jsPDF, getLetterheadBase64, A4_MARGINS } from './pdf-engine'
 
 function formatDateSafe(val: any): string {
   if (!val) return 'N/A'
@@ -35,16 +35,20 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
   const doc = new jsPDF('p', 'mm', 'a4')
 
   console.log('Rendering Page 1')
-  console.log('Rendering Header')
 
+  // STEP 1: Draw Letterhead Background Image FIRST before any content
   const base64Letterhead = await getLetterheadBase64()
+  if (base64Letterhead) {
+    doc.addImage(base64Letterhead, 'PNG', 0, 0, 210, 297)
+  }
 
   let currentY = A4_MARGINS.top
 
-  // Header Title & Document Number
+  // STEP 2: Draw Header Title & Document Number
+  console.log('Rendering Header')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
-  doc.setTextColor(15, 23, 42)
+  doc.setTextColor(15, 23, 42) // Dark Slate
   doc.text('VEHICLE RENTAL AGREEMENT', A4_MARGINS.left, currentY)
 
   doc.setFontSize(10)
@@ -59,7 +63,7 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
 
   currentY += 8
 
-  // Customer Section
+  // STEP 3: Customer Details Section
   console.log('Rendering Customer')
   const customer = agreement.customer || {}
   const booking = agreement.booking || {}
@@ -92,7 +96,7 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
   const endStr = formatDateSafe(agreement.rental_end_at || booking.rental_end_at)
   doc.text(`${startStr} to ${endStr}`, A4_MARGINS.left + 35, boxY)
 
-  // Vehicle Section
+  // STEP 4: Vehicle Details Section
   console.log('Rendering Vehicle')
   boxY += 6
   if (vehiclesList.length > 0) {
@@ -118,7 +122,7 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
     currentY += 8
   }
 
-  // Terms Section
+  // STEP 5: Terms & Conditions Section
   console.log('Rendering Terms')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.5)
@@ -136,7 +140,7 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
 
   currentY += Math.min(splitTerms.length * 3.5, 80) + 15
 
-  // Footer / Signature Section
+  // STEP 6: Footer / Signature Section
   console.log('Rendering Footer')
   const sigY = Math.max(currentY, 225)
 
@@ -160,11 +164,6 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
   doc.text('Authorized Signature & Stamp', compX, sigY + 8)
-
-  // Draw Letterhead Background Image
-  if (base64Letterhead) {
-    drawLetterheadBackground(doc, base64Letterhead)
-  }
 
   return doc
 }

@@ -1,12 +1,27 @@
-import { jsPDF, autoTable, getLetterheadBase64, drawLetterheadBackground, A4_MARGINS } from './pdf-engine'
+import { jsPDF, autoTable, getLetterheadBase64, A4_MARGINS } from './pdf-engine'
 
 export async function generateInvoicePDF(invoice: any, companySettings: any) {
+  console.log('InvoiceDocument mounted')
+
+  if (!invoice) {
+    console.error('Invoice data missing in generateInvoicePDF')
+    throw new Error('Invoice data missing')
+  }
+
   const doc = new jsPDF('p', 'mm', 'a4')
+
+  console.log('Rendering Page 1')
+
+  // STEP 1: Draw Letterhead Background Image FIRST before any content
   const base64Letterhead = await getLetterheadBase64()
+  if (base64Letterhead) {
+    doc.addImage(base64Letterhead, 'PNG', 0, 0, 210, 297)
+  }
 
   let currentY = A4_MARGINS.top
 
-  // Header Title & Document Number
+  // STEP 2: Header Title & Document Number
+  console.log('Rendering Header')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(18)
   doc.setTextColor(30, 41, 59) // Slate-800
@@ -14,19 +29,20 @@ export async function generateInvoicePDF(invoice: any, companySettings: any) {
 
   doc.setFontSize(10)
   doc.setTextColor(71, 85, 105)
-  doc.text(`Invoice No: ${invoice.invoice_number}`, A4_MARGINS.right, currentY, { align: 'right' })
+  doc.text(`Invoice No: ${invoice.invoice_number || 'N/A'}`, A4_MARGINS.right, currentY, { align: 'right' })
 
   currentY += 6
 
   // Date & Status
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
-  doc.text(`Invoice Date: ${invoice.invoice_date}`, A4_MARGINS.left, currentY)
+  doc.text(`Invoice Date: ${invoice.invoice_date || new Date().toISOString().split('T')[0]}`, A4_MARGINS.left, currentY)
   doc.text(`Due Date: ${invoice.due_date || 'Upon Receipt'}`, A4_MARGINS.right, currentY, { align: 'right' })
 
   currentY += 8
 
-  // Customer Box
+  // STEP 3: Customer Box
+  console.log('Rendering Customer')
   const customer = invoice.customer || {}
   doc.setFillColor(248, 250, 252)
   doc.setDrawColor(226, 232, 240)
@@ -45,44 +61,50 @@ export async function generateInvoicePDF(invoice: any, companySettings: any) {
   doc.text(`Mobile: ${customer.mobile || 'N/A'}  |  Address: ${customer.city || customer.address_line_1 || 'Sri Lanka'}`, A4_MARGINS.left + 4, boxY)
 
   boxY += 5
-  doc.text(`Status: ${invoice.status.toUpperCase()}`, A4_MARGINS.left + 4, boxY)
+  doc.text(`Status: ${String(invoice.status || 'draft').toUpperCase()}`, A4_MARGINS.left + 4, boxY)
 
   currentY += 26
 
-  // Items Table
+  // STEP 4: Items Table
+  console.log('Rendering Table')
+  const itemsList = invoice.items || []
   const tableHead = [['#', 'Description', 'Qty', 'Unit Price (LKR)', 'Amount (LKR)']]
-  const tableRows = (invoice.items || []).map((item: any, idx: number) => [
-    idx + 1,
-    item.description,
-    item.quantity,
-    Number(item.unit_price).toLocaleString('en-US', { minimumFractionDigits: 2 }),
-    Number(item.line_total).toLocaleString('en-US', { minimumFractionDigits: 2 }),
-  ])
+  const tableRows = itemsList.length > 0
+    ? itemsList.map((item: any, idx: number) => [
+        idx + 1,
+        item.description || 'Rental Charges',
+        item.quantity || 1,
+        Number(item.unit_price || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }),
+        Number(item.line_total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }),
+      ])
+    : [[1, 'Vehicle Rental Service', 1, Number(invoice.subtotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }), Number(invoice.subtotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })]]
 
   autoTable(doc, {
     startY: currentY,
     head: tableHead,
     body: tableRows,
     margin: { left: A4_MARGINS.left, right: 210 - A4_MARGINS.right },
-    styles: { fontSize: 8, cellPadding: 2.5 },
+    styles: { fontSize: 8, cellPadding: 2.5, textColor: [15, 23, 42] },
     headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [248, 250, 252] },
   })
 
   currentY = (doc as any).lastAutoTable.finalY + 6
 
-  // Totals Summary Box
+  // STEP 5: Totals Summary Box
+  console.log('Rendering Totals')
   const totalsX = A4_MARGINS.right - 75
   doc.setFontSize(8.5)
 
   doc.setFont('helvetica', 'normal')
+  doc.setTextColor(71, 85, 105)
   doc.text('Subtotal:', totalsX, currentY)
-  doc.text(`LKR ${Number(invoice.subtotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
+  doc.text(`LKR ${Number(invoice.subtotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
   currentY += 4.5
 
   if (Number(invoice.amount_paid) > 0) {
     doc.text('Amount Paid:', totalsX, currentY)
-    doc.text(`- LKR ${Number(invoice.amount_paid).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
+    doc.text(`- LKR ${Number(invoice.amount_paid || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
     currentY += 4.5
   }
 
@@ -90,7 +112,7 @@ export async function generateInvoicePDF(invoice: any, companySettings: any) {
   doc.setFontSize(10)
   doc.setTextColor(15, 23, 42)
   doc.text('BALANCE DUE:', totalsX, currentY)
-  doc.text(`LKR ${Number(invoice.balance_due).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
+  doc.text(`LKR ${Number(invoice.balance_due || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
 
   currentY += 10
 
@@ -108,7 +130,7 @@ export async function generateInvoicePDF(invoice: any, companySettings: any) {
     currentY += 14
   }
 
-  // Bank Details Box (Using snapshot)
+  // Bank Details Box
   const bank = invoice.bank_details_snapshot || companySettings?.bank_details || {
     bank_name: companySettings?.bank_name || 'Bank of Ceylon',
     bank_branch: companySettings?.bank_branch || 'Colombo Super Grade',
@@ -133,7 +155,8 @@ export async function generateInvoicePDF(invoice: any, companySettings: any) {
 
   currentY += 26
 
-  // Prepared By Signature Block
+  // STEP 6: Prepared By Signature Block
+  console.log('Rendering Footer')
   const prepLabel = invoice.prepared_by_label_snapshot || 'Accounts Manager'
   const prepX = A4_MARGINS.right - 60
   doc.line(prepX, currentY, A4_MARGINS.right, currentY)
@@ -142,9 +165,6 @@ export async function generateInvoicePDF(invoice: any, companySettings: any) {
   doc.setFontSize(8)
   doc.setTextColor(15, 23, 42)
   doc.text(prepLabel, prepX + 30, currentY, { align: 'center' })
-
-  // Draw Full-Page A4 Letterhead Background Image
-  drawLetterheadBackground(doc, base64Letterhead)
 
   return doc
 }
