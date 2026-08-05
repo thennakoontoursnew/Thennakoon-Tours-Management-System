@@ -8,11 +8,6 @@ import {
   FileText,
   DollarSign,
   Calendar,
-  MapPin,
-  Clock,
-  ShieldCheck,
-  CheckCircle2,
-  AlertCircle,
   FileCheck,
   Receipt,
   History,
@@ -52,7 +47,26 @@ function formatNumberSafe(val: any, decimals: number = 2): string {
   return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
 }
 
-async function handleAssignDriver(bookingVehicleId: string, bookingId: string, formData: FormData) {
+// Module-level Server Action Handlers (OUTSIDE Component Body)
+async function handleGenerateInvoiceAction(bookingId: string) {
+  'use server'
+  await createInvoiceFromBooking(bookingId)
+}
+
+async function handleGenerateAgreementAction(bookingId: string) {
+  'use server'
+  await createAgreementFromBooking(bookingId)
+}
+
+async function handleStatusChangeAction(bookingId: string, formData: FormData) {
+  'use server'
+  const newStatus = formData.get('status') as string
+  if (newStatus) {
+    await updateBookingStatus(bookingId, newStatus)
+  }
+}
+
+async function handleAssignDriverAction(bookingVehicleId: string, bookingId: string, formData: FormData) {
   'use server'
   const drvId = formData.get('driver_id') as string
   await assignBookingVehicleDriver(bookingVehicleId, bookingId, drvId || null)
@@ -60,12 +74,10 @@ async function handleAssignDriver(bookingVehicleId: string, bookingId: string, f
 
 export default async function BookingDetailPage({ params }: PageProps) {
   const { id } = await params
-  console.log('BOOKING DETAIL LOAD START: id=', id)
 
   // 1. Validate UUID parameter format
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
   if (!id || typeof id !== 'string' || !uuidRegex.test(id)) {
-    console.warn('BOOKING LOAD INVALID UUID:', id)
     notFound()
   }
 
@@ -74,7 +86,6 @@ export default async function BookingDetailPage({ params }: PageProps) {
   // 2. STEP 1: Fetch Base Booking Record
   let booking: any = null
   try {
-    console.log('BOOKING STEP 1 - Fetching Base Booking: id=', id)
     const { data, error } = await supabase
       .from('bookings')
       .select('*')
@@ -82,21 +93,16 @@ export default async function BookingDetailPage({ params }: PageProps) {
       .maybeSingle()
 
     if (error) {
-      console.error('BOOKING STEP 1 FAILED - Supabase Error:', {
-        bookingId: id,
-        errorCode: error.code,
-        errorMessage: error.message,
-      })
-      throw new Error(`Base booking fetch failed: [${error.code}] ${error.message}`)
+      console.error('Base booking fetch error:', error)
+      throw new Error(`Booking query failed: ${error.message}`)
     }
     booking = data
-  } catch (err: any) {
-    console.error('BOOKING STEP 1 FAILED - Exception:', err)
+  } catch (err) {
+    console.error('Error fetching base booking:', err)
     throw err
   }
 
   if (!booking) {
-    console.warn('BOOKING STEP 1 - Booking Not Found in DB: id=', id)
     notFound()
   }
 
@@ -104,113 +110,74 @@ export default async function BookingDetailPage({ params }: PageProps) {
   let customer: any = null
   if (booking.customer_id) {
     try {
-      console.log('BOOKING STEP 2 - Fetching Customer: customer_id=', booking.customer_id)
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('customers')
         .select('*')
         .eq('id', booking.customer_id)
         .maybeSingle()
-
-      if (error) {
-        console.error('BOOKING STEP 2 FAILED - Supabase Error:', {
-          bookingId: id,
-          customerId: booking.customer_id,
-          errorCode: error.code,
-          errorMessage: error.message,
-        })
-      }
       customer = data
     } catch (err) {
-      console.error('BOOKING STEP 2 FAILED - Exception:', err)
+      console.error('Customer fetch error:', err)
     }
   }
 
   // 4. STEP 3: Fetch Booking Vehicles & Fleet Details
   let bookingVehicles: any[] = []
   try {
-    console.log('BOOKING STEP 3 - Fetching Booking Vehicles: booking_id=', id)
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('booking_vehicles')
       .select('*')
       .eq('booking_id', id)
-
-    if (error) {
-      console.error('BOOKING STEP 3 FAILED - Supabase Error:', {
-        bookingId: id,
-        errorCode: error.code,
-        errorMessage: error.message,
-      })
-    }
     bookingVehicles = data || []
   } catch (err) {
-    console.error('BOOKING STEP 3 FAILED - Exception:', err)
+    console.error('Booking vehicles fetch error:', err)
   }
 
   // 5. STEP 4: Fetch Fleet Vehicles & Driver Maps
   let vehicleMap = new Map()
   let driverMap = new Map()
   try {
-    console.log('BOOKING STEP 4 - Fetching Vehicle & Driver Details')
     const vehicleIds = bookingVehicles.map((bv: any) => bv.vehicle_id).filter(Boolean)
     const assignedDriverIds = bookingVehicles.map((bv: any) => bv.driver_id).filter(Boolean)
 
     if (vehicleIds.length > 0) {
-      const { data: vData, error: vErr } = await supabase.from('vehicles').select('*').in('id', vehicleIds)
-      if (vErr) console.error('BOOKING STEP 4 - Vehicle Fetch Error:', vErr)
+      const { data: vData } = await supabase.from('vehicles').select('*').in('id', vehicleIds)
       vehicleMap = new Map((vData || []).map((v: any) => [v.id, v]))
     }
 
     if (assignedDriverIds.length > 0) {
-      const { data: dData, error: dErr } = await supabase.from('drivers').select('*').in('id', assignedDriverIds)
-      if (dErr) console.error('BOOKING STEP 4 - Driver Fetch Error:', dErr)
+      const { data: dData } = await supabase.from('drivers').select('*').in('id', assignedDriverIds)
       driverMap = new Map((dData || []).map((d: any) => [d.id, d]))
     }
   } catch (err) {
-    console.error('BOOKING STEP 4 FAILED - Exception:', err)
+    console.error('Fleet maps fetch error:', err)
   }
 
   // 6. STEP 5: Fetch Active Drivers for Assignment Dropdown
   let drivers: any[] = []
   try {
-    console.log('BOOKING STEP 5 - Fetching Active Drivers')
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('drivers')
       .select('id, driver_code, full_name, mobile')
       .eq('is_archived', false)
       .order('full_name')
-
-    if (error) {
-      console.error('BOOKING STEP 5 FAILED - Supabase Error:', {
-        errorCode: error.code,
-        errorMessage: error.message,
-      })
-    }
     drivers = data || []
   } catch (err) {
-    console.error('BOOKING STEP 5 FAILED - Exception:', err)
+    console.error('Active drivers fetch error:', err)
   }
 
   // 7. STEP 6: Fetch Linked Quotation
   let linkedQuotation: any = null
   if (booking.quotation_id) {
     try {
-      console.log('BOOKING STEP 6 - Fetching Linked Quotation: quotation_id=', booking.quotation_id)
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('quotations')
         .select('id, quotation_number, status, grand_total')
         .eq('id', booking.quotation_id)
         .maybeSingle()
-
-      if (error) {
-        console.error('BOOKING STEP 6 FAILED - Supabase Error:', {
-          quotationId: booking.quotation_id,
-          errorCode: error.code,
-          errorMessage: error.message,
-        })
-      }
       linkedQuotation = data
     } catch (err) {
-      console.error('BOOKING STEP 6 FAILED - Exception:', err)
+      console.error('Linked quotation fetch error:', err)
     }
   }
 
@@ -220,62 +187,44 @@ export default async function BookingDetailPage({ params }: PageProps) {
   let linkedReceipts: any[] = []
   let linkedAgreements: any[] = []
   try {
-    console.log('BOOKING STEP 7 - Fetching Linked Financial Documents: booking_id=', id)
-    const { data: invData, error: invErr } = await supabase
+    const { data: invData } = await supabase
       .from('invoices')
       .select('id, invoice_number, grand_total, balance_due, status')
       .eq('booking_id', id)
-
-    if (invErr) console.error('BOOKING STEP 7 - Invoices Fetch Error:', invErr)
     linkedInvoices = invData || []
 
-    const { data: pmtData, error: pmtErr } = await supabase
+    const { data: pmtData } = await supabase
       .from('payments')
       .select('id, payment_number, amount, payment_date, payment_method, status')
       .eq('booking_id', id)
-
-    if (pmtErr) console.error('BOOKING STEP 7 - Payments Fetch Error:', pmtErr)
     linkedPayments = pmtData || []
 
-    const { data: rcptData, error: rcptErr } = await supabase
+    const { data: rcptData } = await supabase
       .from('receipts')
       .select('id, receipt_number, amount_paid, issued_at')
       .eq('booking_id', id)
-
-    if (rcptErr) console.error('BOOKING STEP 7 - Receipts Fetch Error:', rcptErr)
     linkedReceipts = rcptData || []
 
-    const { data: agrData, error: agrErr } = await supabase
+    const { data: agrData } = await supabase
       .from('rental_agreements')
       .select('id, agreement_number, status')
       .eq('booking_id', id)
-
-    if (agrErr) console.error('BOOKING STEP 7 - Agreements Fetch Error:', agrErr)
     linkedAgreements = agrData || []
   } catch (err) {
-    console.error('BOOKING STEP 7 FAILED - Exception:', err)
+    console.error('Linked financial documents fetch error:', err)
   }
 
   // 9. STEP 8: Fetch Document Activity Logs
   let activityLogs: any[] = []
   try {
-    console.log('BOOKING STEP 8 - Fetching Document Activity Logs: booking_id=', id)
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('document_activity_logs')
       .select('*')
       .eq('document_id', id)
       .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('BOOKING STEP 8 FAILED - Supabase Error:', {
-        documentId: id,
-        errorCode: error.code,
-        errorMessage: error.message,
-      })
-    }
     activityLogs = data || []
   } catch (err) {
-    console.error('BOOKING STEP 8 FAILED - Exception:', err)
+    console.error('Activity logs fetch error:', err)
   }
 
   // 10. Calculate Rental Days
@@ -283,28 +232,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
   try {
     rentalDays = calculateRentalDays(booking.rental_start_at, booking.rental_end_at)
   } catch (err) {
-    console.error('BOOKING STEP 9 - calculateRentalDays failed:', err)
-  }
-
-  console.log('BOOKING DETAIL DATA LOAD COMPLETE SUCCESSFULLY: id=', id)
-
-  // Server Action Handlers
-  const handleGenerateInvoice = async () => {
-    'use server'
-    await createInvoiceFromBooking(id)
-  }
-
-  const handleGenerateAgreement = async () => {
-    'use server'
-    await createAgreementFromBooking(id)
-  }
-
-  const handleStatusChange = async (formData: FormData) => {
-    'use server'
-    const newStatus = formData.get('status') as string
-    if (newStatus) {
-      await updateBookingStatus(id, newStatus)
-    }
+    console.error('calculateRentalDays error:', err)
   }
 
   return (
@@ -333,7 +261,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Status Change Action */}
-          <form action={handleStatusChange} className="flex items-center gap-1">
+          <form action={handleStatusChangeAction.bind(null, id)} className="flex items-center gap-1">
             <select
               name="status"
               defaultValue={booking.status || 'confirmed'}
@@ -352,7 +280,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
           </form>
 
           {/* Invoice Generation */}
-          <form action={handleGenerateInvoice}>
+          <form action={handleGenerateInvoiceAction.bind(null, id)}>
             <button
               type="submit"
               className="px-3.5 py-2 bg-slate-900 text-white dark:bg-slate-800 rounded-xl text-xs font-bold hover:bg-slate-800 dark:hover:bg-slate-700 flex items-center gap-1.5 shadow-sm cursor-pointer"
@@ -363,7 +291,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
           </form>
 
           {/* Rental Agreement Generation */}
-          <form action={handleGenerateAgreement}>
+          <form action={handleGenerateAgreementAction.bind(null, id)}>
             <button
               type="submit"
               className="px-3.5 py-2 bg-amber-400 text-slate-950 rounded-xl text-xs font-bold hover:bg-amber-300 flex items-center gap-1.5 shadow-sm cursor-pointer"
@@ -518,7 +446,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
                       <User size={14} />
                       <span>Driver:</span>
                     </span>
-                    <form action={handleAssignDriver.bind(null, bv.id, id)}>
+                    <form action={handleAssignDriverAction.bind(null, bv.id, id)}>
                       <select
                         name="driver_id"
                         defaultValue={bv.driver_id || ''}
