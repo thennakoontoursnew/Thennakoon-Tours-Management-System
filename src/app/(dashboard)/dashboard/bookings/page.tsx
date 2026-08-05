@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { Plus, Search, Calendar, CheckCircle2, Clock, XCircle, Car, User, Eye } from 'lucide-react'
+import { Plus, Calendar, Eye } from 'lucide-react'
 
 interface PageProps {
   searchParams: Promise<{ q?: string; status?: string }>
@@ -12,7 +12,7 @@ export default async function BookingsPage({ searchParams }: PageProps) {
 
   let query = supabase
     .from('bookings')
-    .select('*, customer:customers(full_name, mobile), vehicles:booking_vehicles(*, vehicle:vehicles(vehicle_name, registration_number))')
+    .select('*')
     .eq('is_archived', false)
     .order('created_at', { ascending: false })
 
@@ -24,7 +24,38 @@ export default async function BookingsPage({ searchParams }: PageProps) {
     query = query.or(`booking_number.ilike.%${q}%`)
   }
 
-  const { data: bookings } = await query
+  const { data: rawBookings, error: bErr } = await query
+  if (bErr) {
+    console.error('Bookings list load failed:', bErr)
+  }
+
+  const bookings = rawBookings || []
+  const customerIds = bookings.map((b: any) => b.customer_id).filter(Boolean)
+  const bookingIds = bookings.map((b: any) => b.id)
+
+  const { data: customersList } = customerIds.length > 0
+    ? await supabase.from('customers').select('id, full_name, mobile').in('id', customerIds)
+    : { data: [] }
+
+  const { data: bookingVehiclesList } = bookingIds.length > 0
+    ? await supabase.from('booking_vehicles').select('id, booking_id, vehicle_id').in('booking_id', bookingIds)
+    : { data: [] }
+
+  const vehicleIds = (bookingVehiclesList || []).map((bv: any) => bv.vehicle_id).filter(Boolean)
+
+  const { data: vehiclesList } = vehicleIds.length > 0
+    ? await supabase.from('vehicles').select('id, vehicle_name, registration_number').in('id', vehicleIds)
+    : { data: [] }
+
+  const customerMap = new Map((customersList || []).map((c: any) => [c.id, c]))
+  const vehicleMap = new Map((vehiclesList || []).map((v: any) => [v.id, v]))
+
+  const bvMap = new Map<string, any[]>()
+  for (const bv of bookingVehiclesList || []) {
+    const list = bvMap.get(bv.booking_id) || []
+    list.push(bv)
+    bvMap.set(bv.booking_id, list)
+  }
 
   const getStatusBadge = (st: string) => {
     switch (st) {
@@ -37,7 +68,7 @@ export default async function BookingsPage({ searchParams }: PageProps) {
       case 'cancelled':
         return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">Cancelled</span>
       default:
-        return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-500/10 text-slate-500 border border-slate-500/20">{st.toUpperCase()}</span>
+        return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-500/10 text-slate-500 border border-slate-500/20">{(st || 'PENDING').toUpperCase()}</span>
     }
   }
 
@@ -83,43 +114,50 @@ export default async function BookingsPage({ searchParams }: PageProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-slate-700 dark:text-slate-300">
-                {bookings.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-bold text-amber-500">
-                      <Link href={`/dashboard/bookings/${item.id}`} className="hover:underline">
-                        {item.booking_number}
-                      </Link>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="font-bold text-slate-900 dark:text-white">{item.customer?.full_name || 'N/A'}</div>
-                      <div className="text-[11px] text-slate-400">{item.customer?.mobile}</div>
-                    </td>
-                    <td className="py-3.5 px-4 text-[11px]">
-                      <div>{new Date(item.rental_start_at).toLocaleDateString()} to {new Date(item.rental_end_at).toLocaleDateString()}</div>
-                      <div className="text-slate-400">{item.destination || 'Standard Route'}</div>
-                    </td>
-                    <td className="py-3.5 px-4 text-[11px]">
-                      {(item.vehicles || []).map((v: any) => (
-                        <div key={v.id} className="font-semibold text-slate-800 dark:text-slate-200">
-                          {v.vehicle?.vehicle_name || 'Vehicle'} ({v.vehicle?.registration_number || 'N/A'})
-                        </div>
-                      ))}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-white">
-                      LKR {Number(item.grand_total).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="py-3.5 px-4">{getStatusBadge(item.status)}</td>
-                    <td className="py-3.5 px-4 text-right">
-                      <Link
-                        href={`/dashboard/bookings/${item.id}`}
-                        className="p-1.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 inline-flex items-center gap-1 font-semibold text-[11px]"
-                      >
-                        <Eye size={13} />
-                        <span>Manage</span>
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {bookings.map((item: any) => {
+                  const cust = customerMap.get(item.customer_id)
+                  const bvs = bvMap.get(item.id) || []
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-amber-500">
+                        <Link href={`/dashboard/bookings/${item.id}`} className="hover:underline">
+                          {item.booking_number}
+                        </Link>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-slate-900 dark:text-white">{cust?.full_name || 'N/A'}</div>
+                        <div className="text-[11px] text-slate-400">{cust?.mobile || 'No Mobile'}</div>
+                      </td>
+                      <td className="py-3.5 px-4 text-[11px]">
+                        <div>{item.rental_start_at ? new Date(item.rental_start_at).toLocaleDateString() : 'N/A'} to {item.rental_end_at ? new Date(item.rental_end_at).toLocaleDateString() : 'N/A'}</div>
+                        <div className="text-slate-400">{item.destination || 'Standard Route'}</div>
+                      </td>
+                      <td className="py-3.5 px-4 text-[11px]">
+                        {bvs.map((bv: any) => {
+                          const veh = vehicleMap.get(bv.vehicle_id)
+                          return (
+                            <div key={bv.id} className="font-semibold text-slate-800 dark:text-slate-200">
+                              {veh ? `${veh.vehicle_name} (${veh.registration_number})` : 'Vehicle Assigned'}
+                            </div>
+                          )
+                        })}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-white">
+                        LKR {Number(item.grand_total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3.5 px-4">{getStatusBadge(item.status)}</td>
+                      <td className="py-3.5 px-4 text-right">
+                        <Link
+                          href={`/dashboard/bookings/${item.id}`}
+                          className="p-1.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 inline-flex items-center gap-1 font-semibold text-[11px]"
+                        >
+                          <Eye size={13} />
+                          <span>Manage</span>
+                        </Link>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
