@@ -22,9 +22,10 @@ export default function BookingDetailError({
       <p className="text-xs text-slate-500 leading-relaxed">
         An error occurred while loading this booking. The record may be temporarily unavailable or incomplete.
       </p>
-      {error.message && (
+      {(error.message || error.digest) && (
         <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-mono text-left overflow-x-auto max-h-32">
           {error.message}
+          {error.digest && <div className="text-[10px] text-slate-400 mt-1">Error Digest: {error.digest}</div>}
         </div>
       )}
       <div className="flex items-center justify-center gap-3 pt-2">

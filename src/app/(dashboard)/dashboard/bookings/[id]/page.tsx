@@ -26,135 +26,267 @@ interface PageProps {
   params: Promise<{ id: string }>
 }
 
+function formatDateSafe(val: any): string {
+  if (!val) return 'N/A'
+  try {
+    const d = new Date(val)
+    return isNaN(d.getTime()) ? 'N/A' : d.toLocaleDateString()
+  } catch {
+    return 'N/A'
+  }
+}
+
+function formatDateTimeSafe(val: any): string {
+  if (!val) return 'N/A'
+  try {
+    const d = new Date(val)
+    return isNaN(d.getTime()) ? 'N/A' : d.toLocaleString()
+  } catch {
+    return 'N/A'
+  }
+}
+
+function formatNumberSafe(val: any, decimals: number = 2): string {
+  const num = Number(val)
+  if (isNaN(num)) return '0.00'
+  return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+}
+
+async function handleAssignDriver(bookingVehicleId: string, bookingId: string, formData: FormData) {
+  'use server'
+  const drvId = formData.get('driver_id') as string
+  await assignBookingVehicleDriver(bookingVehicleId, bookingId, drvId || null)
+}
+
 export default async function BookingDetailPage({ params }: PageProps) {
   const { id } = await params
-  const supabase = await createClient()
+  console.log('BOOKING DETAIL LOAD START: id=', id)
 
   // 1. Validate UUID parameter format
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
   if (!id || typeof id !== 'string' || !uuidRegex.test(id)) {
+    console.warn('BOOKING LOAD INVALID UUID:', id)
     notFound()
   }
 
-  // 2. Step 1: Fetch Base Booking Record
-  const { data: booking, error: bookingErr } = await supabase
-    .from('bookings')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle()
+  const supabase = await createClient()
 
-  if (bookingErr) {
-    console.error('Booking detail load failed', {
-      bookingId: id,
-      step: 'fetch_base_booking',
-      errorCode: bookingErr.code,
-      errorMessage: bookingErr.message,
-    })
+  // 2. STEP 1: Fetch Base Booking Record
+  let booking: any = null
+  try {
+    console.log('BOOKING STEP 1 - Fetching Base Booking: id=', id)
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (error) {
+      console.error('BOOKING STEP 1 FAILED - Supabase Error:', {
+        bookingId: id,
+        errorCode: error.code,
+        errorMessage: error.message,
+      })
+      throw new Error(`Base booking fetch failed: [${error.code}] ${error.message}`)
+    }
+    booking = data
+  } catch (err: any) {
+    console.error('BOOKING STEP 1 FAILED - Exception:', err)
+    throw err
   }
 
   if (!booking) {
+    console.warn('BOOKING STEP 1 - Booking Not Found in DB: id=', id)
     notFound()
   }
 
-  // 3. Step 2: Fetch Customer Record Safely
+  // 3. STEP 2: Fetch Customer Record Safely
   let customer: any = null
   if (booking.customer_id) {
-    const { data: custData, error: custErr } = await supabase
-      .from('customers')
-      .select('*')
-      .eq('id', booking.customer_id)
-      .maybeSingle()
+    try {
+      console.log('BOOKING STEP 2 - Fetching Customer: customer_id=', booking.customer_id)
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', booking.customer_id)
+        .maybeSingle()
 
-    if (custErr) {
-      console.error('Customer fetch for booking failed', {
+      if (error) {
+        console.error('BOOKING STEP 2 FAILED - Supabase Error:', {
+          bookingId: id,
+          customerId: booking.customer_id,
+          errorCode: error.code,
+          errorMessage: error.message,
+        })
+      }
+      customer = data
+    } catch (err) {
+      console.error('BOOKING STEP 2 FAILED - Exception:', err)
+    }
+  }
+
+  // 4. STEP 3: Fetch Booking Vehicles & Fleet Details
+  let bookingVehicles: any[] = []
+  try {
+    console.log('BOOKING STEP 3 - Fetching Booking Vehicles: booking_id=', id)
+    const { data, error } = await supabase
+      .from('booking_vehicles')
+      .select('*')
+      .eq('booking_id', id)
+
+    if (error) {
+      console.error('BOOKING STEP 3 FAILED - Supabase Error:', {
         bookingId: id,
-        customerId: booking.customer_id,
-        errorCode: custErr.code,
-        errorMessage: custErr.message,
+        errorCode: error.code,
+        errorMessage: error.message,
       })
     }
-    customer = custData
+    bookingVehicles = data || []
+  } catch (err) {
+    console.error('BOOKING STEP 3 FAILED - Exception:', err)
   }
 
-  // 4. Step 3: Fetch Booking Vehicles & Related Fleet / Driver Records
-  const { data: rawBvList, error: bvErr } = await supabase
-    .from('booking_vehicles')
-    .select('*')
-    .eq('booking_id', id)
+  // 5. STEP 4: Fetch Fleet Vehicles & Driver Maps
+  let vehicleMap = new Map()
+  let driverMap = new Map()
+  try {
+    console.log('BOOKING STEP 4 - Fetching Vehicle & Driver Details')
+    const vehicleIds = bookingVehicles.map((bv: any) => bv.vehicle_id).filter(Boolean)
+    const assignedDriverIds = bookingVehicles.map((bv: any) => bv.driver_id).filter(Boolean)
 
-  if (bvErr) {
-    console.error('Booking vehicles fetch failed', {
-      bookingId: id,
-      errorCode: bvErr.code,
-      errorMessage: bvErr.message,
-    })
+    if (vehicleIds.length > 0) {
+      const { data: vData, error: vErr } = await supabase.from('vehicles').select('*').in('id', vehicleIds)
+      if (vErr) console.error('BOOKING STEP 4 - Vehicle Fetch Error:', vErr)
+      vehicleMap = new Map((vData || []).map((v: any) => [v.id, v]))
+    }
+
+    if (assignedDriverIds.length > 0) {
+      const { data: dData, error: dErr } = await supabase.from('drivers').select('*').in('id', assignedDriverIds)
+      if (dErr) console.error('BOOKING STEP 4 - Driver Fetch Error:', dErr)
+      driverMap = new Map((dData || []).map((d: any) => [d.id, d]))
+    }
+  } catch (err) {
+    console.error('BOOKING STEP 4 FAILED - Exception:', err)
   }
 
-  const bookingVehicles = rawBvList || []
-  const vehicleIds = bookingVehicles.map((bv: any) => bv.vehicle_id).filter(Boolean)
-  const assignedDriverIds = bookingVehicles.map((bv: any) => bv.driver_id).filter(Boolean)
+  // 6. STEP 5: Fetch Active Drivers for Assignment Dropdown
+  let drivers: any[] = []
+  try {
+    console.log('BOOKING STEP 5 - Fetching Active Drivers')
+    const { data, error } = await supabase
+      .from('drivers')
+      .select('id, driver_code, full_name, mobile')
+      .eq('is_archived', false)
+      .order('full_name')
 
-  const { data: vehiclesList } = vehicleIds.length > 0
-    ? await supabase.from('vehicles').select('*').in('id', vehicleIds)
-    : { data: [] }
+    if (error) {
+      console.error('BOOKING STEP 5 FAILED - Supabase Error:', {
+        errorCode: error.code,
+        errorMessage: error.message,
+      })
+    }
+    drivers = data || []
+  } catch (err) {
+    console.error('BOOKING STEP 5 FAILED - Exception:', err)
+  }
 
-  const { data: assignedDriversList } = assignedDriverIds.length > 0
-    ? await supabase.from('drivers').select('*').in('id', assignedDriverIds)
-    : { data: [] }
-
-  const vehicleMap = new Map((vehiclesList || []).map((v: any) => [v.id, v]))
-  const driverMap = new Map((assignedDriversList || []).map((d: any) => [d.id, d]))
-
-  // 5. Step 4: Fetch Active Drivers for Assignment Dropdown
-  const { data: drivers } = await supabase
-    .from('drivers')
-    .select('id, driver_code, full_name, mobile')
-    .eq('is_archived', false)
-    .order('full_name')
-
-  // 6. Step 5: Fetch Linked Quotation
+  // 7. STEP 6: Fetch Linked Quotation
   let linkedQuotation: any = null
   if (booking.quotation_id) {
-    const { data: qtData } = await supabase
-      .from('quotations')
-      .select('id, quotation_number, status, grand_total')
-      .eq('id', booking.quotation_id)
-      .maybeSingle()
-    linkedQuotation = qtData
+    try {
+      console.log('BOOKING STEP 6 - Fetching Linked Quotation: quotation_id=', booking.quotation_id)
+      const { data, error } = await supabase
+        .from('quotations')
+        .select('id, quotation_number, status, grand_total')
+        .eq('id', booking.quotation_id)
+        .maybeSingle()
+
+      if (error) {
+        console.error('BOOKING STEP 6 FAILED - Supabase Error:', {
+          quotationId: booking.quotation_id,
+          errorCode: error.code,
+          errorMessage: error.message,
+        })
+      }
+      linkedQuotation = data
+    } catch (err) {
+      console.error('BOOKING STEP 6 FAILED - Exception:', err)
+    }
   }
 
-  // 7. Step 6: Fetch Linked Invoices, Payments, Receipts & Agreements
-  const { data: linkedInvoices } = await supabase
-    .from('invoices')
-    .select('id, invoice_number, grand_total, balance_due, status')
-    .eq('booking_id', id)
+  // 8. STEP 7: Fetch Linked Invoices, Payments, Receipts & Agreements
+  let linkedInvoices: any[] = []
+  let linkedPayments: any[] = []
+  let linkedReceipts: any[] = []
+  let linkedAgreements: any[] = []
+  try {
+    console.log('BOOKING STEP 7 - Fetching Linked Financial Documents: booking_id=', id)
+    const { data: invData, error: invErr } = await supabase
+      .from('invoices')
+      .select('id, invoice_number, grand_total, balance_due, status')
+      .eq('booking_id', id)
 
-  const invoiceIds = (linkedInvoices || []).map((inv: any) => inv.id)
+    if (invErr) console.error('BOOKING STEP 7 - Invoices Fetch Error:', invErr)
+    linkedInvoices = invData || []
 
-  const { data: linkedPayments } = await supabase
-    .from('payments')
-    .select('id, payment_number, amount, payment_date, payment_method, status')
-    .eq('booking_id', id)
+    const { data: pmtData, error: pmtErr } = await supabase
+      .from('payments')
+      .select('id, payment_number, amount, payment_date, payment_method, status')
+      .eq('booking_id', id)
 
-  const { data: linkedReceipts } = await supabase
-    .from('receipts')
-    .select('id, receipt_number, amount_paid, issued_at')
-    .eq('booking_id', id)
+    if (pmtErr) console.error('BOOKING STEP 7 - Payments Fetch Error:', pmtErr)
+    linkedPayments = pmtData || []
 
-  const { data: linkedAgreements } = await supabase
-    .from('rental_agreements')
-    .select('id, agreement_number, status')
-    .eq('booking_id', id)
+    const { data: rcptData, error: rcptErr } = await supabase
+      .from('receipts')
+      .select('id, receipt_number, amount_paid, issued_at')
+      .eq('booking_id', id)
 
-  // 8. Step 7: Fetch Document Activity Logs
-  const { data: activityLogs } = await supabase
-    .from('document_activity_logs')
-    .select('*')
-    .eq('document_id', id)
-    .order('created_at', { ascending: false })
+    if (rcptErr) console.error('BOOKING STEP 7 - Receipts Fetch Error:', rcptErr)
+    linkedReceipts = rcptData || []
 
-  // 9. Calculate Canonical Rental Days
-  const rentalDays = calculateRentalDays(booking.rental_start_at, booking.rental_end_at)
+    const { data: agrData, error: agrErr } = await supabase
+      .from('rental_agreements')
+      .select('id, agreement_number, status')
+      .eq('booking_id', id)
+
+    if (agrErr) console.error('BOOKING STEP 7 - Agreements Fetch Error:', agrErr)
+    linkedAgreements = agrData || []
+  } catch (err) {
+    console.error('BOOKING STEP 7 FAILED - Exception:', err)
+  }
+
+  // 9. STEP 8: Fetch Document Activity Logs
+  let activityLogs: any[] = []
+  try {
+    console.log('BOOKING STEP 8 - Fetching Document Activity Logs: booking_id=', id)
+    const { data, error } = await supabase
+      .from('document_activity_logs')
+      .select('*')
+      .eq('document_id', id)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('BOOKING STEP 8 FAILED - Supabase Error:', {
+        documentId: id,
+        errorCode: error.code,
+        errorMessage: error.message,
+      })
+    }
+    activityLogs = data || []
+  } catch (err) {
+    console.error('BOOKING STEP 8 FAILED - Exception:', err)
+  }
+
+  // 10. Calculate Rental Days
+  let rentalDays = 1
+  try {
+    rentalDays = calculateRentalDays(booking.rental_start_at, booking.rental_end_at)
+  } catch (err) {
+    console.error('BOOKING STEP 9 - calculateRentalDays failed:', err)
+  }
+
+  console.log('BOOKING DETAIL DATA LOAD COMPLETE SUCCESSFULLY: id=', id)
 
   // Server Action Handlers
   const handleGenerateInvoice = async () => {
@@ -188,13 +320,13 @@ export default async function BookingDetailPage({ params }: PageProps) {
           </Link>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black text-slate-900 dark:text-white">{booking.booking_number}</h1>
+              <h1 className="text-2xl font-black text-slate-900 dark:text-white">{booking.booking_number || 'N/A'}</h1>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-500/10 text-amber-500 border border-amber-500/20">
                 {booking.status || 'Confirmed'}
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              Booked on {booking.booking_date ? new Date(booking.booking_date).toLocaleDateString() : 'N/A'}
+              Booked on {formatDateSafe(booking.booking_date)}
             </p>
           </div>
         </div>
@@ -282,7 +414,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
               className="px-2.5 py-1 bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-mono font-bold flex items-center gap-1"
             >
               <Receipt size={13} />
-              <span>Payment: {pmt.payment_number} (LKR {Number(pmt.amount).toLocaleString()})</span>
+              <span>Payment: {pmt.payment_number} (LKR {formatNumberSafe(pmt.amount)})</span>
             </span>
           ))}
         </div>
@@ -298,7 +430,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
           </h2>
           {customer ? (
             <div className="space-y-2 text-xs">
-              <div className="font-bold text-sm text-slate-900 dark:text-white">{customer.full_name}</div>
+              <div className="font-bold text-sm text-slate-900 dark:text-white">{customer.full_name || 'N/A'}</div>
               {customer.customer_code && <div className="text-slate-500">Code: <span className="font-mono">{customer.customer_code}</span></div>}
               <div className="text-slate-500">Mobile Phone: {customer.mobile || customer.phone || 'N/A'}</div>
               {customer.whatsapp && <div className="text-slate-500">WhatsApp: {customer.whatsapp}</div>}
@@ -319,8 +451,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
           <div className="space-y-2 text-xs">
             <div>
               <span className="font-bold text-slate-700 dark:text-slate-300">Schedule:</span>{' '}
-              {booking.rental_start_at ? new Date(booking.rental_start_at).toLocaleString() : 'N/A'} to{' '}
-              {booking.rental_end_at ? new Date(booking.rental_end_at).toLocaleString() : 'N/A'}{' '}
+              {formatDateTimeSafe(booking.rental_start_at)} to {formatDateTimeSafe(booking.rental_end_at)}{' '}
               <span className="font-bold text-amber-500">({rentalDays} day(s))</span>
             </div>
             <div>
@@ -343,11 +474,11 @@ export default async function BookingDetailPage({ params }: PageProps) {
               </div>
             )}
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2 text-xs">
-              <div><span className="text-slate-500">Subtotal:</span> LKR {Number(booking.subtotal || 0).toLocaleString()}</div>
-              <div><span className="text-slate-500">Deposit:</span> LKR {Number(booking.refundable_deposit || 0).toLocaleString()}</div>
-              <div><span className="text-slate-500 font-bold">Grand Total:</span> <span className="font-mono font-bold text-amber-500">LKR {Number(booking.grand_total || 0).toLocaleString()}</span></div>
-              <div><span className="text-slate-500 font-bold">Advance Paid:</span> <span className="font-mono text-emerald-500 font-bold">LKR {Number(booking.advance_paid || 0).toLocaleString()}</span></div>
-              <div className="col-span-2"><span className="text-slate-500 font-bold">Balance Due:</span> <span className="font-mono text-rose-500 font-bold text-sm">LKR {Number(booking.balance_due || 0).toLocaleString()}</span></div>
+              <div><span className="text-slate-500">Subtotal:</span> LKR {formatNumberSafe(booking.subtotal)}</div>
+              <div><span className="text-slate-500">Deposit:</span> LKR {formatNumberSafe(booking.refundable_deposit)}</div>
+              <div><span className="text-slate-500 font-bold">Grand Total:</span> <span className="font-mono font-bold text-amber-500">LKR {formatNumberSafe(booking.grand_total)}</span></div>
+              <div><span className="text-slate-500 font-bold">Advance Paid:</span> <span className="font-mono text-emerald-500 font-bold">LKR {formatNumberSafe(booking.advance_paid)}</span></div>
+              <div className="col-span-2"><span className="text-slate-500 font-bold">Balance Due:</span> <span className="font-mono text-rose-500 font-bold text-sm">LKR {formatNumberSafe(booking.balance_due)}</span></div>
             </div>
           </div>
         </div>
@@ -374,8 +505,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
                       </span>
                     </div>
                     <div className="text-xs text-slate-500 mt-1 space-x-3">
-                      <span>Rate: <strong className="font-mono">LKR {Number(bv.vehicle_rate || 0).toLocaleString()}</strong></span>
-                      <span>Deposit: <strong className="font-mono">LKR {Number(bv.deposit_amount || 0).toLocaleString()}</strong></span>
+                      <span>Rate: <strong className="font-mono">LKR {formatNumberSafe(bv.vehicle_rate)}</strong></span>
+                      <span>Deposit: <strong className="font-mono">LKR {formatNumberSafe(bv.deposit_amount)}</strong></span>
                       {bv.allowed_km && <span>Allowed: <strong>{bv.allowed_km} KM/day</strong></span>}
                       {bv.extra_km_charge && <span>Extra KM: <strong>LKR {bv.extra_km_charge}/KM</strong></span>}
                     </div>
@@ -387,11 +518,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
                       <User size={14} />
                       <span>Driver:</span>
                     </span>
-                    <form action={async (formData: FormData) => {
-                      'use server'
-                      const drvId = formData.get('driver_id') as string
-                      await assignBookingVehicleDriver(bv.id, id, drvId || null)
-                    }}>
+                    <form action={handleAssignDriver.bind(null, bv.id, id)}>
                       <select
                         name="driver_id"
                         defaultValue={bv.driver_id || ''}
@@ -431,14 +558,14 @@ export default async function BookingDetailPage({ params }: PageProps) {
                   <div className="text-[11px] text-slate-400">{log.action}</div>
                 </div>
                 <div className="text-[11px] text-slate-400 font-mono">
-                  {new Date(log.created_at).toLocaleString()}
+                  {formatDateTimeSafe(log.created_at)}
                 </div>
               </div>
             ))}
           </div>
         ) : (
           <div className="text-xs text-slate-400 italic">
-            Created on {booking.created_at ? new Date(booking.created_at).toLocaleString() : 'N/A'}
+            Created on {formatDateTimeSafe(booking.created_at)}
           </div>
         )}
       </div>
