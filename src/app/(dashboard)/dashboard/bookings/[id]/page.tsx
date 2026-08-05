@@ -12,10 +12,11 @@ import {
   Receipt,
   History,
 } from 'lucide-react'
-import { updateBookingStatus, assignBookingVehicleDriver } from '../booking-actions'
+import { updateBookingStatus } from '../booking-actions'
 import { createInvoiceFromBooking } from '../../invoices/invoice-actions'
-import { createAgreementFromBooking } from '../../agreements/agreement-actions'
 import { calculateRentalDays } from '@/lib/utils/formatters'
+import VehicleDriverAssignmentRow from './vehicle-driver-assignment-row'
+import GenerateAgreementButton from './generate-agreement-button'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -47,7 +48,7 @@ function formatNumberSafe(val: any, decimals: number = 2): string {
   return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
 }
 
-// Top-Level Module Scope Server Action Handlers returning Promise<void> for React 19 Form Actions
+// Module-level Server Action Handlers returning Promise<void>
 async function handleUpdateStatusAction(bookingId: string) {
   'use server'
   await updateBookingStatus(bookingId, 'confirmed')
@@ -58,13 +59,7 @@ async function handleCreateInvoiceAction(bookingId: string) {
   await createInvoiceFromBooking(bookingId)
 }
 
-async function handleCreateAgreementAction(bookingId: string) {
-  'use server'
-  await createAgreementFromBooking(bookingId)
-}
-
 export default async function BookingDetailPage({ params }: PageProps) {
-  // Step 0: Resolve & Log Route ID
   const { id } = await params
   console.log('BOOKING ROUTE ID:', id)
 
@@ -174,7 +169,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
     const { data: activeDrivers, error: drvErr } = await supabase
       .from('drivers')
-      .select('id, driver_code, full_name, mobile')
+      .select('id, driver_code, full_name, mobile, status, license_expiry, license_number')
       .eq('is_archived', false)
       .order('full_name')
 
@@ -297,6 +292,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
     rentalDays = 1
   }
 
+  const primaryAgreement = linkedAgreements && linkedAgreements.length > 0 ? linkedAgreements[0] : null
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
       {/* Header */}
@@ -322,7 +319,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Direct Server Action Forms using Top-Level Module Action Handlers */}
+          {/* Status Change Action */}
           <form action={handleUpdateStatusAction.bind(null, id)}>
             <button
               type="submit"
@@ -332,6 +329,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
             </button>
           </form>
 
+          {/* Invoice Generation */}
           <form action={handleCreateInvoiceAction.bind(null, id)}>
             <button
               type="submit"
@@ -342,15 +340,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
             </button>
           </form>
 
-          <form action={handleCreateAgreementAction.bind(null, id)}>
-            <button
-              type="submit"
-              className="px-3.5 py-2 bg-amber-400 text-slate-950 rounded-xl text-xs font-bold hover:bg-amber-300 flex items-center gap-1.5 shadow-sm cursor-pointer"
-            >
-              <FileText size={15} />
-              <span>Generate Agreement</span>
-            </button>
-          </form>
+          {/* Rental Agreement Action Button (Generate vs View Agreement) */}
+          <GenerateAgreementButton bookingId={id} linkedAgreement={primaryAgreement} />
         </div>
       </div>
 
@@ -475,28 +466,17 @@ export default async function BookingDetailPage({ params }: PageProps) {
               const veh = vehicleMap.get(bv.vehicle_id)
               const drv = driverMap.get(bv.driver_id)
               return (
-                <div key={String(bv.id)} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <div className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                      <Car size={16} className="text-amber-500" />
-                      <span>
-                        {veh ? `${veh.vehicle_name} (${veh.registration_number})` : `Vehicle ID: ${bv.vehicle_id}`}
-                      </span>
-                    </div>
-                    <div className="text-xs text-slate-500 mt-1 space-x-3">
-                      <span>Rate: <strong className="font-mono">LKR {formatNumberSafe(bv.vehicle_rate)}</strong></span>
-                      <span>Deposit: <strong className="font-mono">LKR {formatNumberSafe(bv.deposit_amount)}</strong></span>
-                      {bv.allowed_km && <span>Allowed: <strong>{String(bv.allowed_km)} KM/day</strong></span>}
-                      {bv.extra_km_charge && <span>Extra KM: <strong>LKR {formatNumberSafe(bv.extra_km_charge)}/KM</strong></span>}
-                    </div>
-                  </div>
-
-                  {/* Driver Display */}
-                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    <User size={14} className="text-amber-500" />
-                    <span>Driver: {drv ? `${drv.full_name} (${drv.mobile ?? 'No Mobile'})` : 'Not assigned'}</span>
-                  </div>
-                </div>
+                <VehicleDriverAssignmentRow
+                  key={String(bv.id)}
+                  bv={bv}
+                  veh={veh}
+                  drv={drv}
+                  bookingId={id}
+                  rentalStartAt={booking.rental_start_at}
+                  rentalEndAt={booking.rental_end_at}
+                  drivers={driversList}
+                  formatNumberSafe={formatNumberSafe}
+                />
               )
             })}
           </div>

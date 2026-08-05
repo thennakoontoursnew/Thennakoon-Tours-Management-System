@@ -135,20 +135,126 @@ export async function updateBookingStatus(id: string, newStatus: string) {
   }
 }
 
-export async function assignBookingVehicleDriver(bookingVehicleId: string, bookingId: string, driverId: string | null) {
+export async function checkDriverAvailabilityAction(driverId: string, startAt: string, endAt: string, excludeBookingVehicleId?: string) {
   try {
     const supabase = await createClient()
 
-    const { error } = await supabase
+    const { data: driver, error: dErr } = await supabase
+      .from('drivers')
+      .select('*')
+      .eq('id', driverId)
+      .single()
+
+    if (dErr || !driver) {
+      return { isAvailable: false, conflictReason: 'Driver record not found.' }
+    }
+
+    if (driver.is_archived) {
+      return { isAvailable: false, conflictReason: 'Driver profile is archived.' }
+    }
+
+    if (driver.status === 'suspended' || driver.status === 'off_duty') {
+      return { isAvailable: false, conflictReason: `Driver status is currently ${driver.status}.` }
+    }
+
+    if (driver.license_expiry && new Date(driver.license_expiry) < new Date()) {
+      return { isAvailable: false, conflictReason: `Driving license expired on ${driver.license_expiry}.` }
+    }
+
+    const { data: overlappingBvs } = await supabase
       .from('booking_vehicles')
-      .update({ driver_id: driverId })
+      .select('id, booking:bookings(id, booking_number, status, rental_start_at, rental_end_at)')
+      .eq('driver_id', driverId)
+
+    if (overlappingBvs && overlappingBvs.length > 0) {
+      for (const item of overlappingBvs) {
+        if (excludeBookingVehicleId && item.id === excludeBookingVehicleId) continue
+        const b = item.booking as any
+        if (b && b.status !== 'cancelled') {
+          const bStart = new Date(b.rental_start_at).getTime()
+          const bEnd = new Date(b.rental_end_at).getTime()
+          const tStart = new Date(startAt).getTime()
+          const tEnd = new Date(endAt).getTime()
+
+          if (tStart < bEnd && tEnd > bStart) {
+            return {
+              isAvailable: false,
+              conflictReason: `Driver is already assigned to Booking ${b.booking_number} (${new Date(b.rental_start_at).toLocaleDateString()} to ${new Date(b.rental_end_at).toLocaleDateString()}).`,
+            }
+          }
+        }
+      }
+    }
+
+    return { isAvailable: true, conflictReason: 'Available' }
+  } catch (err: any) {
+    return { isAvailable: false, conflictReason: err.message || 'Driver availability check failed.' }
+  }
+}
+
+export async function assignBookingVehicleDriver(bookingVehicleId: string, bookingId: string, driverId: string | null) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated.' }
+
+    const { data: booking, error: bErr } = await supabase
+      .from('bookings')
+      .select('id, booking_number, rental_start_at, rental_end_at')
+      .eq('id', bookingId)
+      .single()
+
+    if (bErr || !booking) return { success: false, error: 'Booking not found.' }
+
+    const { data: bv, error: bvErr } = await supabase
+      .from('booking_vehicles')
+      .select('id, vehicle:vehicles(vehicle_name, registration_number)')
+      .eq('id', bookingVehicleId)
+      .single()
+
+    if (bvErr || !bv) return { success: false, error: 'Booking vehicle allocation record not found.' }
+
+    if (driverId) {
+      const avail = await checkDriverAvailabilityAction(driverId, booking.rental_start_at, booking.rental_end_at, bookingVehicleId)
+      if (!avail.isAvailable) {
+        return { success: false, error: avail.conflictReason }
+      }
+    }
+
+    const { error: updateErr } = await supabase
+      .from('booking_vehicles')
+      .update({ driver_id: driverId, updated_at: new Date().toISOString() })
       .eq('id', bookingVehicleId)
 
-    if (error) return { success: false, error: error.message }
+    if (updateErr) return { success: false, error: updateErr.message }
+
+    let driverName = 'None'
+    if (driverId) {
+      const { data: drv } = await supabase.from('drivers').select('full_name, driver_code').eq('id', driverId).single()
+      if (drv) driverName = `${drv.full_name} (${drv.driver_code})`
+    }
+
+    const vehName = (bv.vehicle as any)?.vehicle_name || 'Vehicle'
+    await supabase.from('document_activity_logs').insert({
+      document_type: 'booking',
+      document_id: bookingId,
+      action: driverId ? 'ASSIGN_DRIVER' : 'REMOVE_DRIVER',
+      change_summary: driverId ? `Assigned driver ${driverName} to ${vehName}` : `Removed assigned driver from ${vehName}`,
+      metadata: { booking_vehicle_id: bookingVehicleId, driver_id: driverId },
+      user_id: user.id,
+    })
+
+    await supabase.rpc('log_audit_action_internal', {
+      p_action: driverId ? 'ASSIGN_DRIVER' : 'REMOVE_DRIVER',
+      p_entity_type: 'booking',
+      p_entity_id: bookingId,
+      p_description: `Driver ${driverName} assigned to vehicle in booking ${booking.booking_number}`,
+    })
 
     revalidatePath(`/dashboard/bookings/${bookingId}`)
+    revalidatePath('/dashboard/bookings')
     return { success: true }
   } catch (err: any) {
-    return { success: false, error: err.message }
+    return { success: false, error: err.message || 'Failed to update driver assignment.' }
   }
 }
