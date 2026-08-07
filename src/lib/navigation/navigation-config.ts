@@ -47,11 +47,13 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
       {
         id: 'analytics',
         label: 'Analytics',
-        href: '/dashboard/reports',
+        href: '/dashboard/analytics',
         iconName: 'ChartNoAxesCombined',
         sectionId: 'overview',
         requiredRoles: ['owner', 'admin', 'manager', 'finance_staff', 'marketing_staff', 'viewer'],
         enabled: true,
+        comingSoon: true,
+        badge: 'SOON',
         keywords: ['analytics', 'metrics', 'performance', 'charts'],
       },
     ],
@@ -153,6 +155,7 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
         requiredRoles: ['owner', 'admin', 'manager', 'operations_staff', 'viewer'],
         enabled: true,
         comingSoon: true,
+        badge: 'SOON',
         keywords: ['owners', 'partners', 'suppliers', 'third party'],
       },
       {
@@ -164,6 +167,7 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
         requiredRoles: ['owner', 'admin', 'manager', 'operations_staff', 'viewer'],
         enabled: true,
         comingSoon: true,
+        badge: 'SOON',
         keywords: ['inspections', 'checklists', 'condition', 'condition report'],
       },
       {
@@ -185,16 +189,19 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
         requiredRoles: ['owner', 'admin', 'manager', 'operations_staff', 'finance_staff', 'viewer'],
         enabled: true,
         comingSoon: true,
+        badge: 'SOON',
         keywords: ['fuel', 'petrol', 'diesel', 'consumption', 'mileage'],
       },
       {
         id: 'gps',
         label: 'Live GPS',
-        href: '/dashboard/fleet',
+        href: '/dashboard/fleet/gps',
         iconName: 'MapPin',
         sectionId: 'fleet',
         requiredRoles: ['owner', 'admin', 'manager', 'operations_staff', 'viewer'],
         enabled: true,
+        comingSoon: true,
+        badge: 'SOON',
         keywords: ['gps', 'tracking', 'location', 'live map'],
       },
     ],
@@ -212,6 +219,7 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
         requiredRoles: ['owner', 'admin', 'manager', 'finance_staff', 'viewer'],
         enabled: true,
         comingSoon: true,
+        badge: 'SOON',
         keywords: ['earnings', 'revenue', 'profit', 'income'],
       },
       {
@@ -279,6 +287,7 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
         requiredRoles: ['owner', 'admin', 'marketing_staff', 'viewer'],
         enabled: true,
         comingSoon: true,
+        badge: 'SOON',
         keywords: ['planner', 'ideas', 'strategy', 'backlog'],
       },
       {
@@ -290,6 +299,7 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
         requiredRoles: ['owner', 'admin', 'marketing_staff', 'viewer'],
         enabled: true,
         comingSoon: true,
+        badge: 'SOON',
         keywords: ['library', 'assets', 'photos', 'media'],
       },
       {
@@ -301,6 +311,7 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
         requiredRoles: ['owner', 'admin', 'marketing_staff', 'viewer'],
         enabled: true,
         comingSoon: true,
+        badge: 'SOON',
         keywords: ['social', 'facebook', 'instagram', 'posts'],
       },
       {
@@ -312,6 +323,7 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
         requiredRoles: ['owner', 'admin', 'marketing_staff', 'viewer'],
         enabled: true,
         comingSoon: true,
+        badge: 'SOON',
         keywords: ['reach', 'conversion', 'leads', 'analytics'],
       },
       {
@@ -323,6 +335,7 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
         requiredRoles: ['owner', 'admin', 'marketing_staff', 'viewer'],
         enabled: true,
         comingSoon: true,
+        badge: 'SOON',
         keywords: ['offers', 'discounts', 'vouchers', 'promo'],
       },
     ],
@@ -366,6 +379,7 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
         requiredRoles: ALL_ROLES,
         enabled: true,
         comingSoon: true,
+        badge: 'SOON',
         keywords: ['reminders', 'notifications', 'alerts'],
       },
       {
@@ -377,6 +391,7 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
         requiredRoles: ALL_ROLES,
         enabled: true,
         comingSoon: true,
+        badge: 'SOON',
         keywords: ['whatsapp', 'messaging', 'chats', 'send message'],
       },
       {
@@ -388,6 +403,7 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
         requiredRoles: ['owner', 'admin', 'manager', 'booking_staff', 'operations_staff', 'viewer'],
         enabled: true,
         comingSoon: true,
+        badge: 'SOON',
         keywords: ['sms', 'text message', 'alerts'],
       },
     ],
@@ -405,6 +421,7 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
         requiredRoles: ALL_ROLES,
         enabled: true,
         comingSoon: true,
+        badge: 'SOON',
         keywords: ['portal', 'customer app', 'self service'],
       },
       {
@@ -416,6 +433,7 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
         requiredRoles: ['owner', 'admin', 'operations_staff', 'driver', 'viewer'],
         enabled: true,
         comingSoon: true,
+        badge: 'SOON',
         keywords: ['driver app', 'mobile portal', 'duty roster'],
       },
       {
@@ -427,6 +445,7 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
         requiredRoles: ['owner'],
         enabled: true,
         comingSoon: true,
+        badge: 'SOON',
         keywords: ['owner portal', 'partner dashboard'],
       },
     ],
@@ -479,10 +498,18 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
   },
 ]
 
-export function getFilteredNavigation(role: string): NavigationSection[] {
+export function getFilteredNavigation(
+  role: string,
+  showUpcomingModules: boolean = false
+): NavigationSection[] {
   return NAVIGATION_CONFIG.map((sec) => ({
     ...sec,
-    items: sec.items.filter((item) => item.enabled && item.requiredRoles.includes(role)),
+    items: sec.items.filter((item) => {
+      if (!item.enabled) return false
+      if (!item.requiredRoles.includes(role)) return false
+      if (item.comingSoon && !showUpcomingModules) return false
+      return true
+    }),
   })).filter((sec) => sec.items.length > 0)
 }
 
