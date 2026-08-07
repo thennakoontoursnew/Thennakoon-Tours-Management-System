@@ -19,17 +19,11 @@ export function Sidebar({ role, fullName, onLogout }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [mounted, setMounted] = useState(false)
 
-  const [showUpcoming, setShowUpcoming] = useState(false)
-
   useEffect(() => {
     setMounted(true)
     const stored = localStorage.getItem('sidebar_collapsed')
     if (stored === 'true') {
       setIsCollapsed(true)
-    }
-    const storedUpcoming = localStorage.getItem('show_upcoming_modules')
-    if (storedUpcoming === 'true') {
-      setShowUpcoming(true)
     }
   }, [])
 
@@ -39,7 +33,7 @@ export function Sidebar({ role, fullName, onLogout }: SidebarProps) {
     localStorage.setItem('sidebar_collapsed', String(nextState))
   }
 
-  const sections = getFilteredNavigation(role, showUpcoming)
+  const sections = getFilteredNavigation(role)
 
   const getRoleLabel = (roleName: string) => {
     return roleName.split('_').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')

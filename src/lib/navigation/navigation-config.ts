@@ -498,16 +498,12 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
   },
 ]
 
-export function getFilteredNavigation(
-  role: string,
-  showUpcomingModules: boolean = false
-): NavigationSection[] {
+export function getFilteredNavigation(role: string): NavigationSection[] {
   return NAVIGATION_CONFIG.map((sec) => ({
     ...sec,
     items: sec.items.filter((item) => {
       if (!item.enabled) return false
       if (!item.requiredRoles.includes(role)) return false
-      if (item.comingSoon && !showUpcomingModules) return false
       return true
     }),
   })).filter((sec) => sec.items.length > 0)
