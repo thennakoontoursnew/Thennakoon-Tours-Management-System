@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { Plus, Search, Filter, Archive, Car, ChevronRight, AlertTriangle, CheckCircle, ShieldAlert } from 'lucide-react'
+import { Plus, Search, Filter, Archive, Car, ChevronRight, AlertTriangle, CheckCircle, ShieldAlert, Wrench, ShieldCheck, Clock } from 'lucide-react'
+import { getFleetSummaryKPIs, calculateDocumentHealth } from '@/lib/fleet/fleet-service'
 
 interface PageProps {
   searchParams: Promise<{
@@ -21,19 +22,18 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
   const transmissionFilter = params.transmission || 'all'
   const fuelFilter = params.fuel || 'all'
   const page = parseInt(params.page || '1', 10)
-  const pageSize = 10
+  const pageSize = 12
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user?.id)
-    .single()
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user?.id).maybeSingle()
 
   const canCreate = ['owner', 'manager', 'operations_staff'].includes(profile?.role || '')
   const canArchive = ['owner', 'manager'].includes(profile?.role || '')
+
+  // Fetch Fleet KPI Summary passing supabase client
+  const kpis = await getFleetSummaryKPIs(supabase)
 
   // Fetch Categories for filter dropdown
   const { data: categories } = await supabase.from('vehicle_categories').select('id, name').order('name')
@@ -56,30 +56,25 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
 
-  const { data: vehicles, count } = await query
-    .order('created_at', { ascending: false })
-    .range(from, to)
+  const { data: vehicles, count } = await query.order('created_at', { ascending: false }).range(from, to)
 
   const totalPages = Math.ceil((count || 0) / pageSize)
-
-  // Helper for expiry warning check (due within 30 days or expired)
-  const checkExpiryWarning = (dateStr?: string | null) => {
-    if (!dateStr) return null
-    const diff = (new Date(dateStr).getTime() - new Date().getTime()) / (1000 * 3600 * 24)
-    if (diff < 0) return { status: 'expired', text: 'Expired' }
-    if (diff <= 30) return { status: 'warning', text: `Due in ${Math.ceil(diff)}d` }
-    return null
-  }
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white">Vehicle Fleet Management</h1>
-          <p className="text-slate-500 text-xs mt-1">Manage vehicles, categories, legal compliance dates, and operational status.</p>
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white">Fleet Roster & Operational Profiles</h1>
+          <p className="text-slate-500 text-xs mt-1">Management visibility across vehicle roster, document health, and service schedules.</p>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard/fleet"
+            className="px-3 py-2 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
+          >
+            Fleet Dashboard
+          </Link>
           <Link
             href="/dashboard/vehicles/categories"
             className="px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
@@ -107,6 +102,39 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
         </div>
       </div>
 
+      {/* Fleet KPI Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-slate-400 block">Total Fleet</span>
+          <span className="font-mono font-black text-slate-900 dark:text-white text-xl">{kpis.totalFleet}</span>
+        </div>
+
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-emerald-500 block">Available</span>
+          <span className="font-mono font-black text-emerald-500 text-xl">{kpis.available}</span>
+        </div>
+
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-blue-500 block">Reserved</span>
+          <span className="font-mono font-black text-blue-500 text-xl">{kpis.reserved}</span>
+        </div>
+
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-amber-500 block">On Trip</span>
+          <span className="font-mono font-black text-amber-500 text-xl">{kpis.onTrip}</span>
+        </div>
+
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-rose-500 block">Maintenance</span>
+          <span className="font-mono font-black text-rose-500 text-xl">{kpis.maintenance}</span>
+        </div>
+
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-slate-400 block">Inactive</span>
+          <span className="font-mono font-black text-slate-400 text-xl">{kpis.inactive}</span>
+        </div>
+      </div>
+
       {/* Filter Bar */}
       <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-3">
         <form method="GET" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
@@ -116,7 +144,7 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
               type="text"
               name="search"
               defaultValue={search}
-              placeholder="Search code, name, reg no..."
+              placeholder="Search reg number, name, make, model..."
               className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
             />
           </div>
@@ -157,7 +185,7 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
 
           <button
             type="submit"
-            className="py-2 px-4 bg-slate-900 text-white dark:bg-slate-800 rounded-lg text-xs font-semibold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5"
+            className="py-2 px-4 bg-slate-900 text-white dark:bg-slate-800 rounded-lg text-xs font-semibold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <Filter size={14} />
             <span>Filter</span>
@@ -165,8 +193,8 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
         </form>
       </div>
 
-      {/* Vehicle Grid / Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+      {/* Vehicle Table */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
         {vehicles && vehicles.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
@@ -175,17 +203,18 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
                   <th className="py-3 px-4">Vehicle</th>
                   <th className="py-3 px-4">Registration</th>
                   <th className="py-3 px-4">Category</th>
+                  <th className="py-3 px-4">Odometer</th>
                   <th className="py-3 px-4">Daily Rate</th>
-                  <th className="py-3 px-4">Compliance Warnings</th>
+                  <th className="py-3 px-4">Document Health</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-slate-700 dark:text-slate-300">
                 {vehicles.map((v) => {
-                  const primaryImg = v.vehicle_images?.find((img: any) => img.is_primary)?.public_url || v.vehicle_images?.[0]?.public_url
-                  const insWarn = checkExpiryWarning(v.insurance_expiry)
-                  const revWarn = checkExpiryWarning(v.revenue_license_expiry)
+                  const primaryImg = v.primary_photo_url || v.vehicle_images?.find((img: any) => img.is_primary)?.public_url || v.vehicle_images?.[0]?.public_url
+                  const insHealth = calculateDocumentHealth(v.insurance_expiry)
+                  const revHealth = calculateDocumentHealth(v.revenue_license_expiry)
 
                   return (
                     <tr key={v.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
@@ -206,24 +235,18 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
                       </td>
                       <td className="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200">{v.registration_number}</td>
                       <td className="py-3 px-4">{v.vehicle_categories?.name || 'Uncategorized'}</td>
-                      <td className="py-3 px-4 font-bold text-amber-600 dark:text-amber-400">LKR {Number(v.daily_rate).toLocaleString()}</td>
+                      <td className="py-3 px-4 font-mono font-semibold">{Number(v.current_mileage || 0).toLocaleString()} KM</td>
+                      <td className="py-3 px-4 font-bold text-amber-600 dark:text-amber-400 font-mono">LKR {Number(v.daily_rate).toLocaleString()}</td>
                       <td className="py-3 px-4">
-                        {insWarn || revWarn ? (
-                          <div className="flex items-center gap-1 text-rose-500 font-bold text-[10px]">
-                            <AlertTriangle size={12} />
-                            <span>{insWarn ? `Insurance ${insWarn.text}` : `Rev Lic ${revWarn?.text}`}</span>
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-emerald-500 font-semibold flex items-center gap-1">
-                            <CheckCircle size={11} /> Valid
-                          </span>
-                        )}
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${insHealth.badgeColor}`}>
+                          Insurance: {insHealth.label}
+                        </span>
                       </td>
                       <td className="py-3 px-4">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${
                           v.status === 'available' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
                           v.status === 'maintenance' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
-                          v.status === 'on_trip' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                          v.status === 'on_trip' || v.status === 'rented' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
                           'bg-slate-500/10 text-slate-400 border-slate-500/20'
                         }`}>
                           {v.status.replace('_', ' ')}
@@ -232,10 +255,10 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
                       <td className="py-3 px-4 text-right">
                         <Link
                           href={`/dashboard/vehicles/${v.id}`}
-                          className="p-1.5 inline-flex items-center gap-1 text-slate-600 dark:text-slate-400 hover:text-amber-500 text-xs font-semibold"
+                          className="px-3 py-1 bg-amber-400/10 hover:bg-amber-400/20 text-amber-600 dark:text-amber-400 border border-amber-400/30 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1"
                         >
-                          <span>View</span>
-                          <ChevronRight size={14} />
+                          <span>View Profile</span>
+                          <ChevronRight size={13} />
                         </Link>
                       </td>
                     </tr>
