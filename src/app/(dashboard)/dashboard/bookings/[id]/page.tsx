@@ -18,6 +18,11 @@ import { calculateRentalDays } from '@/lib/utils/formatters'
 import VehicleDriverAssignmentRow from './vehicle-driver-assignment-row'
 import BookingHeaderActions from './booking-header-actions'
 import ActivityTimeline from './activity-timeline'
+import { BookingLifecycleProgress } from '@/components/bookings/booking-lifecycle-progress'
+import { BookingStatusActions } from '@/components/bookings/booking-status-actions'
+import { ExtraChargesSection } from '@/components/bookings/extra-charges-section'
+import { addBookingExtraChargeAction } from './booking-actions'
+import { BookingStatus } from '@/lib/bookings/booking-workflow'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -61,229 +66,107 @@ function formatNumberSafe(val: any, decimals: number = 2): string {
 
 export default async function BookingDetailPage({ params }: PageProps) {
   const { id } = await params
-  console.log('BOOKING ROUTE ID:', id)
 
   // Validate UUID parameter format strictly
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
   if (!id || typeof id !== 'string' || !uuidRegex.test(id)) {
-    console.warn('BOOKING LOAD INVALID UUID:', id)
     notFound()
   }
 
   const supabase = await createClient()
 
-  // STEP 1: Base Booking Query
-  let booking: any = null
-  try {
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle()
+  // STEP 0: Authenticated User & Profile Role
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-    if (error) {
-      console.error('BOOKING DETAIL STEP 1 FAILED', error.code, error.message)
-      throw new Error(`Booking base query failed: ${error.code} ${error.message}`)
-    }
-    booking = data
-    console.log('BOOKING DETAIL STEP 1 PASSED')
-  } catch (err: any) {
-    console.error('BOOKING DETAIL STEP 1 FAILED', err?.code || 'EXCEPTION', err?.message || String(err))
-    throw err
+  let userRole = 'viewer'
+  if (user?.id) {
+    const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+    if (prof?.role) userRole = prof.role
   }
 
+  // STEP 1: Base Booking Query
+  const { data: booking } = await supabase.from('bookings').select('*').eq('id', id).maybeSingle()
   if (!booking) {
-    console.log('BOOKING DETAIL STEP 1 - RECORD NOT FOUND')
     notFound()
   }
 
   // Fetch Created By Profile Name
   let createdByName = 'System User'
   if (booking.created_by) {
-    try {
-      const { data: prof } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', booking.created_by)
-        .maybeSingle()
-      if (prof?.full_name) createdByName = prof.full_name
-    } catch (err) {
-      console.warn('Failed to fetch creator profile', err)
-    }
+    const { data: prof } = await supabase.from('profiles').select('full_name').eq('id', booking.created_by).maybeSingle()
+    if (prof?.full_name) createdByName = prof.full_name
   }
 
   // STEP 2: Customer Query
   let customer: any = null
   if (booking.customer_id) {
-    try {
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('id', booking.customer_id)
-        .maybeSingle()
-
-      if (error) {
-        console.error('BOOKING DETAIL STEP 2 FAILED', error.code, error.message)
-      } else {
-        customer = data
-        console.log('BOOKING DETAIL STEP 2 PASSED')
-      }
-    } catch (err: any) {
-      console.error('BOOKING DETAIL STEP 2 FAILED', err?.message)
-    }
+    const { data } = await supabase.from('customers').select('*').eq('id', booking.customer_id).maybeSingle()
+    customer = data
   }
 
   // STEP 3: booking_vehicles Query
-  let bookingVehicles: any[] = []
-  try {
-    const { data, error } = await supabase
-      .from('booking_vehicles')
-      .select('*')
-      .eq('booking_id', id)
-
-    if (error) {
-      console.error('BOOKING DETAIL STEP 3 FAILED', error.code, error.message)
-    } else {
-      bookingVehicles = data || []
-      console.log('BOOKING DETAIL STEP 3 PASSED')
-    }
-  } catch (err: any) {
-    console.error('BOOKING DETAIL STEP 3 FAILED', err?.message)
-  }
+  const { data: bvData } = await supabase.from('booking_vehicles').select('*').eq('booking_id', id)
+  const bookingVehicles = bvData || []
 
   // STEP 4: Vehicles Query
   let vehicleMap = new Map()
-  try {
-    const vehicleIds = bookingVehicles.map((bv: any) => bv.vehicle_id).filter(Boolean)
-    if (vehicleIds.length > 0) {
-      const { data, error } = await supabase.from('vehicles').select('*').in('id', vehicleIds)
-      if (error) {
-        console.error('BOOKING DETAIL STEP 4 FAILED', error.code, error.message)
-      } else {
-        vehicleMap = new Map((data || []).map((v: any) => [v.id, v]))
-        console.log('BOOKING DETAIL STEP 4 PASSED')
-      }
-    }
-  } catch (err: any) {
-    console.error('BOOKING DETAIL STEP 4 FAILED', err?.message)
+  const vehicleIds = bookingVehicles.map((bv: any) => bv.vehicle_id).filter(Boolean)
+  if (vehicleIds.length > 0) {
+    const { data: vData } = await supabase.from('vehicles').select('*').in('id', vehicleIds)
+    vehicleMap = new Map((vData || []).map((v: any) => [v.id, v]))
   }
 
   // STEP 5: Drivers Query
   let driverMap = new Map()
   let driversList: any[] = []
-  try {
-    const assignedDriverIds = bookingVehicles.map((bv: any) => bv.driver_id).filter(Boolean)
-    if (assignedDriverIds.length > 0) {
-      const { data: dData } = await supabase.from('drivers').select('*').in('id', assignedDriverIds)
-      driverMap = new Map((dData || []).map((d: any) => [d.id, d]))
-    }
-
-    const { data: activeDrivers, error: drvErr } = await supabase
-      .from('drivers')
-      .select('id, driver_code, full_name, mobile, status, license_expiry, license_number')
-      .eq('is_archived', false)
-      .order('full_name')
-
-    if (drvErr) {
-      console.error('BOOKING DETAIL STEP 5 FAILED', drvErr.code, drvErr.message)
-    } else {
-      driversList = activeDrivers || []
-      console.log('BOOKING DETAIL STEP 5 PASSED')
-    }
-  } catch (err: any) {
-    console.error('BOOKING DETAIL STEP 5 FAILED', err?.message)
+  const assignedDriverIds = bookingVehicles.map((bv: any) => bv.driver_id).filter(Boolean)
+  if (assignedDriverIds.length > 0) {
+    const { data: dData } = await supabase.from('drivers').select('*').in('id', assignedDriverIds)
+    driverMap = new Map((dData || []).map((d: any) => [d.id, d]))
   }
+
+  const { data: activeDrivers } = await supabase
+    .from('drivers')
+    .select('id, driver_code, full_name, mobile, status, license_expiry, license_number')
+    .eq('is_archived', false)
+    .order('full_name')
+  driversList = activeDrivers || []
 
   // STEP 6: Linked Quotation Query
   let linkedQuotation: any = null
   if (booking.quotation_id) {
-    try {
-      const { data, error } = await supabase
-        .from('quotations')
-        .select('id, quotation_number, status, grand_total')
-        .eq('id', booking.quotation_id)
-        .maybeSingle()
-
-      if (error) {
-        console.error('BOOKING DETAIL STEP 6 FAILED', error.code, error.message)
-      } else {
-        linkedQuotation = data
-        console.log('BOOKING DETAIL STEP 6 PASSED')
-      }
-    } catch (err: any) {
-      console.error('BOOKING DETAIL STEP 6 FAILED', err?.message)
-    }
+    const { data } = await supabase
+      .from('quotations')
+      .select('id, quotation_number, status, grand_total')
+      .eq('id', booking.quotation_id)
+      .maybeSingle()
+    linkedQuotation = data
   }
 
   // STEP 7: Invoices Query
-  let linkedInvoices: any[] = []
-  try {
-    const { data, error } = await supabase
-      .from('invoices')
-      .select('id, invoice_number, grand_total, balance_due, status')
-      .eq('booking_id', id)
-
-    if (error) {
-      console.error('BOOKING DETAIL STEP 7 FAILED', error.code, error.message)
-    } else {
-      linkedInvoices = data || []
-      console.log('BOOKING DETAIL STEP 7 PASSED')
-    }
-  } catch (err: any) {
-    console.error('BOOKING DETAIL STEP 7 FAILED', err?.message)
-  }
+  const { data: invData } = await supabase.from('invoices').select('id, invoice_number, grand_total, balance_due, status').eq('booking_id', id)
+  const linkedInvoices = invData || []
 
   // STEP 8: Payments and Receipts Query
-  let linkedPayments: any[] = []
-  let linkedReceipts: any[] = []
-  try {
-    const { data: pData } = await supabase
-      .from('payments')
-      .select('id, payment_number, amount, payment_date, payment_method, status')
-      .eq('booking_id', id)
-    linkedPayments = pData || []
+  const { data: pData } = await supabase.from('payments').select('id, payment_number, amount, payment_date, payment_method, status').eq('booking_id', id)
+  const linkedPayments = pData || []
 
-    const { data: rData } = await supabase
-      .from('receipts')
-      .select('id, receipt_number, amount_paid, issued_at')
-      .eq('booking_id', id)
-    linkedReceipts = rData || []
-  } catch (err: any) {
-    console.error('BOOKING DETAIL STEP 8 FAILED', err?.message)
-  }
+  const { data: rData } = await supabase.from('receipts').select('id, receipt_number, amount_paid, issued_at').eq('booking_id', id)
+  const linkedReceipts = rData || []
 
-  // STEP 9: Rental Agreement Query (Enforce active agreement filtering)
-  let activeAgreements: any[] = []
-  let archivedAgreements: any[] = []
-  try {
-    const { data, error } = await supabase
-      .from('rental_agreements')
-      .select('id, agreement_number, status, created_at')
-      .eq('booking_id', id)
-
-    if (!error && data) {
-      activeAgreements = data.filter((a: any) => a.status !== 'cancelled')
-      archivedAgreements = data.filter((a: any) => a.status === 'cancelled')
-    }
-  } catch (err: any) {
-    console.error('BOOKING DETAIL STEP 9 FAILED', err?.message)
-  }
+  // STEP 9: Rental Agreement Query
+  const { data: agrData } = await supabase.from('rental_agreements').select('id, agreement_number, status, created_at').eq('booking_id', id)
+  const activeAgreements = (agrData || []).filter((a: any) => a.status !== 'cancelled')
 
   // STEP 10: Activity Logs Query
-  let activityLogs: any[] = []
-  try {
-    const { data, error } = await supabase
-      .from('document_activity_logs')
-      .select('*')
-      .eq('document_id', id)
-      .order('created_at', { ascending: false })
+  const { data: actData } = await supabase.from('document_activity_logs').select('*').eq('document_id', id).order('created_at', { ascending: false })
+  const activityLogs = actData || []
 
-    if (!error && data) {
-      activityLogs = data
-    }
-  } catch (err: any) {
-    console.error('BOOKING DETAIL STEP 10 FAILED', err?.message)
-  }
+  // STEP 11: Booking Charges Query
+  const { data: chargeData } = await supabase.from('booking_charges').select('*').eq('booking_id', id).order('created_at', { ascending: true })
+  const bookingCharges = chargeData || []
 
   // Calculate rental days safely
   let rentalDays = 1
@@ -295,9 +178,10 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
   const primaryAgreement = activeAgreements.length > 0 ? activeAgreements[0] : null
   const primaryInvoice = linkedInvoices.length > 0 ? linkedInvoices[0] : null
+  const totalBalanceDue = linkedInvoices.reduce((acc: number, inv: any) => acc + Number(inv.balance_due || 0), 0)
 
   // Build Plain Serializable DTOs for Client Components
-  const serializableDrivers = (driversList || []).map((d: any) => ({
+  const serializableDrivers = driversList.map((d: any) => ({
     id: String(d.id),
     driver_code: String(d.driver_code ?? ''),
     full_name: String(d.full_name ?? ''),
@@ -307,7 +191,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
     license_number: d.license_number ? String(d.license_number) : null,
   }))
 
-  const serializableLogs = (activityLogs || []).map((log: any) => ({
+  const serializableLogs = activityLogs.map((log: any) => ({
     id: String(log.id),
     action: log.action ? String(log.action) : null,
     change_summary: log.change_summary ? String(log.change_summary) : null,
@@ -361,26 +245,42 @@ export default async function BookingDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Booking Header Action Buttons */}
-        <BookingHeaderActions
-          bookingId={String(id)}
-          bookingNumber={String(booking.booking_number ?? '')}
-          currentStatus={String(booking.status ?? 'confirmed')}
-          customerName={customer?.full_name || 'Customer'}
-          customerPhone={customer?.whatsapp || customer?.mobile || customer?.phone || ''}
-          rentalStart={formatDateSafe(booking.rental_start_at)}
-          rentalEnd={formatDateSafe(booking.rental_end_at)}
-          vehicleName={firstVehName}
-          grandTotal={Number(booking.grand_total || 0)}
-          existingInvoiceId={primaryInvoice ? String(primaryInvoice.id) : null}
-          existingInvoiceNumber={primaryInvoice ? String(primaryInvoice.invoice_number) : null}
-          existingAgreementId={primaryAgreement ? String(primaryAgreement.id) : null}
-          existingAgreementNumber={primaryAgreement ? String(primaryAgreement.agreement_number) : null}
-        />
+        {/* Workflow Lifecycle Action Bar & PDF Generators */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <BookingStatusActions
+            bookingId={String(id)}
+            currentStatus={booking.status as BookingStatus}
+            userRole={userRole}
+            userId={user?.id}
+            balanceDue={totalBalanceDue}
+            pickupOdometer={50000}
+            allowedKmTotal={bookingVehicles[0]?.allowed_km || 500}
+            extraKmRate={bookingVehicles[0]?.extra_km_charge || 100}
+          />
+
+          <BookingHeaderActions
+            bookingId={String(id)}
+            bookingNumber={String(booking.booking_number ?? '')}
+            currentStatus={String(booking.status ?? 'confirmed')}
+            customerName={customer?.full_name || 'Customer'}
+            customerPhone={customer?.whatsapp || customer?.mobile || customer?.phone || ''}
+            rentalStart={formatDateSafe(booking.rental_start_at)}
+            rentalEnd={formatDateSafe(booking.rental_end_at)}
+            vehicleName={firstVehName}
+            grandTotal={Number(booking.grand_total || 0)}
+            existingInvoiceId={primaryInvoice ? String(primaryInvoice.id) : null}
+            existingInvoiceNumber={primaryInvoice ? String(primaryInvoice.invoice_number) : null}
+            existingAgreementId={primaryAgreement ? String(primaryAgreement.id) : null}
+            existingAgreementNumber={primaryAgreement ? String(primaryAgreement.agreement_number) : null}
+          />
+        </div>
       </div>
 
+      {/* Booking Lifecycle Progress Component */}
+      <BookingLifecycleProgress status={booking.status as BookingStatus} />
+
       {/* Linked Sales Documents Bar */}
-      {(linkedQuotation || (linkedInvoices?.length || 0) > 0 || activeAgreements.length > 0 || (linkedPayments?.length || 0) > 0) && (
+      {(linkedQuotation || linkedInvoices.length > 0 || activeAgreements.length > 0 || linkedPayments.length > 0) && (
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex flex-wrap items-center gap-3 text-xs">
           <span className="font-bold text-amber-800 dark:text-amber-300">Linked Documents:</span>
           {linkedQuotation && (
@@ -392,7 +292,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
               <span>Quotation: {String(linkedQuotation.quotation_number ?? 'N/A')}</span>
             </Link>
           )}
-          {linkedInvoices?.map((inv: any) => (
+          {linkedInvoices.map((inv: any) => (
             <Link
               key={String(inv.id)}
               href={`/dashboard/invoices/${inv.id}`}
@@ -412,7 +312,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
               <span>Agreement: {String(agr.agreement_number ?? 'N/A')}</span>
             </Link>
           ))}
-          {linkedPayments?.map((pmt: any) => (
+          {linkedPayments.map((pmt: any) => (
             <span
               key={String(pmt.id)}
               className="px-2.5 py-1 bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-mono font-bold flex items-center gap-1"
@@ -492,7 +392,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
               <div className="text-right font-mono font-bold text-emerald-500 text-sm">LKR {formatNumberSafe(booking.advance_paid)}</div>
 
               <div className="text-slate-900 dark:text-white font-bold">Balance Due:</div>
-              <div className="text-right font-mono font-bold text-rose-500 text-base">LKR {formatNumberSafe(booking.balance_due)}</div>
+              <div className="text-right font-mono font-bold text-rose-500 text-base">LKR {formatNumberSafe(totalBalanceDue)}</div>
             </div>
           </div>
         </div>
@@ -536,6 +436,23 @@ export default async function BookingDetailPage({ params }: PageProps) {
           <div className="text-xs text-slate-400 italic py-2">No vehicle rows assigned to this booking.</div>
         )}
       </div>
+
+      {/* Extra Charges Section */}
+      <ExtraChargesSection
+        charges={bookingCharges.map((c: any) => ({
+          id: String(c.id),
+          charge_type: String(c.charge_type),
+          description: String(c.description),
+          quantity: Number(c.quantity),
+          unit_amount: Number(c.unit_amount),
+          amount: Number(c.amount),
+          status: String(c.status),
+        }))}
+        onAddCharge={async (newCharge) => {
+          'use server'
+          await addBookingExtraChargeAction(String(id), newCharge)
+        }}
+      />
 
       {/* Activity Log Timeline */}
       <ActivityTimeline logs={serializableLogs} bookingCreatedAt={String(booking.created_at)} />
