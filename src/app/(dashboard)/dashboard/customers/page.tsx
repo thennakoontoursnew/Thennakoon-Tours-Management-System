@@ -1,13 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { Plus, Search, Filter, Archive, UserCheck, Phone, Mail, Building, Tag, ChevronRight } from 'lucide-react'
+import { Plus, Search, Filter, Archive, UserCheck, Phone, Mail, Building, Tag, ChevronRight, MessageSquare, AlertTriangle, ShieldAlert } from 'lucide-react'
+import { getCustomerSummaryKPIs, normalizePhone } from '@/lib/crm/crm-service'
 
 interface PageProps {
   searchParams: Promise<{
     search?: string
     type?: string
     status?: string
-    source?: string
+    risk?: string
     page?: string
   }>
 }
@@ -17,40 +18,39 @@ export default async function CustomersPage({ searchParams }: PageProps) {
   const search = params.search || ''
   const typeFilter = params.type || 'all'
   const statusFilter = params.status || 'all'
-  const sourceFilter = params.source || 'all'
+  const riskFilter = params.risk || 'all'
   const page = parseInt(params.page || '1', 10)
-  const pageSize = 10
+  const pageSize = 12
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user?.id)
-    .single()
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user?.id).maybeSingle()
 
   const canCreate = ['owner', 'manager', 'booking_staff', 'operations_staff', 'finance_staff'].includes(profile?.role || '')
   const canArchive = ['owner', 'manager'].includes(profile?.role || '')
 
+  // Fetch CRM Summary KPIs
+  const kpis = await getCustomerSummaryKPIs(supabase)
+
   // Build query
   let query = supabase
     .from('customers')
-    .select('*, customer_tag_assignments(tag_id, customer_tags(name))', { count: 'exact' })
+    .select('*', { count: 'exact' })
     .eq('is_archived', false)
 
   if (search) {
-    query = query.or(`full_name.ilike.%${search}%,customer_code.ilike.%${search}%,company_name.ilike.%${search}%,mobile.ilike.%${search}%,nic.ilike.%${search}%,email.ilike.%${search}%`)
+    query = query.or(`full_name.ilike.%${search}%,customer_code.ilike.%${search}%,company_name.ilike.%${search}%,mobile.ilike.%${search}%,whatsapp.ilike.%${search}%,nic.ilike.%${search}%,passport_number.ilike.%${search}%,email.ilike.%${search}%`)
   }
 
   if (typeFilter !== 'all') query = query.eq('customer_type', typeFilter)
   if (statusFilter !== 'all') query = query.eq('status', statusFilter)
-  if (sourceFilter !== 'all') query = query.eq('source', sourceFilter)
+  if (riskFilter !== 'all') query = query.eq('risk_flag', riskFilter)
 
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
 
-  const { data: customers, count, error } = await query
+  const { data: customers, count } = await query
     .order('created_at', { ascending: false })
     .range(from, to)
 
@@ -61,10 +61,16 @@ export default async function CustomersPage({ searchParams }: PageProps) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white">Customer Management</h1>
-          <p className="text-slate-500 text-xs mt-1">Manage individual and corporate client profiles, tags, and contact records.</p>
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white">Customer Relationship Management</h1>
+          <p className="text-slate-500 text-xs mt-1">360-degree customer directory, lifetime value, compliance documents, and communication logs.</p>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard/leads"
+            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
+          >
+            Leads & Enquiries
+          </Link>
           {canArchive && (
             <Link
               href="/dashboard/customers/archived"
@@ -86,6 +92,39 @@ export default async function CustomersPage({ searchParams }: PageProps) {
         </div>
       </div>
 
+      {/* CRM KPI Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-slate-400 block">Total Directory</span>
+          <span className="font-mono font-black text-slate-900 dark:text-white text-xl">{kpis.totalCustomers}</span>
+        </div>
+
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-emerald-500 block">Active Hirers</span>
+          <span className="font-mono font-black text-emerald-500 text-xl">{kpis.activeCustomers}</span>
+        </div>
+
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-purple-500 block">Repeat Customers</span>
+          <span className="font-mono font-black text-purple-500 text-xl">{kpis.repeatCustomers}</span>
+        </div>
+
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-blue-500 block">New This Month</span>
+          <span className="font-mono font-black text-blue-500 text-xl">{kpis.newThisMonth}</span>
+        </div>
+
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-rose-500 block">Outstanding Bal</span>
+          <span className="font-mono font-black text-rose-500 text-xl">{kpis.outstandingCustomersCount}</span>
+        </div>
+
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-amber-500 block">Risk / Watch</span>
+          <span className="font-mono font-black text-amber-500 text-xl">{kpis.riskWatchCount}</span>
+        </div>
+      </div>
+
       {/* Filter Bar */}
       <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-3">
         <form method="GET" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
@@ -95,7 +134,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
               type="text"
               name="search"
               defaultValue={search}
-              placeholder="Search code, name, mobile, NIC..."
+              placeholder="Search code, name, mobile, WhatsApp, NIC..."
               className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
             />
           </div>
@@ -105,25 +144,25 @@ export default async function CustomersPage({ searchParams }: PageProps) {
             defaultValue={typeFilter}
             className="py-2 px-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
           >
-            <option value="all">All Types</option>
+            <option value="all">All Customer Types</option>
             <option value="individual">Individual</option>
-            <option value="company">Company</option>
+            <option value="company">Company / Corporate</option>
           </select>
 
           <select
-            name="status"
-            defaultValue={statusFilter}
+            name="risk"
+            defaultValue={riskFilter}
             className="py-2 px-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
           >
-            <option value="all">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="blacklisted">Blacklisted</option>
+            <option value="all">All Risk Flags</option>
+            <option value="normal">Normal</option>
+            <option value="watch">Watch List</option>
+            <option value="restricted">Restricted</option>
           </select>
 
           <button
             type="submit"
-            className="py-2 px-4 bg-slate-900 text-white dark:bg-slate-800 rounded-lg text-xs font-semibold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5"
+            className="py-2 px-4 bg-slate-900 text-white dark:bg-slate-800 rounded-lg text-xs font-semibold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <Filter size={14} />
             <span>Apply Filters</span>
@@ -131,54 +170,90 @@ export default async function CustomersPage({ searchParams }: PageProps) {
         </form>
       </div>
 
-      {/* Customer List */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+      {/* Customer Table */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
         {customers && customers.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-850 text-slate-500 font-bold border-b border-slate-200 dark:border-slate-800 uppercase tracking-wider">
-                  <th className="py-3 px-4">Code</th>
-                  <th className="py-3 px-4">Customer</th>
-                  <th className="py-3 px-4">Contact</th>
-                  <th className="py-3 px-4">Type</th>
+                  <th className="py-3 px-4">Customer Code</th>
+                  <th className="py-3 px-4">Name & Company</th>
+                  <th className="py-3 px-4">Contact Info</th>
+                  <th className="py-3 px-4">NIC / Passport</th>
+                  <th className="py-3 px-4">Risk Flag</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-slate-700 dark:text-slate-300">
-                {customers.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
-                    <td className="py-3 px-4 font-mono font-bold text-amber-600 dark:text-amber-400">{c.customer_code}</td>
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-slate-900 dark:text-white">{c.full_name}</div>
-                      {c.company_name && <div className="text-[10px] text-slate-400 flex items-center gap-1"><Building size={10} />{c.company_name}</div>}
-                    </td>
-                    <td className="py-3 px-4 space-y-0.5">
-                      <div className="flex items-center gap-1"><Phone size={12} className="text-slate-400" />{c.mobile}</div>
-                      {c.email && <div className="flex items-center gap-1 text-slate-400 text-[10px]"><Mail size={10} />{c.email}</div>}
-                    </td>
-                    <td className="py-3 px-4 capitalize font-medium">{c.customer_type}</td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${
-                        c.status === 'active' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
-                        c.status === 'blacklisted' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
-                        'bg-slate-500/10 text-slate-400 border-slate-500/20'
-                      }`}>
-                        {c.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <Link
-                        href={`/dashboard/customers/${c.id}`}
-                        className="p-1.5 inline-flex items-center gap-1 text-slate-600 dark:text-slate-400 hover:text-amber-500 text-xs font-semibold"
-                      >
-                        <span>View</span>
-                        <ChevronRight size={14} />
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {customers.map((c) => {
+                  const phoneNorm = normalizePhone(c.whatsapp || c.mobile)
+                  const waUrl = phoneNorm.e164 ? `https://wa.me/${phoneNorm.e164.replace('+', '')}` : null
+
+                  return (
+                    <tr key={c.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
+                      <td className="py-3 px-4 font-mono font-bold text-amber-600 dark:text-amber-400">{c.customer_code}</td>
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-slate-900 dark:text-white">{c.full_name}</div>
+                        {c.company_name && (
+                          <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                            <Building size={10} />
+                            {c.company_name}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 space-y-0.5">
+                        <div className="flex items-center gap-1.5 font-mono">
+                          <Phone size={12} className="text-slate-400" />
+                          <span>{c.mobile}</span>
+                          {waUrl && (
+                            <a
+                              href={waUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-emerald-500 hover:text-emerald-600 p-0.5"
+                              title="Open WhatsApp Chat"
+                            >
+                              <MessageSquare size={13} />
+                            </a>
+                          )}
+                        </div>
+                        {c.email && <div className="text-slate-400 text-[10px] truncate max-w-[140px]">{c.email}</div>}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-slate-600 dark:text-slate-400">
+                        {c.nic || c.passport_number || 'N/A'}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase ${
+                          c.risk_flag === 'restricted' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
+                          c.risk_flag === 'watch' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                          'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'
+                        }`}>
+                          {c.risk_flag || 'normal'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${
+                          c.status === 'active' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
+                          c.status === 'blacklisted' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
+                          'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                        }`}>
+                          {c.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <Link
+                          href={`/dashboard/customers/${c.id}`}
+                          className="px-3 py-1 bg-amber-400/10 hover:bg-amber-400/20 text-amber-600 dark:text-amber-400 border border-amber-400/30 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1"
+                        >
+                          <span>360 Profile</span>
+                          <ChevronRight size={13} />
+                        </Link>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -186,32 +261,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
           <div className="py-12 text-center space-y-2">
             <UserCheck size={32} className="mx-auto text-slate-400" />
             <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No Customers Found</p>
-            <p className="text-xs text-slate-400">Try adjusting your filter parameters or create a new customer record.</p>
-          </div>
-        )}
-
-        {/* Pagination Footer */}
-        {totalPages > 1 && (
-          <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
-            <span>Showing page {page} of {totalPages} ({count} total records)</span>
-            <div className="flex items-center gap-2">
-              {page > 1 && (
-                <Link
-                  href={`/dashboard/customers?page=${page - 1}&search=${search}&type=${typeFilter}&status=${statusFilter}`}
-                  className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded font-semibold text-slate-700 dark:text-slate-300"
-                >
-                  Previous
-                </Link>
-              )}
-              {page < totalPages && (
-                <Link
-                  href={`/dashboard/customers?page=${page + 1}&search=${search}&type=${typeFilter}&status=${statusFilter}`}
-                  className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded font-semibold text-slate-700 dark:text-slate-300"
-                >
-                  Next
-                </Link>
-              )}
-            </div>
+            <p className="text-xs text-slate-400">Try adjusting your search or create a new customer record.</p>
           </div>
         )}
       </div>
