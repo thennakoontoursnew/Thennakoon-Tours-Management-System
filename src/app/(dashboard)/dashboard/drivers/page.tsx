@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { Plus, Search, Filter, Archive, UserSquare2, Phone, AlertTriangle, CheckCircle, ChevronRight } from 'lucide-react'
+import { getDriverSummaryKPIs } from '@/lib/drivers/driver-service'
+import { calculateDocumentHealth } from '@/lib/fleet/fleet-service'
 
 interface PageProps {
   searchParams: Promise<{
@@ -15,24 +17,23 @@ export default async function DriversPage({ searchParams }: PageProps) {
   const search = params.search || ''
   const statusFilter = params.status || 'all'
   const page = parseInt(params.page || '1', 10)
-  const pageSize = 10
+  const pageSize = 12
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user?.id)
-    .single()
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user?.id).maybeSingle()
 
   const canCreate = ['owner', 'manager', 'operations_staff'].includes(profile?.role || '')
   const canArchive = ['owner', 'manager'].includes(profile?.role || '')
 
+  // Fetch Driver Summary KPIs
+  const kpis = await getDriverSummaryKPIs(supabase)
+
   // Build query
   let query = supabase
     .from('drivers')
-    .select('*, driver_documents(id)', { count: 'exact' })
+    .select('*', { count: 'exact' })
     .eq('is_archived', false)
 
   if (search) {
@@ -50,21 +51,13 @@ export default async function DriversPage({ searchParams }: PageProps) {
 
   const totalPages = Math.ceil((count || 0) / pageSize)
 
-  const checkExpiryWarning = (dateStr?: string | null) => {
-    if (!dateStr) return null
-    const diff = (new Date(dateStr).getTime() - new Date().getTime()) / (1000 * 3600 * 24)
-    if (diff < 0) return { status: 'expired', text: 'Expired' }
-    if (diff <= 30) return { status: 'warning', text: `Due in ${Math.ceil(diff)}d` }
-    return null
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white">Driver Management</h1>
-          <p className="text-slate-500 text-xs mt-1">Manage tour drivers, driving licenses, medical clearances, and document vaults.</p>
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white">Driver Roster & Operations</h1>
+          <p className="text-slate-500 text-xs mt-1">Management visibility across tour driver assignments, leave schedules, and document compliance.</p>
         </div>
         <div className="flex items-center gap-3">
           {canArchive && (
@@ -85,6 +78,39 @@ export default async function DriversPage({ searchParams }: PageProps) {
               <span>New Driver</span>
             </Link>
           )}
+        </div>
+      </div>
+
+      {/* Driver KPI Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-slate-400 block">Total Drivers</span>
+          <span className="font-mono font-black text-slate-900 dark:text-white text-xl">{kpis.totalDrivers}</span>
+        </div>
+
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-emerald-500 block">Available</span>
+          <span className="font-mono font-black text-emerald-500 text-xl">{kpis.available}</span>
+        </div>
+
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-blue-500 block">Assigned</span>
+          <span className="font-mono font-black text-blue-500 text-xl">{kpis.assigned}</span>
+        </div>
+
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-amber-500 block">On Trip</span>
+          <span className="font-mono font-black text-amber-500 text-xl">{kpis.onTrip}</span>
+        </div>
+
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-purple-500 block">On Leave</span>
+          <span className="font-mono font-black text-purple-500 text-xl">{kpis.onLeave}</span>
+        </div>
+
+        <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] font-bold uppercase text-rose-500 block">Doc Alerts</span>
+          <span className="font-mono font-black text-rose-500 text-xl">{kpis.expiringDocumentsCount}</span>
         </div>
       </div>
 
@@ -110,13 +136,14 @@ export default async function DriversPage({ searchParams }: PageProps) {
             <option value="all">All Statuses</option>
             <option value="available">Available</option>
             <option value="assigned">Assigned</option>
+            <option value="on_trip">On Trip</option>
             <option value="on_leave">On Leave</option>
             <option value="inactive">Inactive</option>
           </select>
 
           <button
             type="submit"
-            className="py-2 px-4 bg-slate-900 text-white dark:bg-slate-800 rounded-lg text-xs font-semibold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5"
+            className="py-2 px-4 bg-slate-900 text-white dark:bg-slate-800 rounded-lg text-xs font-semibold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <Filter size={14} />
             <span>Apply Filters</span>
@@ -125,7 +152,7 @@ export default async function DriversPage({ searchParams }: PageProps) {
       </div>
 
       {/* Driver List */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
         {drivers && drivers.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
@@ -135,15 +162,14 @@ export default async function DriversPage({ searchParams }: PageProps) {
                   <th className="py-3 px-4">Driver Name</th>
                   <th className="py-3 px-4">Mobile</th>
                   <th className="py-3 px-4">License Number</th>
-                  <th className="py-3 px-4">Compliance Status</th>
+                  <th className="py-3 px-4">Document Health</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-slate-700 dark:text-slate-300">
                 {drivers.map((d) => {
-                  const licWarn = checkExpiryWarning(d.license_expiry)
-                  const polWarn = checkExpiryWarning(d.police_clearance_expiry)
+                  const licHealth = calculateDocumentHealth(d.license_expiry)
 
                   return (
                     <tr key={d.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
@@ -152,25 +178,19 @@ export default async function DriversPage({ searchParams }: PageProps) {
                         <div className="font-bold text-slate-900 dark:text-white">{d.full_name}</div>
                         <div className="text-[10px] text-slate-400 font-mono">NIC: {d.nic}</div>
                       </td>
-                      <td className="py-3 px-4 flex items-center gap-1"><Phone size={12} className="text-slate-400" />{d.mobile}</td>
+                      <td className="py-3 px-4 font-mono">{d.mobile}</td>
                       <td className="py-3 px-4 font-mono font-semibold">{d.license_number}</td>
                       <td className="py-3 px-4">
-                        {licWarn || polWarn ? (
-                          <div className="flex items-center gap-1 text-rose-500 font-bold text-[10px]">
-                            <AlertTriangle size={12} />
-                            <span>{licWarn ? `Lic ${licWarn.text}` : `Police ${polWarn?.text}`}</span>
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-emerald-500 font-semibold flex items-center gap-1">
-                            <CheckCircle size={11} /> Verified
-                          </span>
-                        )}
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${licHealth.badgeColor}`}>
+                          License: {licHealth.label}
+                        </span>
                       </td>
                       <td className="py-3 px-4">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${
                           d.status === 'available' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
                           d.status === 'assigned' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
-                          d.status === 'on_leave' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                          d.status === 'on_trip' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                          d.status === 'on_leave' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' :
                           'bg-slate-500/10 text-slate-400 border-slate-500/20'
                         }`}>
                           {d.status.replace('_', ' ')}
@@ -179,10 +199,10 @@ export default async function DriversPage({ searchParams }: PageProps) {
                       <td className="py-3 px-4 text-right">
                         <Link
                           href={`/dashboard/drivers/${d.id}`}
-                          className="p-1.5 inline-flex items-center gap-1 text-slate-600 dark:text-slate-400 hover:text-amber-500 text-xs font-semibold"
+                          className="px-3 py-1 bg-amber-400/10 hover:bg-amber-400/20 text-amber-600 dark:text-amber-400 border border-amber-400/30 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1"
                         >
-                          <span>View</span>
-                          <ChevronRight size={14} />
+                          <span>View Profile</span>
+                          <ChevronRight size={13} />
                         </Link>
                       </td>
                     </tr>
