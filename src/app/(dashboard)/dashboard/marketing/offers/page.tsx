@@ -1,15 +1,26 @@
-import { ComingSoonModule } from '@/components/ui/coming-soon-module'
+import { createClient } from '@/lib/supabase/server'
+import { OffersClientWrapper } from './offers-client-wrapper'
 
 export const metadata = {
   title: 'Offers & Promotions — Thennakoon Tours',
 }
 
-export default function OffersPage() {
+export default async function OffersPage() {
+  const supabase = await createClient()
+
+  const { data: offers } = await supabase
+    .from('marketing_offers')
+    .select('*')
+    .order('created_at', { ascending: false })
+
   return (
-    <ComingSoonModule
-      title="Offers & Promotions"
-      description="Manage seasonal tour packages, promo codes, and customer discount vouchers."
-      plannedPhase="Phase 4 — Promotional Engine"
-    />
+    <div className="space-y-6 max-w-6xl mx-auto pb-12">
+      <div>
+        <h1 className="text-2xl font-black text-slate-900 dark:text-white">Offers & Promotions</h1>
+        <p className="text-slate-500 text-xs mt-1">Promo codes, seasonal discount vouchers, and campaign special rates.</p>
+      </div>
+
+      <OffersClientWrapper offers={offers || []} />
+    </div>
   )
 }
