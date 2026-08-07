@@ -53,6 +53,30 @@ export async function getConsolidatedReportData(supabase: any, reportId: string,
       .order('created_at', { ascending: false })
       .limit(50)
     rows = data || []
+  } else if (reportId === 'vehicle-owners') {
+    const { data } = await supabase
+      .from('vehicle_owners')
+      .select('id, owner_number, full_name, company_name, owner_type, mobile, email, settlement_rule, revenue_share_pct, flat_rate_per_day, is_active')
+      .order('full_name', { ascending: true })
+    rows = data || []
+  } else if (reportId === 'owner-settlements' || reportId === 'owner-outstanding') {
+    const { data } = await supabase
+      .from('owner_payouts')
+      .select('id, payout_number, period_start, period_end, gross_revenue, owner_share_amount, deductions, net_payout, amount_paid, outstanding_balance, status, owner:vehicle_owners(full_name, owner_number)')
+      .order('period_start', { ascending: false })
+    rows = data || []
+  } else if (reportId === 'fuel-consumption' || reportId === 'fuel-cost' || reportId === 'fuel-efficiency') {
+    const { data } = await supabase
+      .from('fuel_logs')
+      .select('id, log_date, liters, cost_per_liter, total_cost, odometer_reading, km_since_last_refuel, km_per_liter, liters_per_100km, station_name, vehicle:vehicles(vehicle_name, registration_number)')
+      .order('log_date', { ascending: false })
+    rows = data || []
+  } else if (reportId === 'vehicle-profitability' || reportId === 'fleet-utilization' || reportId === 'ownership-comparison' || reportId === 'fleet-downtime') {
+    const { data } = await supabase
+      .from('vehicles')
+      .select('id, vehicle_name, registration_number, ownership_type, status, current_mileage, service_due_mileage, owner:vehicle_owners(full_name)')
+      .eq('is_archived', false)
+    rows = data || []
   }
 
   return {

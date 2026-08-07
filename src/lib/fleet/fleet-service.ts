@@ -19,6 +19,19 @@ export interface DocumentHealthStatus {
   label: string
 }
 
+export interface HealthScoreResult {
+  score: number
+  rating: 'Excellent' | 'Good' | 'Fair' | 'Needs Attention'
+  badgeColor: string
+  breakdown: {
+    base: number
+    servicePenalty: number
+    documentPenalty: number
+    statusPenalty: number
+    maintenancePenalty: number
+  }
+}
+
 export function normalizeRegistrationNumber(regStr: string): string {
   if (!regStr) return ''
   return regStr.toUpperCase().replace(/\s+/g, ' ').trim()
@@ -60,6 +73,93 @@ export function calculateDocumentHealth(expiryDateStr?: string | null): Document
     label: `Valid (${daysRemaining}d)`,
     badgeColor: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
   }
+}
+
+/**
+ * Deterministic Fleet Health Score Formula (0 - 100)
+ * Base: 100
+ * Service Mileage Penalty: -25 if overdue, -10 if due within 500km
+ * Document Penalties: -15 per expired doc, -5 per expiring soon doc
+ * Status Penalty: -20 if in maintenance, -10 if inspection_required
+ */
+export function calculateVehicleHealthScore(vehicle: any): HealthScoreResult {
+  let score = 100
+  let servicePenalty = 0
+  let documentPenalty = 0
+  let statusPenalty = 0
+  let maintenancePenalty = 0
+
+  const curMile = Number(vehicle?.current_mileage || 0)
+  const dueMile = Number(vehicle?.service_due_mileage || 0)
+
+  if (dueMile > 0) {
+    if (curMile >= dueMile) {
+      servicePenalty = 25
+    } else if (dueMile - curMile <= 500) {
+      servicePenalty = 10
+    }
+  }
+
+  const hInsurance: DocumentHealthStatus = calculateDocumentHealth(vehicle?.insurance_expiry)
+  const hLicense: DocumentHealthStatus = calculateDocumentHealth(vehicle?.revenue_license_expiry)
+  const hEmission: DocumentHealthStatus = calculateDocumentHealth(vehicle?.emission_test_expiry)
+
+  const docStatuses: DocumentHealthStatus[] = [hInsurance, hLicense, hEmission]
+  docStatuses.forEach((h) => {
+    if (h.status === 'expired') documentPenalty += 15
+    else if (h.status === 'expiring_soon') documentPenalty += 5
+    else if (h.status === 'missing') documentPenalty += 5
+  })
+
+  const st = vehicle?.status || 'available'
+  if (st === 'maintenance') {
+    statusPenalty = 20
+  } else if (st === 'inspection_required') {
+    statusPenalty = 10
+  } else if (st === 'inactive') {
+    statusPenalty = 15
+  }
+
+  score = Math.max(0, Math.min(100, score - servicePenalty - documentPenalty - statusPenalty - maintenancePenalty))
+
+  let rating: 'Excellent' | 'Good' | 'Fair' | 'Needs Attention' = 'Excellent'
+  let badgeColor = 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+
+  if (score >= 90) {
+    rating = 'Excellent'
+    badgeColor = 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+  } else if (score >= 75) {
+    rating = 'Good'
+    badgeColor = 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+  } else if (score >= 50) {
+    rating = 'Fair'
+    badgeColor = 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+  } else {
+    rating = 'Needs Attention'
+    badgeColor = 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+  }
+
+  return {
+    score,
+    rating,
+    badgeColor,
+    breakdown: {
+      base: 100,
+      servicePenalty,
+      documentPenalty,
+      statusPenalty,
+      maintenancePenalty,
+    },
+  }
+}
+
+export function calculateFuelEfficiency(distanceKm: number, liters: number) {
+  if (!liters || liters <= 0 || !distanceKm || distanceKm <= 0) {
+    return { kmPerLiter: 0, litersPer100km: 0 }
+  }
+  const kmPerLiter = Number((distanceKm / liters).toFixed(2))
+  const litersPer100km = Number(((liters / distanceKm) * 100).toFixed(2))
+  return { kmPerLiter, litersPer100km }
 }
 
 export async function getFleetSummaryKPIs(supabase: any): Promise<FleetKPIs> {
@@ -133,7 +233,6 @@ export async function getFleetSummaryKPIs(supabase: any): Promise<FleetKPIs> {
     }
   })
 
-  // Count expiring documents in generic table and vehicle columns
   let expiringDocumentsCount = 0
   vehicles.forEach((v: any) => {
     const h1 = calculateDocumentHealth(v.insurance_expiry)
@@ -159,10 +258,10 @@ export async function getFleetSummaryKPIs(supabase: any): Promise<FleetKPIs> {
 }
 
 export async function getVehicleProfileData(supabase: any, vehicleId: string) {
-  // 1. Fetch Vehicle Record
+  // 1. Fetch Vehicle Record with owner details
   const { data: vehicle, error } = await supabase
     .from('vehicles')
-    .select('*, category:vehicle_categories(category_name)')
+    .select('*, category:vehicle_categories(category_name), owner:vehicle_owners(id, full_name, company_name, owner_number, settlement_rule, revenue_share_pct, flat_rate_per_day, mobile)')
     .eq('id', vehicleId)
     .single()
 
@@ -229,14 +328,28 @@ export async function getVehicleProfileData(supabase: any, vehicleId: string) {
     .eq('vehicle_id', vehicleId)
     .order('service_date', { ascending: false })
 
-  // 7. Fetch Inspection Checks (Handover & Return)
-  const { data: returnChecks } = await supabase
-    .from('booking_return_checks')
-    .select('*, booking:bookings(booking_number)')
+  // 7. Fetch Fuel Logs
+  const { data: fuelLogs } = await supabase
+    .from('fuel_logs')
+    .select('*, driver:drivers(full_name)')
     .eq('vehicle_id', vehicleId)
-    .order('created_at', { ascending: false })
+    .order('log_date', { ascending: false })
 
-  // 8. Financial Contribution Calculation
+  // 8. Fetch Status History
+  const { data: statusHistory } = await supabase
+    .from('vehicle_status_history')
+    .select('*, changed_by_profile:profiles(full_name)')
+    .eq('vehicle_id', vehicleId)
+    .order('changed_at', { ascending: false })
+
+  // 9. Fetch Owner Payouts
+  const { data: ownerPayouts } = await supabase
+    .from('owner_payouts')
+    .select('*')
+    .eq('vehicle_id', vehicleId)
+    .order('period_start', { ascending: false })
+
+  // 10. Financial Contribution Calculation
   const bookingIds = Array.from(new Set(allocations.map((bv: any) => bv.booking_id)))
   let collectedRevenue = 0
   let invoicedRevenue = 0
@@ -252,6 +365,25 @@ export async function getVehicleProfileData(supabase: any, vehicleId: string) {
   }
 
   const totalMaintenanceCost = (maintenance || []).reduce((acc: number, m: any) => acc + Number(m.cost || 0), 0)
+  const totalFuelCost = (fuelLogs || []).reduce((acc: number, f: any) => acc + Number(f.total_cost || 0), 0)
+  const totalFuelLiters = (fuelLogs || []).reduce((acc: number, f: any) => acc + Number(f.liters || 0), 0)
+  const totalOwnerPayoutCost = (ownerPayouts || []).filter((p: any) => p.status === 'paid' || p.status === 'approved').reduce((acc: number, p: any) => acc + Number(p.net_payout || 0), 0)
+
+  // Overall Fuel Efficiency
+  let avgKmPerLiter = 0
+  let avgLitersPer100km = 0
+  if (totalFuelLiters > 0 && odoLogs && odoLogs.length >= 2) {
+    const maxOdo = Number(odoLogs[0].odometer || 0)
+    const minOdo = Number(odoLogs[odoLogs.length - 1].odometer || 0)
+    const dist = maxOdo - minOdo
+    if (dist > 0) {
+      const eff = calculateFuelEfficiency(dist, totalFuelLiters)
+      avgKmPerLiter = eff.kmPerLiter
+      avgLitersPer100km = eff.litersPer100km
+    }
+  }
+
+  const healthScore = calculateVehicleHealthScore(vehicle)
 
   return {
     vehicle,
@@ -262,12 +394,20 @@ export async function getVehicleProfileData(supabase: any, vehicleId: string) {
     documents: documents || [],
     photos: photos || [],
     maintenance: maintenance || [],
-    returnChecks: returnChecks || [],
+    fuelLogs: fuelLogs || [],
+    statusHistory: statusHistory || [],
+    ownerPayouts: ownerPayouts || [],
+    healthScore,
     financials: {
       collectedRevenue,
       invoicedRevenue,
       totalMaintenanceCost,
-      netContribution: collectedRevenue - totalMaintenanceCost,
+      totalFuelCost,
+      totalFuelLiters,
+      totalOwnerPayoutCost,
+      netContribution: collectedRevenue - totalMaintenanceCost - totalFuelCost - totalOwnerPayoutCost,
+      avgKmPerLiter,
+      avgLitersPer100km,
     },
   }
 }

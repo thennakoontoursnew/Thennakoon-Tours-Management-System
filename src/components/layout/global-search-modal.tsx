@@ -11,6 +11,8 @@ import {
   Car,
   UserRound,
   FileSpreadsheet,
+  Building2,
+  Fuel,
   X,
   ArrowRight,
 } from 'lucide-react'
@@ -48,6 +50,8 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
     { label: 'Agreements', href: '/dashboard/agreements', icon: ScrollText, queryParam: 'q' },
     { label: 'Customers', href: '/dashboard/customers', icon: Users, queryParam: 'q' },
     { label: 'Vehicles', href: '/dashboard/vehicles', icon: Car, queryParam: 'q' },
+    { label: 'Vehicle Owners', href: '/dashboard/fleet/owners', icon: Building2, queryParam: 'q' },
+    { label: 'Fuel Logs', href: '/dashboard/fleet/fuel', icon: Fuel, queryParam: 'q' },
     { label: 'Drivers', href: '/dashboard/drivers', icon: UserRound, queryParam: 'q' },
   ]
 
@@ -70,7 +74,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search bookings, quotations, invoices, customers..."
+            placeholder="Search bookings, quotations, invoices, customers, owners, fuel..."
             autoFocus
             className="w-full bg-transparent border-none text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none"
           />

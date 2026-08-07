@@ -112,5 +112,66 @@ export async function syncSystemReminders(supabase: any) {
     }
   }
 
+  // 3. Stage 11: Owner Settlement Payout Reminders
+  const { data: pendingPayouts } = await supabase
+    .from('owner_payouts')
+    .select('id, payout_number, period_end, net_payout, owner:vehicle_owners(full_name)')
+    .in('status', ['pending', 'approved'])
+    .gt('net_payout', 0)
+
+  if (pendingPayouts) {
+    for (const payout of pendingPayouts) {
+      const dedupeKey = `owner_payout_due:${payout.id}`
+      const isOverdue = payout.period_end < todayStr
+      await supabase.from('reminders').upsert(
+        {
+          reminder_number: `REM-SET-${payout.payout_number}`,
+          reminder_type: 'owner_payout_due',
+          entity_type: 'owner_payout',
+          entity_id: payout.id,
+          title: `Owner Payout Due: ${payout.payout_number}`,
+          message: `Pending payout of LKR ${Number(payout.net_payout).toLocaleString()} for owner ${payout.owner?.full_name || 'Partner'}.`,
+          priority: isOverdue ? 'high' : 'normal',
+          due_at: `${payout.period_end}T00:00:00.000Z`,
+          status: isOverdue ? 'overdue' : 'pending',
+          source: 'system',
+          dedupe_key: dedupeKey,
+        },
+        { onConflict: 'dedupe_key' }
+      )
+    }
+  }
+
+  // 4. Stage 11: Fuel Efficiency Anomaly Reminders
+  const { data: lowEfficiencyLogs } = await supabase
+    .from('fuel_logs')
+    .select('id, log_date, km_per_liter, vehicle:vehicles(vehicle_name, registration_number)')
+    .not('km_per_liter', 'is', null)
+    .lt('km_per_liter', 5)
+    .gte('log_date', `${todayStr.slice(0, 7)}-01`)
+    .limit(20)
+
+  if (lowEfficiencyLogs) {
+    for (const fuelLog of lowEfficiencyLogs) {
+      const dedupeKey = `fuel_efficiency_alert:${fuelLog.id}`
+      await supabase.from('reminders').upsert(
+        {
+          reminder_number: `REM-FUEL-${fuelLog.id.slice(0, 8)}`,
+          reminder_type: 'fuel_efficiency_alert',
+          entity_type: 'fuel_log',
+          entity_id: fuelLog.id,
+          title: `Fuel Efficiency Anomaly: ${fuelLog.vehicle?.vehicle_name || 'Vehicle'}`,
+          message: `Low efficiency detected (${fuelLog.km_per_liter} KM/L) on ${fuelLog.log_date} for ${fuelLog.vehicle?.registration_number || 'vehicle'}.`,
+          priority: 'high',
+          due_at: `${fuelLog.log_date}T00:00:00.000Z`,
+          status: 'pending',
+          source: 'system',
+          dedupe_key: dedupeKey,
+        },
+        { onConflict: 'dedupe_key' }
+      )
+    }
+  }
+
   return { success: true }
 }
