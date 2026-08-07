@@ -16,9 +16,18 @@ if (!fs.existsSync(servicePath)) {
 const serviceContent = fs.readFileSync(servicePath, 'utf8')
 console.log('✓ Found dashboard-service.ts (Size:', serviceContent.length, 'bytes)')
 
+// Verify exact schema columns for bookings (rental_start_at, rental_end_at)
+if (serviceContent.includes('rental_start_at') && serviceContent.includes('rental_end_at')) {
+  console.log('✓ Verified bookings date fields: rental_start_at & rental_end_at')
+} else {
+  console.error('❌ FAIL: dashboard-service.ts must query rental_start_at & rental_end_at for bookings!')
+  process.exit(1)
+}
+
 // Check required function signatures
 const requiredFuncs = [
   'getColomboTodayString',
+  'getColomboDayBounds',
   'getDashboardHeaderData',
   'getDashboardKPIs',
   'getRevenueSeries',
@@ -48,27 +57,24 @@ if (!allFuncsPresent) {
 // 2. Audit Formulas and Authoritative Financial Principles
 console.log('\n=== Auditing Revenue & Financial Formulas ===')
 
-// Revenue must be derived from completed payments or paid invoices, NOT quotations
 if (serviceContent.includes("from('payments')") && serviceContent.includes("eq('status', 'completed')")) {
   console.log('  ✓ Authoritative Revenue Source: Verified (uses completed payments from payments table)')
 } else {
   console.error('  ❌ Revenue calculation does not query completed payments correctly!')
 }
 
-// Outstanding balance = invoice balance_due for unpaid/partially_paid/overdue
-if (serviceContent.includes("from('invoices')") && serviceContent.includes("balance_due")) {
+if (serviceContent.includes("from('invoices')") && serviceContent.includes('balance_due')) {
   console.log('  ✓ Outstanding Balance Calculation: Verified (SUM of invoice balance_due)')
 } else {
   console.error('  ❌ Outstanding balance calculation missing invoice balance_due query!')
 }
 
-// Net Cash Flow = Collected Payments - Recorded Expenses
 console.log('  ✓ Net Cash Flow Formula: Verified (Collected Payments - Recorded Expenses)')
 
 // 3. Audit Timezone Logic
 console.log('\n=== Auditing Timezone Controls ===')
-if (serviceContent.includes("timeZone: 'Asia/Colombo'")) {
-  console.log('  ✓ Timezone Anchor: Verified (all operational calculations use Asia/Colombo)')
+if (serviceContent.includes("timeZone: 'Asia/Colombo'") && serviceContent.includes('+05:30')) {
+  console.log('  ✓ Timezone Anchor: Verified (Asia/Colombo day bounds with +05:30 offset)')
 } else {
   console.error('  ❌ Missing explicit Asia/Colombo timezone formatting!')
 }

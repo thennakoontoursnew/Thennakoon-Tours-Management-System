@@ -85,7 +85,7 @@ export interface DashboardActivity {
   created_at: string
 }
 
-// Utility: Date in Asia/Colombo timezone
+// Utility: Date string YYYY-MM-DD in Asia/Colombo timezone
 export function getColomboTodayString(): string {
   const options: Intl.DateTimeFormatOptions = {
     timeZone: 'Asia/Colombo',
@@ -95,9 +95,17 @@ export function getColomboTodayString(): string {
   }
   const parts = new Intl.DateTimeFormat('en-CA', options).formatToParts(new Date())
   const year = parts.find((p) => p.type === 'year')?.value || '2026'
-  const month = parts.find((p) => p.type === 'month')?.value || '01'
-  const day = parts.find((p) => p.type === 'day')?.value || '01'
+  const month = parts.find((p) => p.type === 'month')?.value || '08'
+  const day = parts.find((p) => p.type === 'day')?.value || '07'
   return `${year}-${month}-${day}`
+}
+
+// Utility: ISO Start & End timestamps for Asia/Colombo timezone (+05:30)
+export function getColomboDayBounds(dateStr?: string) {
+  const targetDateStr = dateStr || getColomboTodayString()
+  const startIso = `${targetDateStr}T00:00:00.000+05:30`
+  const endIso = `${targetDateStr}T23:59:59.999+05:30`
+  return { startIso, endIso, targetDateStr }
 }
 
 export function getColomboHour(): number {
@@ -157,6 +165,7 @@ export async function getDashboardHeaderData(userId?: string) {
 export async function getDashboardKPIs(userRole: string): Promise<KPIOverview> {
   const supabase = await createClient()
   const todayStr = getColomboTodayString()
+  const todayBounds = getColomboDayBounds(todayStr)
 
   const isFinanceAuthorized = ['owner', 'admin', 'manager', 'finance_staff'].includes(userRole)
 
@@ -185,7 +194,7 @@ export async function getDashboardKPIs(userRole: string): Promise<KPIOverview> {
           .from('payments')
           .select('amount')
           .eq('status', 'completed')
-          .gte('payment_date', `${todayStr.slice(0, 7)}-01`)
+          .gte('payment_date', `${todayStr.slice(0, 7)}-01T00:00:00.000+05:30`)
       : Promise.resolve({ data: [] }),
 
     // Previous Month Payments
@@ -201,8 +210,8 @@ export async function getDashboardKPIs(userRole: string): Promise<KPIOverview> {
             .from('payments')
             .select('amount')
             .eq('status', 'completed')
-            .gte('payment_date', `${prevMonthStr}-01`)
-            .lt('payment_date', `${nextMonthStr}-01`)
+            .gte('payment_date', `${prevMonthStr}-01T00:00:00.000+05:30`)
+            .lt('payment_date', `${nextMonthStr}-01T00:00:00.000+05:30`)
         })()
       : Promise.resolve({ data: [] }),
 
@@ -213,11 +222,12 @@ export async function getDashboardKPIs(userRole: string): Promise<KPIOverview> {
       .in('status', ['confirmed', 'in_progress', 'on_trip'])
       .eq('is_archived', false),
 
-    // Today Pickups Count
+    // Today Pickups Count (rental_start_at between startIso and endIso)
     supabase
       .from('bookings')
       .select('*', { count: 'exact', head: true })
-      .eq('rental_start_date', todayStr)
+      .gte('rental_start_at', todayBounds.startIso)
+      .lte('rental_start_at', todayBounds.endIso)
       .eq('is_archived', false),
 
     // Total Fleet Count
@@ -302,13 +312,14 @@ export async function getRevenueSeries(periodFilter: string = '30d') {
   if (periodFilter === 'ytd') days = 365
 
   const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const startIso = `${startDate}T00:00:00.000+05:30`
 
   const [paymentsRes, invoicesRes] = await Promise.all([
     supabase
       .from('payments')
       .select('amount, payment_date')
       .eq('status', 'completed')
-      .gte('payment_date', startDate)
+      .gte('payment_date', startIso)
       .order('payment_date', { ascending: true }),
 
     supabase
@@ -327,7 +338,6 @@ export async function getRevenueSeries(periodFilter: string = '30d') {
   const outstanding = invoices.reduce((acc: number, inv: any) => acc + Number(inv.balance_due || 0), 0)
   const collectionRate = totalInvoiced > 0 ? Number(((totalCollected / totalInvoiced) * 100).toFixed(1)) : 0
 
-  // Group by date or month depending on days
   const dateMap: Record<string, { collected: number; invoiced: number }> = {}
 
   payments.forEach((p: any) => {
@@ -404,43 +414,47 @@ export async function getFleetStatus(): Promise<{ items: FleetStatusItem[]; tota
 export async function getTodayOperations(): Promise<TodayOperationsData> {
   const supabase = await createClient()
   const todayStr = getColomboTodayString()
+  const todayBounds = getColomboDayBounds(todayStr)
 
-  // Calculate tomorrow string
+  // Tomorrow Bounds
   const tomorrowObj = new Date()
   tomorrowObj.setDate(tomorrowObj.getDate() + 1)
   const tomorrowStr = tomorrowObj.toISOString().slice(0, 10)
+  const tomorrowBounds = getColomboDayBounds(tomorrowStr)
 
   // Fetch Bookings with customers and booking_vehicles
   const [pickupsRes, returnsRes, activeRes, unassignedVehiclesRes] = await Promise.all([
-    // Today's Pickups
+    // Today's Pickups (rental_start_at)
     supabase
       .from('bookings')
-      .select('id, booking_number, rental_start_date, rental_end_date, pickup_location, dropoff_location, status, customer:customers(full_name), booking_vehicles(vehicle:vehicles(vehicle_name, registration_number), driver:drivers(full_name))')
-      .eq('rental_start_date', todayStr)
+      .select('id, booking_number, rental_start_at, rental_end_at, pickup_location, dropoff_location, status, customer:customers(full_name), booking_vehicles(vehicle:vehicles(vehicle_name, registration_number), driver:drivers(full_name))')
+      .gte('rental_start_at', todayBounds.startIso)
+      .lte('rental_start_at', todayBounds.endIso)
       .eq('is_archived', false),
 
-    // Today's Returns
+    // Today's Returns (rental_end_at)
     supabase
       .from('bookings')
-      .select('id, booking_number, rental_start_date, rental_end_date, pickup_location, dropoff_location, status, customer:customers(full_name), booking_vehicles(vehicle:vehicles(vehicle_name, registration_number), driver:drivers(full_name))')
-      .eq('rental_end_date', todayStr)
+      .select('id, booking_number, rental_start_at, rental_end_at, pickup_location, dropoff_location, status, customer:customers(full_name), booking_vehicles(vehicle:vehicles(vehicle_name, registration_number), driver:drivers(full_name))')
+      .gte('rental_end_at', todayBounds.startIso)
+      .lte('rental_end_at', todayBounds.endIso)
       .eq('is_archived', false),
 
-    // Active Trips
+    // Active Trips (rental_start_at <= todayBounds.endIso AND rental_end_at >= todayBounds.startIso)
     supabase
       .from('bookings')
-      .select('id, booking_number, rental_start_date, rental_end_date, pickup_location, dropoff_location, status, customer:customers(full_name), booking_vehicles(vehicle:vehicles(vehicle_name, registration_number), driver:drivers(full_name))')
-      .lte('rental_start_date', todayStr)
-      .gte('rental_end_date', todayStr)
+      .select('id, booking_number, rental_start_at, rental_end_at, pickup_location, dropoff_location, status, customer:customers(full_name), booking_vehicles(vehicle:vehicles(vehicle_name, registration_number), driver:drivers(full_name))')
+      .lte('rental_start_at', todayBounds.endIso)
+      .gte('rental_end_at', todayBounds.startIso)
       .eq('is_archived', false),
 
     // Missing Driver Allocations starting today or tomorrow
     supabase
       .from('booking_vehicles')
-      .select('id, booking_id, driver_id, vehicle:vehicles(vehicle_name), booking:bookings!inner(id, booking_number, rental_start_date, rental_end_date, status, is_archived, customer:customers(full_name))')
+      .select('id, booking_id, driver_id, vehicle:vehicles(vehicle_name), booking:bookings!inner(id, booking_number, rental_start_at, rental_end_at, status, is_archived, customer:customers(full_name))')
       .is('driver_id', null)
-      .gte('booking.rental_start_date', todayStr)
-      .lte('booking.rental_start_date', tomorrowStr)
+      .gte('booking.rental_start_at', todayBounds.startIso)
+      .lte('booking.rental_start_at', tomorrowBounds.endIso)
       .eq('booking.is_archived', false),
   ])
 
@@ -453,8 +467,8 @@ export async function getTodayOperations(): Promise<TodayOperationsData> {
       booking_number: b.booking_number,
       customer_name: b.customer?.full_name || 'N/A',
       vehicle_name: v.vehicle_name ? `${v.vehicle_name} (${v.registration_number || ''})` : 'Vehicle Unassigned',
-      start_date: b.rental_start_date,
-      end_date: b.rental_end_date,
+      start_date: String(b.rental_start_at || '').slice(0, 10),
+      end_date: String(b.rental_end_at || '').slice(0, 10),
       pickup_location: b.pickup_location || 'Colombo HQ',
       dropoff_location: b.dropoff_location || 'Colombo HQ',
       driver_name: d.full_name || 'Not assigned',
@@ -473,8 +487,8 @@ export async function getTodayOperations(): Promise<TodayOperationsData> {
       booking_number: b.booking_number,
       customer_name: b.customer?.full_name || 'N/A',
       vehicle_name: bv.vehicle?.vehicle_name || 'Unassigned Vehicle',
-      start_date: b.rental_start_date,
-      end_date: b.rental_end_date,
+      start_date: String(b.rental_start_at || '').slice(0, 10),
+      end_date: String(b.rental_end_at || '').slice(0, 10),
       driver_name: 'DRIVER MISSING',
       status: b.status,
     }
@@ -491,14 +505,15 @@ export async function getTodayOperations(): Promise<TodayOperationsData> {
 export async function getBookingCalendar(year: number, month: number): Promise<CalendarEvent[]> {
   const supabase = await createClient()
 
-  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
-  const monthEnd = `${year}-${String(month).padStart(2, '0')}-31`
+  const lastDay = new Date(year, month, 0).getDate()
+  const monthStartIso = `${year}-${String(month).padStart(2, '0')}-01T00:00:00.000+05:30`
+  const monthEndIso = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59.999+05:30`
 
   const { data: bookings } = await supabase
     .from('bookings')
-    .select('id, booking_number, rental_start_date, rental_end_date, status, customer:customers(full_name), booking_vehicles(vehicle:vehicles(vehicle_name))')
-    .lte('rental_start_date', monthEnd)
-    .gte('rental_end_date', monthStart)
+    .select('id, booking_number, rental_start_at, rental_end_at, status, customer:customers(full_name), booking_vehicles(vehicle:vehicles(vehicle_name))')
+    .lte('rental_start_at', monthEndIso)
+    .gte('rental_end_at', monthStartIso)
     .eq('is_archived', false)
 
   return (bookings || []).map((b: any) => {
@@ -508,8 +523,8 @@ export async function getBookingCalendar(year: number, month: number): Promise<C
       booking_number: b.booking_number,
       customer_name: b.customer?.full_name || 'N/A',
       vehicle_name: bv.vehicle?.vehicle_name || 'Vehicle',
-      start_date: b.rental_start_date,
-      end_date: b.rental_end_date,
+      start_date: String(b.rental_start_at || '').slice(0, 10),
+      end_date: String(b.rental_end_at || '').slice(0, 10),
       status: b.status,
     }
   })
@@ -518,15 +533,17 @@ export async function getBookingCalendar(year: number, month: number): Promise<C
 export async function getDashboardAlerts(): Promise<DashboardAlert[]> {
   const supabase = await createClient()
   const todayStr = getColomboTodayString()
+  const todayBounds = getColomboDayBounds(todayStr)
 
   const alerts: DashboardAlert[] = []
 
   // Check Driver Missing for Today's Pickups
   const { data: missingDrivers } = await supabase
     .from('booking_vehicles')
-    .select('id, booking:bookings!inner(id, booking_number, rental_start_date, customer:customers(full_name))')
+    .select('id, booking:bookings!inner(id, booking_number, rental_start_at, customer:customers(full_name))')
     .is('driver_id', null)
-    .eq('booking.rental_start_date', todayStr)
+    .gte('booking.rental_start_at', todayBounds.startIso)
+    .lte('booking.rental_start_at', todayBounds.endIso)
     .eq('booking.is_archived', false)
 
   ;(missingDrivers || []).forEach((bv: any) => {
@@ -561,7 +578,8 @@ export async function getDashboardAlerts(): Promise<DashboardAlert[]> {
   const { data: todayReturns } = await supabase
     .from('bookings')
     .select('id, booking_number, customer:customers(full_name)')
-    .eq('rental_end_date', todayStr)
+    .gte('rental_end_at', todayBounds.startIso)
+    .lte('rental_end_at', todayBounds.endIso)
     .eq('is_archived', false)
 
   if (todayReturns && todayReturns.length > 0) {
@@ -581,7 +599,7 @@ export async function getRecentBookings(limit: number = 5) {
 
   const { data: bookings } = await supabase
     .from('bookings')
-    .select('id, booking_number, rental_start_date, rental_end_date, grand_total, status, created_at, customer:customers(full_name), booking_vehicles(vehicle:vehicles(vehicle_name, registration_number))')
+    .select('id, booking_number, rental_start_at, rental_end_at, grand_total, status, created_at, customer:customers(full_name), booking_vehicles(vehicle:vehicles(vehicle_name, registration_number))')
     .eq('is_archived', false)
     .order('created_at', { ascending: false })
     .limit(limit)
@@ -594,8 +612,8 @@ export async function getRecentBookings(limit: number = 5) {
       booking_number: b.booking_number,
       customer_name: b.customer?.full_name || 'N/A',
       vehicle_name: v.vehicle_name ? `${v.vehicle_name} (${v.registration_number || ''})` : 'N/A',
-      rental_start_date: b.rental_start_date,
-      rental_end_date: b.rental_end_date,
+      rental_start_date: String(b.rental_start_at || '').slice(0, 10),
+      rental_end_date: String(b.rental_end_at || '').slice(0, 10),
       grand_total: Number(b.grand_total || 0),
       status: b.status,
       created_at: b.created_at,
