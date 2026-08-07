@@ -77,6 +77,20 @@ export async function getConsolidatedReportData(supabase: any, reportId: string,
       .select('id, vehicle_name, registration_number, ownership_type, status, current_mileage, service_due_mileage, owner:vehicle_owners(full_name)')
       .eq('is_archived', false)
     rows = data || []
+  } else if (reportId === 'ai_executive_report' || reportId === 'ai_financial_analysis' || reportId === 'ai_fleet_analysis') {
+    const { data } = await supabase
+      .from('ai_generated_reports')
+      .select('*')
+      .order('generated_at', { ascending: false })
+      .limit(30)
+    rows = data || []
+  } else if (reportId === 'revenue_forecast_report') {
+    const { data } = await supabase
+      .from('ai_forecasts')
+      .select('*')
+      .order('generated_at', { ascending: false })
+      .limit(30)
+    rows = data || []
   }
 
   return {

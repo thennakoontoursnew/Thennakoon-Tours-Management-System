@@ -1,31 +1,129 @@
-﻿import { Construction } from 'lucide-react'
+import { createClient } from '@/lib/supabase/server'
+import { getAIProviderConfig } from '@/lib/ai/ai-provider'
+import {
+  generateDeterministicExecutiveBrief,
+  getSanitizedContextForPeriod,
+} from '@/lib/ai/management-intelligence-service'
+import { calculateDeterministicForecast } from '@/lib/ai/ai-forecast-service'
+import { AIToolsClient } from './ai-tools-client'
 
 export const metadata = {
-  title: 'AI Tools â€” Thennakoon Tours Management System',
+  title: 'AI Management Intelligence — Thennakoon Tours',
 }
 
-export default function Page() {
+export default async function Page() {
+  const supabase = await createClient()
+  const providerConfig = getAIProviderConfig()
+
+  // 1. Fetch Sanitized Context & Comparisons
+  const { sanitized, comparisons } = await getSanitizedContextForPeriod(supabase, 'this_month')
+  const defaultBrief = generateDeterministicExecutiveBrief(sanitized, comparisons)
+
+  // 2. Fetch Latest Generated Report from DB if present
+  const { data: latestReport } = await supabase
+    .from('ai_generated_reports')
+    .select('*')
+    .eq('report_type', 'executive')
+    .order('generated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const initialBrief = latestReport?.ai_output || defaultBrief
+
+  // 3. Fetch Insights from DB
+  const { data: rawInsights } = await supabase
+    .from('ai_insights')
+    .select('*')
+    .neq('status', 'dismissed')
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  const initialInsights = (rawInsights || []).length > 0
+    ? rawInsights
+    : defaultBrief.recommendedActions
+
+  // 4. Fetch Report History
+  const { data: reportHistory } = await supabase
+    .from('ai_generated_reports')
+    .select('*')
+    .order('generated_at', { ascending: false })
+    .limit(30)
+
+  // 5. Generate Initial Deterministic Forecasts
+  const today = new Date()
+  const todayStr = today.toISOString().slice(0, 10)
+  const d30Ago = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const d7Future = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const d30Future = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const d90Future = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+  const [paymentsRes, bookingsRes] = await Promise.all([
+    supabase.from('payments').select('amount').eq('status', 'completed').gte('payment_date', d30Ago).lte('payment_date', todayStr),
+    supabase.from('bookings').select('id, grand_total, rental_start_at, status').eq('is_archived', false),
+  ])
+
+  const payments = paymentsRes.data || []
+  const bookings = bookingsRes.data || []
+
+  const historicalCompletedRevenue = payments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0)
+  const completedRentalsCount = bookings.filter((b: any) => b.status === 'closed' || b.status === 'completed').length
+  const totalBookingsCount = bookings.length
+
+  const future7dRev = bookings
+    .filter((b: any) => ['confirmed', 'ready', 'in_progress'].includes(b.status) && b.rental_start_at && b.rental_start_at.slice(0, 10) <= d7Future)
+    .reduce((sum: number, b: any) => sum + Number(b.grand_total || 0), 0)
+
+  const future30dRev = bookings
+    .filter((b: any) => ['confirmed', 'ready', 'in_progress'].includes(b.status) && b.rental_start_at && b.rental_start_at.slice(0, 10) <= d30Future)
+    .reduce((sum: number, b: any) => sum + Number(b.grand_total || 0), 0)
+
+  const future90dRev = bookings
+    .filter((b: any) => ['confirmed', 'ready', 'in_progress'].includes(b.status) && b.rental_start_at && b.rental_start_at.slice(0, 10) <= d90Future)
+    .reduce((sum: number, b: any) => sum + Number(b.grand_total || 0), 0)
+
+  const initialForecasts = {
+    revenue7d: calculateDeterministicForecast({
+      forecastType: 'revenue_7d',
+      periodStart: todayStr,
+      periodEnd: d7Future,
+      historicalCompletedRevenue,
+      knownFutureBookingRevenue: future7dRev,
+      completedRentalsCount,
+      totalBookingsCount,
+      historicalDays: 30,
+    }),
+    revenue30d: calculateDeterministicForecast({
+      forecastType: 'revenue_30d',
+      periodStart: todayStr,
+      periodEnd: d30Future,
+      historicalCompletedRevenue,
+      knownFutureBookingRevenue: future30dRev,
+      completedRentalsCount,
+      totalBookingsCount,
+      historicalDays: 30,
+    }),
+    revenue90d: calculateDeterministicForecast({
+      forecastType: 'revenue_90d',
+      periodStart: todayStr,
+      periodEnd: d90Future,
+      historicalCompletedRevenue,
+      knownFutureBookingRevenue: future90dRev,
+      completedRentalsCount,
+      totalBookingsCount,
+      historicalDays: 30,
+    }),
+  }
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-black text-slate-900 dark:text-white">AI Tools</h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">AI-powered content generation, route optimisation, and business insights.</p>
-      </div>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-800 p-12 shadow-sm flex flex-col items-center justify-center text-center space-y-5">
-        <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 flex items-center justify-center text-amber-500">
-          <Construction size={32} />
-        </div>
-        <div className="space-y-2 max-w-md">
-          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">Module Not Yet Available</h2>
-          <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
-            This module will be implemented in a future development phase. The architecture and database schema are ready; functionality will be activated upon Phase 2 and beyond.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-full">
-          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-          <span className="text-xs font-bold text-amber-700 dark:text-amber-400">Coming in Next Phase</span>
-        </div>
-      </div>
+    <div className="px-4 py-6 md:px-8">
+      <AIToolsClient
+        initialBrief={initialBrief}
+        initialContext={sanitized}
+        initialForecasts={initialForecasts}
+        initialInsights={initialInsights || []}
+        initialReportHistory={reportHistory || []}
+        providerConfig={providerConfig}
+      />
     </div>
   )
 }

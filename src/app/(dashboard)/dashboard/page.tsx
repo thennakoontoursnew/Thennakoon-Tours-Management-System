@@ -11,6 +11,8 @@ import {
   getRecentBookings,
   getRecentActivity,
 } from '@/lib/dashboard/dashboard-service'
+import { getSanitizedContextForPeriod, generateDeterministicExecutiveBrief } from '@/lib/ai/management-intelligence-service'
+import { calculateDeterministicForecast } from '@/lib/ai/ai-forecast-service'
 import { RevenueOverviewChart } from '@/components/dashboard/revenue-overview-chart'
 import { FleetStatusChart } from '@/components/dashboard/fleet-status-chart'
 import { TodaysOperationsWidget } from '@/components/dashboard/todays-operations-widget'
@@ -19,6 +21,7 @@ import { FinancialOverviewCard } from '@/components/dashboard/financial-overview
 import { AlertsPanel } from '@/components/dashboard/alerts-panel'
 import { RecentBookingsTable } from '@/components/dashboard/recent-bookings-table'
 import { RecentActivityTimeline } from '@/components/dashboard/recent-activity-timeline'
+import { ManagementIntelligenceWidget } from '@/components/dashboard/management-intelligence-widget'
 import {
   TrendingUp,
   CalendarCheck,
@@ -55,6 +58,7 @@ export default async function DashboardPage() {
     alertsData,
     recentBookings,
     recentActivity,
+    aiData,
   ] = await Promise.all([
     getDashboardKPIs(headerData.role).catch((err) => {
       console.error('Error fetching KPIs:', err)
@@ -110,9 +114,33 @@ export default async function DashboardPage() {
       console.error('Error fetching recent activity:', err)
       return []
     }),
+
+    getSanitizedContextForPeriod(supabase, 'this_month').catch(() => null),
   ])
 
   const isFinanceAuthorized = ['owner', 'admin', 'manager', 'finance_staff'].includes(headerData.role)
+
+  // AI Widget calculations
+  const sanitizedContext = aiData?.sanitized
+  const brief = sanitizedContext ? generateDeterministicExecutiveBrief(sanitizedContext, aiData.comparisons) : null
+  const topInsights = brief?.recommendedActions || []
+  const criticalCount = (alertsData || []).filter((a: any) => a.severity === 'high' || a.severity === 'critical').length
+
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const d30Future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+  const forecast30d = sanitizedContext
+    ? calculateDeterministicForecast({
+        forecastType: 'revenue_30d',
+        periodStart: todayStr,
+        periodEnd: d30Future,
+        historicalCompletedRevenue: sanitizedContext.finance.collectedRevenue,
+        knownFutureBookingRevenue: 0,
+        completedRentalsCount: sanitizedContext.bookings.completedRentals,
+        totalBookingsCount: sanitizedContext.bookings.totalBookings,
+        historicalDays: 30,
+      }).forecast_value
+    : 0
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-16">
@@ -305,6 +333,13 @@ export default async function DashboardPage() {
           </div>
         </Link>
       </div>
+
+      {/* 2.5 Stage 12: Compact Management Intelligence Widget */}
+      <ManagementIntelligenceWidget
+        insights={topInsights}
+        forecast30d={forecast30d}
+        criticalAlertCount={criticalCount}
+      />
 
       {/* 3. Revenue Overview & Fleet Status Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

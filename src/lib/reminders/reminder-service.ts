@@ -173,5 +173,35 @@ export async function syncSystemReminders(supabase: any) {
     }
   }
 
+  // 5. Stage 12: Critical AI Management Insight Reminders
+  const { data: criticalInsights } = await supabase
+    .from('ai_insights')
+    .select('id, insight_number, title, summary, category')
+    .eq('priority', 'critical')
+    .eq('status', 'new')
+    .limit(10)
+
+  if (criticalInsights) {
+    for (const insight of criticalInsights) {
+      const dedupeKey = `ai_critical_insight:${insight.id}`
+      await supabase.from('reminders').upsert(
+        {
+          reminder_number: `REM-${insight.insight_number || insight.id.slice(0, 8)}`,
+          reminder_type: 'ai_critical_alert',
+          entity_type: 'ai_insight',
+          entity_id: insight.id,
+          title: `Critical Management Insight: ${insight.title}`,
+          message: insight.summary,
+          priority: 'critical',
+          due_at: `${todayStr}T00:00:00.000Z`,
+          status: 'pending',
+          source: 'system',
+          dedupe_key: dedupeKey,
+        },
+        { onConflict: 'dedupe_key' }
+      )
+    }
+  }
+
   return { success: true }
 }

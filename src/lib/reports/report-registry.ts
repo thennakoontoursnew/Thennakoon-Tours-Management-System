@@ -36,6 +36,12 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
   { id: 'fleet-downtime', name: 'Fleet Downtime & Maintenance Analysis', description: 'Downtime history, service hours lost, and vehicle reliability metrics.', category: 'fleet', supportsCsv: true, supportsPdf: true },
   { id: 'ownership-comparison', name: 'Company-Owned vs External-Owner Comparison', description: 'Comparative financial performance and margin analysis by ownership type.', category: 'fleet', supportsCsv: true, supportsPdf: true },
 
+  // AI & Management Intelligence Reports
+  { id: 'ai_executive_report', name: 'AI Executive Management Report', description: 'Authoritative AI-generated management brief with period-over-period comparisons.', category: 'executive', supportsCsv: true, supportsPdf: true },
+  { id: 'ai_financial_analysis', name: 'AI Financial Performance Report', description: 'AI analysis of revenue trends, cash flow, receivables risk, and expense pressure.', category: 'finance', supportsCsv: true, supportsPdf: true },
+  { id: 'ai_fleet_analysis', name: 'AI Fleet Performance Analysis', description: 'AI evaluation of fleet utilization, vehicle profitability, and maintenance risks.', category: 'fleet', supportsCsv: true, supportsPdf: true },
+  { id: 'revenue_forecast_report', name: 'Revenue Forecast Report', description: 'Deterministic 7-day, 30-day, and 90-day revenue projections with confidence intervals.', category: 'executive', supportsCsv: true, supportsPdf: true },
+
   // Drivers
   { id: 'driver_performance', name: 'Driver Operations & Compliance', description: 'Driver assignment history, compliance document health, and incident logs.', category: 'drivers', supportsCsv: true, supportsPdf: true },
 
@@ -45,6 +51,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
   // Communication
   { id: 'communication_activity', name: 'Communication Activity Report', description: 'Reminder dispatch history, WhatsApp chat logs, and follow-up activities.', category: 'communication', supportsCsv: true, supportsPdf: true },
 
-  // Executive
+  // Executive Overview
   { id: 'executive_summary', name: 'Monthly Executive Overview', description: 'High-level business performance summary across revenue, fleet, and sales.', category: 'executive', supportsCsv: true, supportsPdf: true },
 ]
