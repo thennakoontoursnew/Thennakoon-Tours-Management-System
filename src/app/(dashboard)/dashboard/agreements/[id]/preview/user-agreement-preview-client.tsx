@@ -4,6 +4,7 @@ import Link from 'next/link'
 import {
   USER_AGREEMENT_PREAMBLE,
   USER_AGREEMENT_CLAUSES,
+  USER_AGREEMENT_SCHEDULE_TITLE,
   USER_AGREEMENT_DECLARATION,
 } from '@/lib/agreements/templates/user-agreement-v1'
 
@@ -49,29 +50,32 @@ export function UserAgreementPreviewClient({
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 p-4 md:p-8 flex flex-col items-center">
-      {/* Print CSS forcing US Legal 8.5 x 14 in portrait */}
+      {/* Print CSS forcing US Legal 8.5 x 14 in portrait with NO LETTERHEAD */}
       <style jsx global>{`
         @media print {
           @page {
             size: 8.5in 14in portrait;
-            margin: 0;
+            margin: 15mm 15mm 15mm 15mm;
           }
           body {
             background: white !important;
             color: black !important;
           }
+          .no-print {
+            display: none !important;
+          }
         }
       `}</style>
 
       {/* Controls Bar */}
-      <div className="w-full max-w-4xl flex items-center justify-between mb-6 print:hidden">
+      <div className="w-full max-w-4xl flex items-center justify-between mb-6 print:hidden no-print">
         <Link href="/dashboard/agreements" className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200">
           ← Back to Agreements Center
         </Link>
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs text-amber-400 font-bold">{agreement.agreement_number}</span>
           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-            US LEGAL (8.5 × 14 in)
+            US LEGAL (8.5 × 14 in) — CLEAN WHITE (NO LETTERHEAD)
           </span>
           <button onClick={handlePrint} className="px-5 py-2 rounded-xl bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer shadow-xs">
             Print / Save PDF
@@ -79,17 +83,33 @@ export function UserAgreementPreviewClient({
         </div>
       </div>
 
-      {/* US LEGAL Paper Container: 215.9mm x 355.6mm */}
-      <div className="relative w-full max-w-[215.9mm] min-h-[355.6mm] bg-white text-slate-900 shadow-2xl rounded-sm p-12 md:p-16 space-y-6 text-xs leading-relaxed print:p-8 print:shadow-none">
-        {/* Background Letterhead PNG */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/documents/thennakoon-tours-letterhead.png" alt="Letterhead" className="absolute inset-0 w-full h-full object-cover pointer-events-none opacity-90 z-0" />
+      {/* CLEAN WHITE US LEGAL Paper Container: 215.9mm x 355.6mm (NO LETTERHEAD IMAGE) */}
+      <div className="relative w-full max-w-[215.9mm] min-h-[355.6mm] bg-white text-slate-900 shadow-2xl rounded-sm p-12 md:p-16 space-y-6 text-xs leading-relaxed print:p-0 print:shadow-none print:w-full">
+        {/* Formal Document Header */}
+        <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3 mb-6">
+          <div>
+            <h1 className="text-base font-black uppercase tracking-wider text-slate-900">THENNAKOON TOURS (PVT) LTD</h1>
+            <p className="text-[10px] text-slate-600">39 A, 1st Cross Street, Pagoda Road, Nugegoda | Reg No. PV-00249821</p>
+            <p className="text-[10px] text-slate-600">Phone: +94 112 823 723 / +94 760 080 155 | info@thennakoontours.lk</p>
+          </div>
+          <div className="text-right">
+            <h2 className="text-sm font-black text-slate-900 uppercase">VEHICLE RENTAL AGREEMENT</h2>
+            <p className="text-xs font-mono font-bold text-amber-700">{agreement.agreement_number}</p>
+          </div>
+        </div>
 
         {isV1 ? (
           <V1UserAgreementContent agreement={agreement} customer={customer} vehicle={vehicle} />
         ) : (
           <LegacyUserAgreementContent agreement={agreement} booking={booking} customer={customer} vehicle={vehicle} companySettings={companySettings} />
         )}
+
+        {/* Dynamic Footer */}
+        <div className="pt-8 border-t border-slate-200 text-center text-[10px] text-slate-400 flex items-center justify-between">
+          <span>Agreement Reference: {agreement.agreement_number}</span>
+          <span>Thennakoon Tours (Pvt) Ltd</span>
+          <span>Page Document</span>
+        </div>
       </div>
     </div>
   )
@@ -131,39 +151,72 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
   }
 
   return (
-    <div className="relative z-10 space-y-6 pt-24">
-      <div className="text-center border-b border-slate-300 pb-3">
-        <h1 className="text-xl font-black uppercase tracking-wider text-slate-900">VEHICLE RENTAL AGREEMENT</h1>
-        <p className="text-[11px] font-mono text-slate-600 mt-1">Agreement No: <span className="font-bold text-slate-950">{agreement.agreement_number}</span> | Paper Size: <span className="font-bold text-amber-700">US Legal (8.5 × 14 in)</span></p>
+    <div className="space-y-6">
+      <div className="p-4 bg-slate-50 rounded border border-slate-200 whitespace-pre-wrap text-[11px] leading-relaxed">
+        {replaceTokens(USER_AGREEMENT_PREAMBLE)}
       </div>
-      <div className="p-4 bg-slate-50/80 rounded border border-slate-200 whitespace-pre-wrap text-[11px]">{replaceTokens(USER_AGREEMENT_PREAMBLE)}</div>
+
       <div className="space-y-4">
-        <h2 className="font-bold text-xs uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">TERMS AND CONDITIONS OF HIRE</h2>
+        <h2 className="font-bold text-xs uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">
+          TERMS AND CONDITIONS OF HIRE
+        </h2>
         {USER_AGREEMENT_CLAUSES.map((clause) => (
           <div key={clause.number} className="space-y-1 text-[11px]">
             <h3 className="font-bold text-slate-900">{clause.number}. {clause.title}</h3>
-            <div className="whitespace-pre-wrap text-slate-800 pl-3 border-l-2 border-slate-200">{replaceTokens(clause.content)}</div>
+            <div className="whitespace-pre-wrap text-slate-800 pl-3 border-l-2 border-slate-200 leading-relaxed">
+              {replaceTokens(clause.content)}
+            </div>
           </div>
         ))}
       </div>
+
+      {/* SHEDULE TO AGREEMENT (Preserving exact spelling) */}
       <div className="pt-6 space-y-3">
-        <h2 className="font-bold text-xs uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">SCHEDULE TO AGREEMENT</h2>
-        <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded border border-slate-200 text-[11px]">
-          <div><span className="font-bold text-slate-500 block">Vehicle Name / Make:</span><span className="font-bold">{veh.make_model || veh.vehicle_name || 'Toyota Axio'}</span></div>
-          <div><span className="font-bold text-slate-500 block">Registration Number:</span><span className="font-mono font-bold text-amber-700">{veh.registration_number || 'N/A'}</span></div>
-          <div><span className="font-bold text-slate-500 block">Rental Start Date:</span><span>{formatDateSafe(agreement.rental_start_at)}</span></div>
-          <div><span className="font-bold text-slate-500 block">Rental End Date:</span><span>{formatDateSafe(agreement.rental_end_at)}</span></div>
-          <div><span className="font-bold text-slate-500 block">Daily Rental Tariff:</span><span className="font-mono">LKR {formatNumberSafe(rental.daily_rental_rate || 7500)}</span></div>
+        <h2 className="font-bold text-xs uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">
+          {USER_AGREEMENT_SCHEDULE_TITLE}
+        </h2>
+        <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded border border-slate-200 text-[11px]">
+          <div><span className="font-bold text-slate-500 block">Lessee Name & Surname:</span><span className="font-bold">{lessee.full_name || 'N/A'}</span></div>
+          <div><span className="font-bold text-slate-500 block">Passport Number:</span><span className="font-mono">{lessee.passport_number || 'N/A'}</span></div>
+          <div><span className="font-bold text-slate-500 block">I.D. Number:</span><span className="font-mono font-bold">{lessee.nic || lessee.identifier_no || 'N/A'}</span></div>
+          <div><span className="font-bold text-slate-500 block">Mobile Number:</span><span>{lessee.mobile || 'N/A'}</span></div>
+          <div><span className="font-bold text-slate-500 block">Fixed Line / Relative:</span><span>{lessee.fixed_line || 'N/A'}</span></div>
+          <div><span className="font-bold text-slate-500 block">E-mail Address:</span><span>{lessee.email || 'N/A'}</span></div>
+          <div className="col-span-2"><span className="font-bold text-slate-500 block">Registered Post Address:</span><span>{lessee.address || 'Sri Lanka'}</span></div>
+          <div><span className="font-bold text-slate-500 block">Driving License Number:</span><span className="font-mono font-bold">{lessee.driving_license_number || 'N/A'}</span></div>
+          <div><span className="font-bold text-slate-500 block">License & Insurance Received Signature:</span><span className="italic text-slate-600">Received at delivery [Signed]</span></div>
+
+          <div className="col-span-2 border-t border-slate-200 my-1 pt-2 font-bold text-slate-700 uppercase">Vehicle & Financial Schedule</div>
+
+          <div><span className="font-bold text-slate-500 block">Make & Model:</span><span className="font-bold">{veh.make_model || veh.vehicle_name || 'Toyota Axio'}</span></div>
+          <div><span className="font-bold text-slate-500 block">Registration No:</span><span className="font-mono font-bold text-amber-700">{veh.registration_number || 'N/A'}</span></div>
+          <div><span className="font-bold text-slate-500 block">Color:</span><span>{veh.color || 'White'}</span></div>
+          <div><span className="font-bold text-slate-500 block">Fuel Type:</span><span>{veh.fuel_type || 'Petrol'}</span></div>
+          <div><span className="font-bold text-slate-500 block">Odometer Reading:</span><span className="font-mono">{veh.pickup_odometer || 0} KM</span></div>
+          <div><span className="font-bold text-slate-500 block">Period:</span><span>{formatDateSafe(agreement.rental_start_at)} to {formatDateSafe(agreement.rental_end_at)}</span></div>
+          <div><span className="font-bold text-slate-500 block">Daily Rental Fee:</span><span className="font-mono">LKR {formatNumberSafe(rental.daily_rental_rate || 7500)}</span></div>
+          <div><span className="font-bold text-slate-500 block">Monthly Rental:</span><span className="font-mono">LKR {formatNumberSafe(rental.monthly_rental_rate || 0)}</span></div>
           <div><span className="font-bold text-slate-500 block">Security Deposit:</span><span className="font-mono">LKR {formatNumberSafe(rental.security_deposit || 50000)}</span></div>
+          <div><span className="font-bold text-slate-500 block">Extra Mileage Fee:</span><span className="font-mono">LKR {rental.extra_km_rate || 75} / KM</span></div>
+          <div><span className="font-bold text-slate-500 block">Deliver Fee To:</span><span>{rental.delivery_fee ? `LKR ${formatNumberSafe(rental.delivery_fee)}` : 'N/A'}</span></div>
+          <div><span className="font-bold text-slate-500 block">Pick up fee From (8.am to 6.P.M):</span><span>{rental.pickup_fee ? `LKR ${formatNumberSafe(rental.pickup_fee)}` : 'N/A'}</span></div>
+          <div><span className="font-bold text-slate-500 block">Advance:</span><span className="font-mono">LKR {formatNumberSafe(rental.advance_paid || 0)}</span></div>
+          <div><span className="font-bold text-slate-500 block">Time:</span><span>09:00 AM</span></div>
+          <div className="col-span-2"><span className="font-bold text-slate-500 block">Inventory Remarks:</span><span>Refer delivery and return note</span></div>
+          <div className="col-span-2"><span className="font-bold text-slate-500 block">Special Note:</span><span>{agreement.special_notes || 'Standard hire terms apply.'}</span></div>
         </div>
       </div>
+
+      {/* NOMINATED DRIVER DETAILS */}
       <div className="pt-4 space-y-2">
-        <h2 className="font-bold text-xs uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">NOMINATED DRIVER DETAILS</h2>
+        <h2 className="font-bold text-xs uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">
+          THE DETAILS OF THE NOMINATED DRIVERS BY THE LESSEE...
+        </h2>
         <table className="w-full text-left text-[11px] border border-slate-200">
           <thead>
             <tr className="bg-slate-100 font-bold border-b border-slate-200">
               <th className="p-2">Driver Name</th>
-              <th className="p-2">Driving License No</th>
+              <th className="p-2">Driving License Number</th>
               <th className="p-2">Mobile</th>
             </tr>
           </thead>
@@ -182,12 +235,52 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
           </tbody>
         </table>
       </div>
+
+      {/* LESSEE DECLARATION */}
       <div className="pt-4 space-y-2">
-        <div className="p-3 bg-amber-50 rounded border border-amber-200 text-[11px] font-mono text-amber-900">{replaceTokens(USER_AGREEMENT_DECLARATION)}</div>
+        <div className="p-3 bg-amber-50 rounded border border-amber-200 text-[11px] font-mono text-amber-900">
+          {replaceTokens(USER_AGREEMENT_DECLARATION)}
+        </div>
       </div>
-      <div className="pt-12 grid grid-cols-2 gap-12 text-[11px]">
-        <div className="border-t border-slate-400 pt-2 text-center space-y-1"><p className="font-bold text-slate-900">LESSEE SIGNATURE</p><p className="text-slate-600">{lessee.full_name}</p><p className="font-mono text-slate-400">Date: {formatDateSafe(agreement.agreement_date)}</p></div>
-        <div className="border-t border-slate-400 pt-2 text-center space-y-1"><p className="font-bold text-slate-900">FOR LESSOR (THENNAKOON TOURS)</p><p className="text-slate-600">{lessorRep.name || 'Authorized Officer'}</p><p className="font-mono text-slate-400">Date: {formatDateSafe(agreement.agreement_date)}</p></div>
+
+      {/* LESSOR / LESSEE SIGNATURE SECTION */}
+      <div className="pt-10 grid grid-cols-2 gap-12 text-[11px]">
+        <div className="border-t border-slate-400 pt-2 space-y-1">
+          <p className="font-bold text-slate-900 uppercase">The Lessor / on behalf of the Lessor</p>
+          <p className="text-slate-600">Name: {lessorRep.name || 'Authorized Officer'}</p>
+          <p className="text-slate-600">NIC: 841250912V</p>
+          <p className="text-slate-600">Address: 39 A, 1st Cross Street, Pagoda Road, Nugegoda</p>
+          <p className="font-mono text-slate-400">Date: {formatDateSafe(agreement.agreement_date)}</p>
+        </div>
+
+        <div className="border-t border-slate-400 pt-2 space-y-1">
+          <p className="font-bold text-slate-900 uppercase">The Lessee — 01</p>
+          <p className="text-slate-600">Name: {lessee.full_name}</p>
+          <p className="text-slate-600">NIC/Passport: {lessee.identifier_no || lessee.nic || 'N/A'}</p>
+          <p className="text-slate-600">Address: {lessee.address || 'Sri Lanka'}</p>
+          <p className="font-mono text-slate-400">Date: {formatDateSafe(agreement.agreement_date)}</p>
+        </div>
+      </div>
+
+      {/* WITNESSES SECTION */}
+      <div className="pt-8 border-t border-slate-300 space-y-3 text-[11px]">
+        <h3 className="font-bold text-slate-900 uppercase">In the Presence of:</h3>
+        <div className="grid grid-cols-2 gap-12">
+          <div className="border border-slate-200 p-3 rounded space-y-1">
+            <p className="font-bold text-slate-800">Witness 1</p>
+            <p>Signature: ______________________</p>
+            <p>Name: {witnesses.witness_1?.name || '______________________'}</p>
+            <p>Address: {witnesses.witness_1?.address || '______________________'}</p>
+            <p>Mobile No: {witnesses.witness_1?.mobile || '______________________'}</p>
+          </div>
+          <div className="border border-slate-200 p-3 rounded space-y-1">
+            <p className="font-bold text-slate-800">Witness 2</p>
+            <p>Signature: ______________________</p>
+            <p>Name: {witnesses.witness_2?.name || '______________________'}</p>
+            <p>Address: {witnesses.witness_2?.address || '______________________'}</p>
+            <p>Mobile No: {witnesses.witness_2?.mobile || '______________________'}</p>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -207,12 +300,7 @@ function LegacyUserAgreementContent({ agreement, booking, customer, vehicle, com
   const termsText = agreement.terms_snapshot || companySettings?.default_agreement_terms || '1. Hirer is responsible for vehicle during rental period. 2. Fuel level must match pickup level. 3. Vehicle must be returned on time.'
 
   return (
-    <div className="relative z-10 space-y-6 pt-24">
-      <div className="text-center border-b border-slate-300 pb-3">
-        <h1 className="text-xl font-black uppercase tracking-wider text-slate-900">VEHICLE RENTAL AGREEMENT</h1>
-        <p className="text-[11px] font-mono text-slate-600 mt-1">Agreement No: <span className="font-bold text-slate-950">{agreement.agreement_number}</span> | Paper Size: <span className="font-bold text-amber-700">US Legal (8.5 × 14 in)</span></p>
-      </div>
-
+    <div className="space-y-6">
       <div className="bg-slate-50 p-4 rounded border border-slate-200 space-y-3">
         <h3 className="font-bold text-slate-900 uppercase">1. HIRER / LESSEE DETAILS</h3>
         <div className="grid grid-cols-2 gap-3 text-[11px]">

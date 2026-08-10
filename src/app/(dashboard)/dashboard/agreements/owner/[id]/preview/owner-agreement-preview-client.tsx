@@ -21,22 +21,25 @@ export function OwnerAgreementPreviewClient({
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 p-4 md:p-8 flex flex-col items-center">
-      {/* Print CSS forcing US Legal 8.5 x 14 in portrait */}
+      {/* Print CSS forcing US Legal 8.5 x 14 in portrait with NO LETTERHEAD */}
       <style jsx global>{`
         @media print {
           @page {
             size: 8.5in 14in portrait;
-            margin: 0;
+            margin: 15mm 15mm 15mm 15mm;
           }
           body {
             background: white !important;
             color: black !important;
           }
+          .no-print {
+            display: none !important;
+          }
         }
       `}</style>
 
       {/* Print Controls */}
-      <div className="w-full max-w-4xl flex items-center justify-between mb-6 print:hidden">
+      <div className="w-full max-w-4xl flex items-center justify-between mb-6 print:hidden no-print">
         <Link
           href="/dashboard/agreements"
           className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 transition-colors"
@@ -46,7 +49,7 @@ export function OwnerAgreementPreviewClient({
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs text-amber-400 font-bold">{agreement.agreement_number}</span>
           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-            US LEGAL (8.5 × 14 in)
+            US LEGAL (8.5 × 14 in) — CLEAN WHITE (NO LETTERHEAD)
           </span>
           <button
             onClick={handlePrint}
@@ -57,27 +60,22 @@ export function OwnerAgreementPreviewClient({
         </div>
       </div>
 
-      {/* US LEGAL Paper Container: 215.9mm x 355.6mm */}
-      <div className="relative w-full max-w-[215.9mm] min-h-[355.6mm] bg-white text-slate-900 shadow-2xl rounded-sm p-12 md:p-16 space-y-6 text-xs print:p-8">
-        {/* Background Letterhead PNG */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/documents/thennakoon-tours-letterhead.png"
-          alt="Thennakoon Tours Letterhead"
-          className="absolute inset-0 w-full h-full object-cover pointer-events-none opacity-90 z-0"
-        />
-
-        <div className="relative z-10 space-y-6 pt-24">
-          {/* Document Header Title */}
-          <div className="text-center border-b border-slate-300 pb-4">
-            <h1 className="text-xl font-black uppercase tracking-wider text-slate-900">
-              VEHICLE OWNER PARTNERSHIP AGREEMENT
-            </h1>
-            <p className="text-[11px] font-mono text-slate-600 mt-1">
-              Agreement Reference: <span className="font-bold text-slate-950">{agreement.agreement_number}</span> | Paper Size: <span className="font-bold text-amber-700">US Legal (8.5 × 14 in)</span>
-            </p>
+      {/* CLEAN WHITE US LEGAL Paper Container: 215.9mm x 355.6mm (NO LETTERHEAD IMAGE) */}
+      <div className="relative w-full max-w-[215.9mm] min-h-[355.6mm] bg-white text-slate-900 shadow-2xl rounded-sm p-12 md:p-16 space-y-6 text-xs print:p-0 print:shadow-none print:w-full">
+        {/* Document Header Title */}
+        <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3 mb-6">
+          <div>
+            <h1 className="text-base font-black uppercase tracking-wider text-slate-900">THENNAKOON TOURS (PVT) LTD</h1>
+            <p className="text-[10px] text-slate-600">39 A, 1st Cross Street, Pagoda Road, Nugegoda | Reg No. PV-00249821</p>
+            <p className="text-[10px] text-slate-600">Phone: +94 112 823 723 / +94 760 080 155 | info@thennakoontours.lk</p>
           </div>
+          <div className="text-right">
+            <h2 className="text-sm font-black text-slate-900 uppercase">VEHICLE OWNER PARTNERSHIP AGREEMENT</h2>
+            <p className="text-xs font-mono font-bold text-amber-700">{agreement.agreement_number}</p>
+          </div>
+        </div>
 
+        <div className="space-y-6">
           {/* Party Details */}
           <div className="grid grid-cols-2 gap-6 bg-slate-50/80 p-4 rounded-lg border border-slate-200">
             <div>
@@ -172,6 +170,13 @@ export function OwnerAgreementPreviewClient({
               <p className="text-[10px] font-mono text-slate-400">Date: {agreement.agreement_start_date}</p>
             </div>
           </div>
+        </div>
+
+        {/* Dynamic Footer */}
+        <div className="pt-8 border-t border-slate-200 text-center text-[10px] text-slate-400 flex items-center justify-between">
+          <span>Agreement Reference: {agreement.agreement_number}</span>
+          <span>Thennakoon Tours (Pvt) Ltd</span>
+          <span>Page Document</span>
         </div>
       </div>
     </div>

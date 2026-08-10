@@ -30,7 +30,7 @@ export const USER_AGREEMENT_CLAUSES: LegalClause[] = [
     title: 'RENTAL AND OTHER CHARGES',
     content: `2.1 The Lessee shall pay to the Lessor the rental charges, security deposit, advance payment, and all other applicable fees specified in the Schedule hereto in accordance with the payment schedule agreed upon.
 2.2 If the Vehicle is used beyond the agreed mileage limit specified in the Schedule (standard {{ALLOWED_KM_PER_DAY}} KM per day), the Lessee shall pay an excess mileage charge at the rate of LKR {{EXTRA_KM_RATE}} per additional kilometer.
-2.3 The security deposit of LKR {{SECURITY_DEPOSIT}} shall be held by the Lessor as security for the due performance of the Lessee's obligations hereunder. The Lessor shall be entitled to deduct from the security deposit any unpaid rental charges, excess mileage charges, traffic fines, damage costs, cleaning fees (standard vehicle return cleaning LKR {{CLEANING_FEE}}), or other liabilities incurred by the Lessee. The balance, if any, shall be refunded to the Lessee within {{SECURITY_DEPOSIT_HOLD_DAYS}} days after the safe return of the Vehicle.
+2.3 The security deposit of LKR {{SECURITY_DEPOSIT}} shall be held by the Lessor as security for the due performance of the Lessee's obligations hereunder. The Lessor shall be entitled to deduct from the security deposit any unpaid rental charges, excess mileage charges, traffic fines, damage costs, cleaning fees (standard vehicle return cleaning LKR {{CLEANING_FEE}}), or other liabilities incurred by the Lessee. The balance, if any, shall be refunded to the Lessee within {{SECURITY_DEPOSIT_HOLD_DAYS}} days after the safe return of the Vehicle (release reference 48 working hours).
 2.4 All payments shall be made into the Lessor's designated bank account: {{COMPANY_BANK_DETAILS}} or by official payment methods authorized by the Lessor.`,
   },
   {
@@ -97,12 +97,12 @@ export const USER_AGREEMENT_CLAUSES: LegalClause[] = [
   {
     number: '11',
     title: 'RENEWAL OF THE AGREEMENT',
-    content: `11.1 Any extension or renewal of the rental period must be requested by the Lessee in writing at least 48 hours prior to the expiry of the current agreement and approved by the Lessor in writing, subject to vehicle availability and payment of revised rental charges.`,
+    content: `11.1 (Applicable to Agreements of three months and over three months) Any extension or renewal of the rental period must be requested by the Lessee in writing at least 48 hours prior to the expiry of the current agreement and approved by the Lessor in writing, subject to vehicle availability and payment of revised rental charges.`,
   },
   {
     number: '12',
-    title: 'Renewal where time period is less than three months',
-    content: `12.1 For short-term agreement renewals of less than three months, the Lessor reserves the right to adjust daily or weekly rental tariffs in accordance with published seasonal rates.`,
+    title: 'Renewal of the agreement',
+    content: `12.1 Time period is less than Three Months. For short-term agreement renewals of less than three months, the Lessor reserves the right to adjust daily or weekly rental tariffs in accordance with published seasonal rates.`,
   },
   {
     number: '13',
@@ -121,7 +121,7 @@ export const USER_AGREEMENT_CLAUSES: LegalClause[] = [
   },
   {
     number: '16',
-    title: 'further agreement provisions',
+    title: 'IT IS FURTHER AGREED...',
     content: `16.1 The Lessee authorizes the Lessor to verify driving record background, identity documents, and credit status with relevant authorities and databases.
 16.2 In the event of GPS tracking installation on the Vehicle, the Lessee consents to real-time location monitoring and telemetry data collection by the Lessor for fleet security and operational management.`,
   },
@@ -134,12 +134,19 @@ export const USER_AGREEMENT_CLAUSES: LegalClause[] = [
   {
     number: '18',
     title: 'INTERPRETATION',
-    content: `18.1 Headings are inserted for convenience of reference only and shall not affect the interpretation of this Agreement. Words importing the singular include the plural and vice versa; words importing any gender include all genders.`,
+    content: `18.1 Headings are inserted for convenience of reference only and shall not affect the interpretation of this Agreement.
+18.2 "Lessee" means the hiring party identified in the preamble and schedule.
+18.3 "Lessor" / "Thennakoon Tours" means Thennakoon Tours (Pvt) Ltd.
+18.4 "Decision or Approval by the Lessor" means explicit written or verbal authorization from an authorized executive officer.
+18.5 "Posting Address of the Lessor" means 39 A, 1st Cross Street, Pagoda Road, Nugegoda, Sri Lanka.
+18.6 "WhatsApp / Contact Information" means +94 112 823 723 / +94 760 080 155.
+18.7 "Day" means a standard 24-hour calendar day. "Month" means 30 consecutive calendar days. "Year" means 365 calendar days.`,
   },
 ]
 
-export const USER_AGREEMENT_DECLARATION = `LESSEE DECLARATION:
-I, {{LESSEE_FULL_NAME}}, hereby declare that the particulars furnished by me in this Agreement and Schedule are true, correct, and complete. I confirm that I have read, understood, and unreservedly agree to abide by all the terms, conditions, exclusions, and obligations contained in this Vehicle Rental Agreement.`
+export const USER_AGREEMENT_SCHEDULE_TITLE = 'SHEDULE TO AGREEMENT'
+
+export const USER_AGREEMENT_DECLARATION = `IMPORTANT: This Agreement has been read by/to me/us and I/we fully understand and unreservedly accept all terms, conditions, charges, liabilities, and obligations specified herein. I/We confirm that the particulars furnished in this Agreement and Schedule are true, correct, and complete.`
 
 export const REQUIRED_USER_AGREEMENT_TOKENS = [
   'AGREEMENT_NUMBER',

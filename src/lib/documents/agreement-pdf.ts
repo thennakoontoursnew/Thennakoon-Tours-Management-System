@@ -1,4 +1,4 @@
-import { jsPDF, getLetterheadBase64, LEGAL_MARGINS, drawLetterheadOnLegalPage } from './pdf-engine'
+import { jsPDF, LEGAL_MARGINS } from './pdf-engine'
 
 function formatDateSafe(val: any): string {
   if (!val) return 'N/A'
@@ -25,7 +25,7 @@ function formatNumberSafe(val: any, decimals: number = 2): string {
 }
 
 export async function generateAgreementPDF(agreement: any, companySettings: any) {
-  console.log('AgreementDocument mounted')
+  console.log('AgreementDocument mounted (Clean White US Legal Paper — NO LETTERHEAD)')
 
   if (!agreement) {
     console.error('Agreement data missing in generateAgreementPDF')
@@ -39,37 +39,35 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
     format: [215.9, 355.6],
   })
 
-  console.log('Rendering Legal Page 1')
-
-  // STEP 1: Draw Letterhead Background Image FIRST on US Legal canvas
-  const base64Letterhead = await getLetterheadBase64()
-  if (base64Letterhead) {
-    drawLetterheadOnLegalPage(doc, base64Letterhead)
-  }
-
   let currentY = LEGAL_MARGINS.top
 
-  // STEP 2: Draw Header Title & Document Number
-  console.log('Rendering Header')
+  // STEP 1: Draw Clean Formal Document Header (NO LETTERHEAD IMAGE)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
+  doc.setFontSize(14)
   doc.setTextColor(15, 23, 42) // Dark Slate
-  doc.text('VEHICLE RENTAL AGREEMENT', LEGAL_MARGINS.left, currentY)
+  doc.text('THENNAKOON TOURS (PVT) LTD', LEGAL_MARGINS.left, currentY)
 
-  doc.setFontSize(10)
+  doc.setFontSize(9)
   doc.setTextColor(71, 85, 105)
-  doc.text(`Agreement No: ${agreement.agreement_number || 'N/A'}`, LEGAL_MARGINS.right, currentY, { align: 'right' })
+  doc.text(`39 A, 1st Cross Street, Pagoda Road, Nugegoda | Reg No. PV-00249821`, LEGAL_MARGINS.left, currentY + 4.5)
 
-  currentY += 6
+  doc.setFontSize(12)
+  doc.setTextColor(15, 23, 42)
+  doc.text('VEHICLE RENTAL AGREEMENT', LEGAL_MARGINS.right, currentY, { align: 'right' })
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  doc.text(`Date: ${agreement.agreement_date || new Date().toISOString().split('T')[0]}`, LEGAL_MARGINS.left, currentY)
+  doc.setFontSize(9)
+  doc.setTextColor(180, 83, 9)
+  doc.text(`Ref: ${agreement.agreement_number || 'N/A'}`, LEGAL_MARGINS.right, currentY + 4.5, { align: 'right' })
+
+  currentY += 12
+
+  doc.setLineWidth(0.5)
+  doc.setDrawColor(15, 23, 42)
+  doc.line(LEGAL_MARGINS.left, currentY, LEGAL_MARGINS.right, currentY)
 
   currentY += 8
 
-  // STEP 3: Customer Details Section
-  console.log('Rendering Customer')
+  // STEP 2: Customer Details Section
   const customer = agreement.customer || {}
   const booking = agreement.booking || {}
   const vehiclesList = agreement.vehicles || []
@@ -101,8 +99,7 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
   const endStr = formatDateSafe(agreement.rental_end_at || booking.rental_end_at)
   doc.text(`${startStr} to ${endStr}`, LEGAL_MARGINS.left + 35, boxY)
 
-  // STEP 4: Vehicle Details Section
-  console.log('Rendering Vehicle')
+  // STEP 3: Vehicle Details Section
   boxY += 6
   if (vehiclesList.length > 0) {
     const firstV = vehiclesList[0]
@@ -127,8 +124,7 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
     currentY += 8
   }
 
-  // STEP 5: Terms & Conditions Section
-  console.log('Rendering Terms')
+  // STEP 4: Terms & Conditions Section
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.5)
   doc.setTextColor(15, 23, 42)
@@ -145,8 +141,7 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
 
   currentY += Math.min(splitTerms.length * 3.5, 120) + 15
 
-  // STEP 6: Footer / Signature Section
-  console.log('Rendering Footer')
+  // STEP 5: Footer / Signature Section
   const sigY = Math.max(currentY, 290)
 
   doc.setFont('helvetica', 'bold')
@@ -169,6 +164,17 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
   doc.text('Authorized Signature & Stamp', compX, sigY + 8)
+
+  // Add Dynamic Page X of Y Footer
+  const totalPages = (doc as any).internal.getNumberOfPages()
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(148, 163, 184)
+    doc.text(`Agreement Ref: ${agreement.agreement_number || 'N/A'}`, LEGAL_MARGINS.left, 348)
+    doc.text(`Page ${i} of ${totalPages}`, LEGAL_MARGINS.right, 348, { align: 'right' })
+  }
 
   return doc
 }
