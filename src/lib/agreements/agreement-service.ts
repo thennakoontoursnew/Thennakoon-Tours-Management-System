@@ -87,10 +87,17 @@ export async function getUserAgreementById(supabase: any, id: string) {
 
   if (!agreement) return null
 
+  // Fetch Version History
+  const { data: versionHistory } = await supabase
+    .from('rental_agreement_versions')
+    .select('*, creator:profiles(full_name)')
+    .eq('agreement_id', id)
+    .order('version_number', { ascending: false })
+
   // STEP 2 - Detect Template Version & Snapshot Health
   let isV1 = agreement.template_version === USER_AGREEMENT_VERSION || (agreement.lessee_snapshot && Object.keys(agreement.lessee_snapshot).length > 0)
 
-  // CRITICAL FIX: If template_version is missing/NULL or V1 snapshots are unpopulated, but a booking exists, auto-populate V1 snapshots dynamically!
+  // If template_version is missing/NULL or V1 snapshots are unpopulated, but a booking exists, auto-populate V1 snapshots dynamically!
   if (!isV1 && agreement.booking_id) {
     try {
       console.log('[USER AGREEMENT PREVIEW] Dynamically upgrading agreement record to USER_AGREEMENT_V1 snapshots')
@@ -183,6 +190,7 @@ export async function getUserAgreementById(supabase: any, id: string) {
     customer: customerData,
     vehicle: vehicleData,
     companySettings,
+    versionHistory: versionHistory || [],
   }
 }
 

@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { UserAgreementFormData, validateUserAgreementData } from '@/lib/agreements/user-agreement-service'
+import { USER_AGREEMENT_VERSION, USER_AGREEMENT_COMPANY_REG_NO } from '@/lib/agreements/templates/user-agreement-v1'
 
 export async function createOrUpdateUserAgreementDraft(formData: UserAgreementFormData) {
   try {
@@ -24,12 +25,12 @@ export async function createOrUpdateUserAgreementDraft(formData: UserAgreementFo
       agreement_date: formData.agreement_date,
       rental_start_at: formData.rental_start_at,
       rental_end_at: formData.rental_end_at,
-      template_version: formData.template_version || 'USER_AGREEMENT_V1',
+      template_version: formData.template_version || USER_AGREEMENT_VERSION,
       lessee_snapshot: formData.lessee,
       vehicle_snapshot: formData.vehicle,
       rental_snapshot: formData.rental,
       agreement_variables_snapshot: formData.variables,
-      company_snapshot: { name: 'Thennakoon Tours (Pvt) Ltd', reg_no: 'PV-00249821' },
+      company_snapshot: { name: 'Thennakoon Tours (Pvt) Ltd', reg_no: USER_AGREEMENT_COMPANY_REG_NO },
       nominated_drivers_snapshot: formData.nominated_drivers,
       witnesses_snapshot: formData.witnesses,
       lessor_representative_snapshot: formData.lessor_representative,
@@ -118,11 +119,33 @@ export async function generateAndLockUserAgreement(formData: UserAgreementFormDa
 
     if (lErr) return { success: false, error: lErr.message }
 
+    // Save initial version record (Revision 1) if not existing
+    try {
+      await supabase.from('rental_agreement_versions').insert({
+        agreement_id: locked.id,
+        version_number: locked.version_number || 1,
+        template_version: USER_AGREEMENT_VERSION,
+        lessee_snapshot: locked.lessee_snapshot,
+        vehicle_snapshot: locked.vehicle_snapshot,
+        rental_snapshot: locked.rental_snapshot,
+        agreement_variables_snapshot: locked.agreement_variables_snapshot,
+        company_snapshot: locked.company_snapshot,
+        nominated_drivers_snapshot: locked.nominated_drivers_snapshot,
+        witnesses_snapshot: locked.witnesses_snapshot,
+        lessor_representative_snapshot: locked.lessor_representative_snapshot,
+        pickup_delivery_snapshot: locked.pickup_delivery_snapshot,
+        special_notes: locked.special_notes,
+        inventory_remarks: locked.inventory_remarks,
+        amendment_reason: 'Initial Agreement Generated (Revision 1)',
+        created_by: user?.id || locked.prepared_by,
+      })
+    } catch (_) {}
+
     await supabase.rpc('log_audit_action_internal', {
       p_action: 'USER_AGREEMENT_GENERATED',
       p_entity_type: 'rental_agreement',
       p_entity_id: locked.id,
-      p_description: `Generated and locked User Agreement snapshot ${locked.agreement_number}`,
+      p_description: `Generated and locked User Agreement snapshot ${locked.agreement_number} (Revision 1)`,
     })
 
     revalidatePath('/dashboard/agreements')
@@ -131,6 +154,141 @@ export async function generateAndLockUserAgreement(formData: UserAgreementFormDa
     return { success: true, agreement: locked }
   } catch (err: any) {
     return { success: false, error: err.message || 'Failed to generate User Agreement.' }
+  }
+}
+
+export async function amendUserAgreementAction(
+  agreementId: string,
+  formData: UserAgreementFormData,
+  amendmentReason: string
+) {
+  try {
+    if (!amendmentReason || !amendmentReason.trim()) {
+      return { success: false, error: 'An Amendment Reason is strictly required before saving a new revision.' }
+    }
+
+    const validation = validateUserAgreementData(formData)
+    if (!validation.isValid) {
+      return {
+        success: false,
+        error: `Cannot amend agreement: Missing required fields [${validation.missingTokens.join(', ')}].`,
+      }
+    }
+
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated.' }
+
+    // Fetch existing agreement
+    const { data: currentAgr, error: cErr } = await supabase
+      .from('rental_agreements')
+      .select('*')
+      .eq('id', agreementId)
+      .single()
+
+    if (cErr || !currentAgr) return { success: false, error: 'User Agreement not found.' }
+
+    if (['completed', 'cancelled'].includes(currentAgr.status)) {
+      return { success: false, error: `Agreements in status "${currentAgr.status}" cannot be amended.` }
+    }
+
+    const currentVersionNum = currentAgr.version_number || 1
+    const nextVersionNum = currentVersionNum + 1
+
+    // 1. Ensure current version snapshot is saved in rental_agreement_versions
+    try {
+      await supabase.from('rental_agreement_versions').insert({
+        agreement_id: currentAgr.id,
+        version_number: currentVersionNum,
+        template_version: currentAgr.template_version || USER_AGREEMENT_VERSION,
+        lessee_snapshot: currentAgr.lessee_snapshot,
+        vehicle_snapshot: currentAgr.vehicle_snapshot,
+        rental_snapshot: currentAgr.rental_snapshot,
+        agreement_variables_snapshot: currentAgr.agreement_variables_snapshot,
+        company_snapshot: currentAgr.company_snapshot,
+        nominated_drivers_snapshot: currentAgr.nominated_drivers_snapshot,
+        witnesses_snapshot: currentAgr.witnesses_snapshot,
+        lessor_representative_snapshot: currentAgr.lessor_representative_snapshot,
+        pickup_delivery_snapshot: currentAgr.pickup_delivery_snapshot,
+        special_notes: currentAgr.special_notes,
+        inventory_remarks: currentAgr.inventory_remarks,
+        amendment_reason: currentAgr.amendment_reason || `Baseline Revision ${currentVersionNum}`,
+        created_by: user.id,
+      })
+    } catch (_) {
+      // Version 1 may already be saved
+    }
+
+    // 2. Build updated snapshot payload
+    const updatedPayload = {
+      version_number: nextVersionNum,
+      template_version: USER_AGREEMENT_VERSION,
+      lessee_snapshot: formData.lessee,
+      vehicle_snapshot: formData.vehicle,
+      rental_snapshot: formData.rental,
+      agreement_variables_snapshot: formData.variables,
+      company_snapshot: { name: 'Thennakoon Tours (Pvt) Ltd', reg_no: USER_AGREEMENT_COMPANY_REG_NO },
+      nominated_drivers_snapshot: formData.nominated_drivers,
+      witnesses_snapshot: formData.witnesses,
+      lessor_representative_snapshot: formData.lessor_representative,
+      pickup_delivery_snapshot: formData.pickup_delivery,
+      special_notes: formData.special_notes || null,
+      inventory_remarks: formData.inventory_remarks || null,
+      amendment_reason: amendmentReason.trim(),
+      updated_at: new Date().toISOString(),
+    }
+
+    // 3. Update primary rental_agreements record
+    const { data: amendedAgr, error: uErr } = await supabase
+      .from('rental_agreements')
+      .update(updatedPayload)
+      .eq('id', agreementId)
+      .select()
+      .single()
+
+    if (uErr) return { success: false, error: uErr.message }
+
+    // 4. Insert new version record into rental_agreement_versions
+    await supabase.from('rental_agreement_versions').insert({
+      agreement_id: agreementId,
+      version_number: nextVersionNum,
+      template_version: USER_AGREEMENT_VERSION,
+      lessee_snapshot: formData.lessee,
+      vehicle_snapshot: formData.vehicle,
+      rental_snapshot: formData.rental,
+      agreement_variables_snapshot: formData.variables,
+      company_snapshot: { name: 'Thennakoon Tours (Pvt) Ltd', reg_no: USER_AGREEMENT_COMPANY_REG_NO },
+      nominated_drivers_snapshot: formData.nominated_drivers,
+      witnesses_snapshot: formData.witnesses,
+      lessor_representative_snapshot: formData.lessor_representative,
+      pickup_delivery_snapshot: formData.pickup_delivery,
+      special_notes: formData.special_notes || null,
+      inventory_remarks: formData.inventory_remarks || null,
+      amendment_reason: amendmentReason.trim(),
+      created_by: user.id,
+    })
+
+    // 5. Write audit logs
+    await supabase.rpc('log_audit_action_internal', {
+      p_action: 'USER_AGREEMENT_AMENDED',
+      p_entity_type: 'rental_agreement',
+      p_entity_id: agreementId,
+      p_description: `Amended User Agreement ${amendedAgr.agreement_number} to Revision ${nextVersionNum}. Reason: ${amendmentReason}`,
+    })
+
+    await supabase.rpc('log_audit_action_internal', {
+      p_action: 'USER_AGREEMENT_VERSION_CREATED',
+      p_entity_type: 'rental_agreement',
+      p_entity_id: agreementId,
+      p_description: `Created Revision ${nextVersionNum} snapshot for ${amendedAgr.agreement_number}`,
+    })
+
+    revalidatePath('/dashboard/agreements')
+    revalidatePath(`/dashboard/agreements/${agreementId}/preview`)
+
+    return { success: true, agreement: amendedAgr, versionNumber: nextVersionNum }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to amend User Agreement.' }
   }
 }
 

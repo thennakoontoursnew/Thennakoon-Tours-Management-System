@@ -1,13 +1,29 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import {
+  FileText,
+  Printer,
+  Edit3,
+  History,
+  ShieldAlert,
+  AlertTriangle,
+  X,
+  CheckCircle2,
+  Lock,
+} from 'lucide-react'
 import {
   USER_AGREEMENT_PREAMBLE,
   USER_AGREEMENT_CLAUSES,
   USER_AGREEMENT_SCHEDULE_TITLE,
   USER_AGREEMENT_DECLARATION,
   USER_AGREEMENT_COMPANY_REG_NO,
+  USER_AGREEMENT_VERSION,
 } from '@/lib/agreements/templates/user-agreement-v1'
+import { UserAgreementFormData, validateUserAgreementData } from '@/lib/agreements/user-agreement-service'
+import { amendUserAgreementAction } from '@/app/(dashboard)/dashboard/agreements/user-agreement-actions'
 
 interface UserAgreementPreviewClientProps {
   agreement: any
@@ -16,6 +32,7 @@ interface UserAgreementPreviewClientProps {
   customer?: any
   vehicle?: any
   companySettings?: any
+  versionHistory?: any[]
 }
 
 function formatDateSafe(val: any): string {
@@ -42,7 +59,28 @@ export function UserAgreementPreviewClient({
   customer,
   vehicle,
   companySettings,
+  versionHistory = [],
 }: UserAgreementPreviewClientProps) {
+  const router = useRouter()
+  const [showAmendModal, setShowAmendModal] = useState(false)
+  const [showHistoryModal, setShowHistoryModal] = useState(false)
+  const [selectedVersion, setSelectedVersion] = useState<any>(null)
+
+  const activeAgreementData = selectedVersion
+    ? {
+        ...agreement,
+        version_number: selectedVersion.version_number,
+        lessee_snapshot: selectedVersion.lessee_snapshot || agreement.lessee_snapshot,
+        vehicle_snapshot: selectedVersion.vehicle_snapshot || agreement.vehicle_snapshot,
+        rental_snapshot: selectedVersion.rental_snapshot || agreement.rental_snapshot,
+        agreement_variables_snapshot: selectedVersion.agreement_variables_snapshot || agreement.agreement_variables_snapshot,
+        nominated_drivers_snapshot: selectedVersion.nominated_drivers_snapshot || agreement.nominated_drivers_snapshot,
+        witnesses_snapshot: selectedVersion.witnesses_snapshot || agreement.witnesses_snapshot,
+        lessor_representative_snapshot: selectedVersion.lessor_representative_snapshot || agreement.lessor_representative_snapshot,
+        special_notes: selectedVersion.special_notes ?? agreement.special_notes,
+      }
+    : agreement
+
   const handlePrint = () => {
     if (typeof window !== 'undefined') {
       window.print()
@@ -51,7 +89,7 @@ export function UserAgreementPreviewClient({
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 p-4 md:p-8 flex flex-col items-center">
-      {/* Print CSS forcing US Legal 8.5 x 14 in portrait with NO LETTERHEAD */}
+      {/* Strict Print CSS hiding ALL application UI chrome */}
       <style jsx global>{`
         @media print {
           @page {
@@ -62,55 +100,146 @@ export function UserAgreementPreviewClient({
             background: white !important;
             color: black !important;
           }
-          .no-print {
+          .no-print,
+          .app-shell-ui {
             display: none !important;
           }
         }
       `}</style>
 
-      {/* Controls Bar */}
-      <div className="w-full max-w-4xl flex items-center justify-between mb-6 print:hidden no-print">
-        <Link href="/dashboard/agreements" className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200">
+      {/* APPLICATION PREVIEW SHELL (EXCLUDED FROM PRINT / PDF) */}
+      <div className="w-full max-w-4xl flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 print:hidden no-print app-shell-ui">
+        <Link
+          href="/dashboard/agreements"
+          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 transition-colors"
+        >
           ← Back to Agreements Center
         </Link>
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-xs text-amber-400 font-bold">{agreement.agreement_number}</span>
-          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-            US LEGAL (8.5 × 14 in) — REG PV 00312253
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-mono text-xs text-amber-400 font-bold">{activeAgreementData.agreement_number}</span>
+          <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
+            Revision {activeAgreementData.version_number || 1}
           </span>
-          <button onClick={handlePrint} className="px-5 py-2 rounded-xl bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer shadow-xs">
-            Print / Save PDF
+          {selectedVersion && (
+            <button
+              onClick={() => setSelectedVersion(null)}
+              className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 cursor-pointer"
+            >
+              Viewing Historical Revision {selectedVersion.version_number} (Click for Latest)
+            </button>
+          )}
+
+          <button
+            onClick={() => setShowHistoryModal(true)}
+            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+          >
+            <History size={14} />
+            <span>Version History ({versionHistory.length || 1})</span>
+          </button>
+
+          {!selectedVersion && (
+            <button
+              onClick={() => setShowAmendModal(true)}
+              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-bold flex items-center gap-1.5 border border-amber-500/30 cursor-pointer"
+            >
+              <Edit3 size={14} />
+              <span>Edit / Amend Agreement</span>
+            </button>
+          )}
+
+          <button
+            onClick={handlePrint}
+            className="px-5 py-2 rounded-xl bg-amber-400 text-slate-950 font-bold text-xs hover:bg-amber-300 transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+          >
+            <Printer size={14} />
+            <span>Print / Save PDF</span>
           </button>
         </div>
       </div>
 
-      {/* CLEAN WHITE US LEGAL Paper Container: 215.9mm x 355.6mm (NO LETTERHEAD IMAGE) */}
-      <div className="relative w-full max-w-[215.9mm] min-h-[355.6mm] bg-white text-slate-900 shadow-2xl rounded-sm p-12 md:p-16 space-y-6 text-xs leading-relaxed print:p-0 print:shadow-none print:w-full">
-        {/* Formal Document Header */}
-        <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3 mb-6">
-          <div>
-            <h1 className="text-base font-black uppercase tracking-wider text-slate-900">THENNAKOON TOURS (PVT) LTD</h1>
-            <p className="text-[10px] text-slate-600">39A, 1st cross street, Pagoda Road, Nugegoda | Reg No. <span className="font-bold text-slate-900">{USER_AGREEMENT_COMPANY_REG_NO}</span></p>
-            <p className="text-[10px] text-slate-600">Phone: +94 112 823 723 / +94 77 727 3820 | info@thennakoontours.lk</p>
-          </div>
-          <div className="text-right">
-            <h2 className="text-sm font-black text-slate-900 uppercase">VEHICLE RENTAL AGREEMENT</h2>
-            <p className="text-xs font-mono font-bold text-amber-700">{agreement.agreement_number}</p>
-          </div>
-        </div>
+      {/* PURE DOCUMENT CONTENT CONTAINER (EXCLUSIVELY EXPORTED TO PRINT / PDF) */}
+      <UserAgreementDocument
+        agreement={activeAgreementData}
+        isV1={isV1}
+        booking={booking}
+        customer={customer}
+        vehicle={vehicle}
+        companySettings={companySettings}
+      />
 
-        {isV1 ? (
-          <V1UserAgreementContent agreement={agreement} customer={customer} vehicle={vehicle} />
-        ) : (
-          <LegacyUserAgreementContent agreement={agreement} booking={booking} customer={customer} vehicle={vehicle} companySettings={companySettings} />
-        )}
+      {/* AMENDMENT MODAL */}
+      {showAmendModal && (
+        <AmendAgreementModal
+          agreement={agreement}
+          onClose={() => setShowAmendModal(false)}
+          onSuccess={() => {
+            setShowAmendModal(false)
+            router.refresh()
+          }}
+        />
+      )}
 
-        {/* Dynamic Footer */}
-        <div className="pt-8 border-t border-slate-200 text-center text-[10px] text-slate-400 flex items-center justify-between">
-          <span>Agreement Reference: {agreement.agreement_number}</span>
-          <span>Thennakoon Tours (Pvt) Ltd (Reg No. {USER_AGREEMENT_COMPANY_REG_NO})</span>
-          <span>Page Document</span>
+      {/* VERSION HISTORY MODAL */}
+      {showHistoryModal && (
+        <VersionHistoryModal
+          agreement={agreement}
+          versionHistory={versionHistory}
+          currentVersionNum={activeAgreementData.version_number || 1}
+          onSelectVersion={(v) => {
+            setSelectedVersion(v)
+            setShowHistoryModal(false)
+          }}
+          onClose={() => setShowHistoryModal(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+export function UserAgreementDocument({
+  agreement,
+  isV1,
+  booking,
+  customer,
+  vehicle,
+  companySettings,
+}: {
+  agreement: any
+  isV1: boolean
+  booking?: any
+  customer?: any
+  vehicle?: any
+  companySettings?: any
+}) {
+  return (
+    <div className="relative w-full max-w-[215.9mm] min-h-[355.6mm] bg-white text-slate-900 shadow-2xl rounded-sm p-12 md:p-16 space-y-6 text-xs leading-relaxed print:p-0 print:shadow-none print:w-full">
+      {/* Formal Document Header */}
+      <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3 mb-6">
+        <div>
+          <h1 className="text-base font-black uppercase tracking-wider text-slate-900">THENNAKOON TOURS (PVT) LTD</h1>
+          <p className="text-[10px] text-slate-600">39A, 1st cross street, Pagoda Road, Nugegoda | Reg No. <span className="font-bold text-slate-900">{USER_AGREEMENT_COMPANY_REG_NO}</span></p>
+          <p className="text-[10px] text-slate-600">Phone: +94 112 823 723 / +94 77 727 3820 | info@thennakoontours.lk</p>
         </div>
+        <div className="text-right">
+          <h2 className="text-sm font-black text-slate-900 uppercase">VEHICLE RENTAL AGREEMENT</h2>
+          <p className="text-xs font-mono font-bold text-amber-700">{agreement.agreement_number}</p>
+          <p className="text-[10px] font-mono text-slate-500">Revision {agreement.version_number || 1}</p>
+        </div>
+      </div>
+
+      {isV1 ? (
+        <V1UserAgreementContent agreement={agreement} customer={customer} vehicle={vehicle} />
+      ) : (
+        <LegacyUserAgreementContent agreement={agreement} booking={booking} customer={customer} vehicle={vehicle} companySettings={companySettings} />
+      )}
+
+      {/* Dynamic Footer */}
+      <div className="pt-8 border-t border-slate-200 text-center text-[10px] text-slate-400 flex items-center justify-between font-mono">
+        <span>Agreement Ref: {agreement.agreement_number}</span>
+        <span>Revision {agreement.version_number || 1}</span>
+        <span>Thennakoon Tours (Pvt) Ltd (Reg No. {USER_AGREEMENT_COMPANY_REG_NO})</span>
+        <span>Page Document</span>
       </div>
     </div>
   )
@@ -328,6 +457,336 @@ function LegacyUserAgreementContent({ agreement, booking, customer, vehicle, com
       <div className="pt-12 grid grid-cols-2 gap-12 text-[11px]">
         <div className="border-t border-slate-400 pt-2 text-center space-y-1"><p className="font-bold text-slate-900">HIRER SIGNATURE</p><p className="text-slate-600">{custName}</p></div>
         <div className="border-t border-slate-400 pt-2 text-center space-y-1"><p className="font-bold text-slate-900">FOR THENNAKOON TOURS (PVT) LTD</p><p className="text-slate-600">Authorized Officer</p></div>
+      </div>
+    </div>
+  )
+}
+
+function AmendAgreementModal({
+  agreement,
+  onClose,
+  onSuccess,
+}: {
+  agreement: any
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const isSignedOrActive = ['signed', 'active'].includes(agreement.status)
+  const currentVersion = agreement.version_number || 1
+  const nextVersion = currentVersion + 1
+
+  const [amendmentReason, setAmendmentReason] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const [lesseeName, setLesseeName] = useState(agreement.lessee_snapshot?.full_name || '')
+  const [lesseeNic, setLesseeNic] = useState(agreement.lessee_snapshot?.identifier_no || '')
+  const [lesseeMobile, setLesseeMobile] = useState(agreement.lessee_snapshot?.mobile || '')
+  const [lesseeAddress, setLesseeAddress] = useState(agreement.lessee_snapshot?.address || '')
+
+  const [vehMakeModel, setVehMakeModel] = useState(agreement.vehicle_snapshot?.make_model || '')
+  const [vehRegNo, setVehRegNo] = useState(agreement.vehicle_snapshot?.registration_number || '')
+  const [vehOdometer, setVehOdometer] = useState(agreement.vehicle_snapshot?.pickup_odometer || 0)
+
+  const [dailyRate, setDailyRate] = useState(agreement.rental_snapshot?.daily_rental_rate || 7500)
+  const [securityDeposit, setSecurityDeposit] = useState(agreement.rental_snapshot?.security_deposit || 50000)
+
+  const [specialNotes, setSpecialNotes] = useState(agreement.special_notes || '')
+
+  const handleSaveAmendment = async () => {
+    if (!amendmentReason.trim()) {
+      setError('Please provide a valid Amendment Reason before saving this revision.')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+
+    const formData: UserAgreementFormData = {
+      agreement_number: agreement.agreement_number,
+      booking_id: agreement.booking_id,
+      customer_id: agreement.customer_id,
+      template_version: USER_AGREEMENT_VERSION,
+      agreement_date: agreement.agreement_date,
+      rental_start_at: agreement.rental_start_at,
+      rental_end_at: agreement.rental_end_at,
+      rental_period_days: agreement.rental_snapshot?.rental_period_days || 30,
+      lessee: {
+        ...agreement.lessee_snapshot,
+        full_name: lesseeName,
+        identifier_no: lesseeNic,
+        mobile: lesseeMobile,
+        address: lesseeAddress,
+      },
+      vehicle: {
+        ...agreement.vehicle_snapshot,
+        make_model: vehMakeModel,
+        registration_number: vehRegNo,
+        pickup_odometer: Number(vehOdometer),
+      },
+      rental: {
+        ...agreement.rental_snapshot,
+        daily_rental_rate: Number(dailyRate),
+        security_deposit: Number(securityDeposit),
+      },
+      nominated_drivers: agreement.nominated_drivers_snapshot || [],
+      pickup_delivery: agreement.pickup_delivery_snapshot || { pickup_location: 'Nugegoda' },
+      special_notes: specialNotes,
+      inventory_remarks: agreement.inventory_remarks || 'Refer delivery note',
+      lessor_representative: agreement.lessor_representative_snapshot || { name: 'Authorized Officer' },
+      witnesses: agreement.witnesses_snapshot || { witness_1: {}, witness_2: {} },
+      variables: agreement.agreement_variables_snapshot || {
+        minor_repair_limit: 13500,
+        insurance_excess: 15000,
+        minor_accident_threshold: 25000,
+        cleaning_fee: 1500,
+        full_interior_cleaning_fee: 12000,
+        additional_driver_fee: 5000,
+        security_deposit_hold_days: 14,
+        notice_period_days: 30,
+        allowed_km_per_day: 100,
+        third_party_insurance_cover: 500000,
+        agreement_location: 'Nugegoda, Sri Lanka',
+        company_hotline: '+94 112 823 723',
+        company_bank_details: 'Nations Trust Bank - Nugegoda Branch, Account # 100530013140',
+      },
+    }
+
+    try {
+      const res = await amendUserAgreementAction(agreement.id, formData, amendmentReason)
+      if (res.success) {
+        alert(`Successfully saved User Agreement Revision ${res.versionNumber}!`)
+        onSuccess()
+      } else {
+        setError(res.error || 'Failed to save amendment.')
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-slate-900 text-slate-100 w-full max-w-2xl rounded-2xl border border-slate-800 p-6 space-y-5 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div>
+            <span className="font-mono text-xs text-amber-400 font-bold">{agreement.agreement_number}</span>
+            <h2 className="text-base font-bold text-white">Amend User Agreement Snapshot → Save Revision {nextVersion}</h2>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer">
+            <X size={18} />
+          </button>
+        </div>
+
+        {isSignedOrActive && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-xs flex items-center gap-2">
+            <AlertTriangle size={16} className="shrink-0 text-amber-400" />
+            <span>
+              <strong>Warning:</strong> This agreement is currently in status &quot;{agreement.status}&quot;. Saving this amendment will create Revision {nextVersion} without altering historical Revision {currentVersion}.
+            </span>
+          </div>
+        )}
+
+        {error && (
+          <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-300 text-xs flex items-center gap-2">
+            <ShieldAlert size={16} className="shrink-0 text-rose-400" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <div className="space-y-4 text-xs max-h-[60vh] overflow-y-auto pr-1">
+          <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-800 text-[11px] text-slate-400 flex items-center gap-2">
+            <Lock size={14} className="text-emerald-400 shrink-0" />
+            <span>Legal 18 Clauses, PV 00312253 company reg, and source-defined numeric limits remain locked and un-editable.</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="font-bold text-slate-300 block mb-1">Lessee Full Name</label>
+              <input
+                value={lesseeName}
+                onChange={(e) => setLesseeName(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-bold"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-300 block mb-1">Lessee NIC / Passport</label>
+              <input
+                value={lesseeNic}
+                onChange={(e) => setLesseeNic(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-300 block mb-1">Mobile Phone</label>
+              <input
+                value={lesseeMobile}
+                onChange={(e) => setLesseeMobile(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-300 block mb-1">Registered Address</label>
+              <input
+                value={lesseeAddress}
+                onChange={(e) => setLesseeAddress(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-300 block mb-1">Vehicle Make & Model</label>
+              <input
+                value={vehMakeModel}
+                onChange={(e) => setVehMakeModel(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-300 block mb-1">Registration Number</label>
+              <input
+                value={vehRegNo}
+                onChange={(e) => setVehRegNo(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-amber-400 font-mono font-bold"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-300 block mb-1">Daily Rental Tariff (LKR)</label>
+              <input
+                type="number"
+                value={dailyRate}
+                onChange={(e) => setDailyRate(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-300 block mb-1">Security Deposit (LKR)</label>
+              <input
+                type="number"
+                value={securityDeposit}
+                onChange={(e) => setSecurityDeposit(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-emerald-400 font-mono font-bold"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="font-bold text-slate-300 block mb-1">Special Notes</label>
+              <input
+                value={specialNotes}
+                onChange={(e) => setSpecialNotes(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white"
+              />
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-800">
+            <label className="font-bold text-amber-400 block mb-1">Amendment Reason (Required) *</label>
+            <textarea
+              rows={2}
+              placeholder="e.g. Corrected Lessee passport number and vehicle registration typo."
+              value={amendmentReason}
+              onChange={(e) => setAmendmentReason(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-amber-500/40 text-white font-semibold text-xs placeholder:text-slate-500"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
+          <button onClick={onClose} disabled={saving} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:bg-slate-700 cursor-pointer">
+            Cancel
+          </button>
+          <button
+            onClick={handleSaveAmendment}
+            disabled={saving || !amendmentReason.trim()}
+            className="px-5 py-2 rounded-xl bg-amber-400 text-slate-950 font-bold text-xs hover:bg-amber-300 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+          >
+            {saving ? 'Saving Revision...' : `Save Revision ${nextVersion}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function VersionHistoryModal({
+  agreement,
+  versionHistory = [],
+  currentVersionNum,
+  onSelectVersion,
+  onClose,
+}: {
+  agreement: any
+  versionHistory: any[]
+  currentVersionNum: number
+  onSelectVersion: (v: any) => void
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-slate-900 text-slate-100 w-full max-w-xl rounded-2xl border border-slate-800 p-6 space-y-4 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div>
+            <span className="font-mono text-xs text-amber-400 font-bold">{agreement.agreement_number}</span>
+            <h2 className="text-base font-bold text-white">Agreement Version History</h2>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+          {versionHistory.length > 0 ? (
+            versionHistory.map((v: any) => {
+              const isCurrent = v.version_number === currentVersionNum
+              return (
+                <div
+                  key={v.id || v.version_number}
+                  className={`p-4 rounded-xl border text-xs space-y-2 transition-all ${
+                    isCurrent
+                      ? 'bg-amber-500/10 border-amber-500/40 text-amber-200'
+                      : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800/80'
+                  }`}
+                >
+                  <div className="flex items-center justify-between font-bold">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-amber-400">Revision {v.version_number}</span>
+                      {isCurrent && (
+                        <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-400 text-slate-950 uppercase">
+                          Active Revision
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono">{formatDateSafe(v.created_at)}</span>
+                  </div>
+
+                  <p className="text-slate-300 font-semibold">{v.amendment_reason || 'Initial Agreement Generated'}</p>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-[10px] text-slate-400">
+                    <span>By: {v.creator?.full_name || 'System / Staff'}</span>
+                    <button
+                      onClick={() => onSelectVersion(v)}
+                      className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold cursor-pointer"
+                    >
+                      View / Print Revision {v.version_number}
+                    </button>
+                  </div>
+                </div>
+              )
+            })
+          ) : (
+            <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-800 text-xs text-slate-400 space-y-2">
+              <div className="flex items-center justify-between font-bold">
+                <span className="font-mono text-amber-400">Revision 1 (Active)</span>
+                <span className="text-[10px] font-mono">{formatDateSafe(agreement.created_at)}</span>
+              </div>
+              <p className="text-slate-300">Initial Agreement Generated (Revision 1)</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end border-t border-slate-800 pt-3">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:bg-slate-700 cursor-pointer">
+            Close
+          </button>
+        </div>
       </div>
     </div>
   )

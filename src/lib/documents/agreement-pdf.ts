@@ -26,12 +26,14 @@ function formatNumberSafe(val: any, decimals: number = 2): string {
 }
 
 export async function generateAgreementPDF(agreement: any, companySettings: any) {
-  console.log('AgreementDocument mounted (Clean White US Legal Paper — NO LETTERHEAD)')
+  console.log('AgreementDocument mounted (Clean White US Legal Paper — NO APPLICATION UI — NO LETTERHEAD)')
 
   if (!agreement) {
     console.error('Agreement data missing in generateAgreementPDF')
     throw new Error('Agreement data missing')
   }
+
+  const versionNum = agreement.version_number || 1
 
   // Create US Legal Size PDF: 8.5 x 14 in (215.9 x 355.6 mm)
   const doc = new jsPDF({
@@ -42,7 +44,7 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
 
   let currentY = LEGAL_MARGINS.top
 
-  // STEP 1: Draw Clean Formal Document Header (NO LETTERHEAD IMAGE)
+  // STEP 1: Draw Clean Formal Document Header (NO APPLICATION CHROME, NO LETTERHEAD IMAGE)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14)
   doc.setTextColor(15, 23, 42) // Dark Slate
@@ -58,7 +60,7 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
 
   doc.setFontSize(9)
   doc.setTextColor(180, 83, 9)
-  doc.text(`Ref: ${agreement.agreement_number || 'N/A'}`, LEGAL_MARGINS.right, currentY + 4.5, { align: 'right' })
+  doc.text(`Ref: ${agreement.agreement_number || 'N/A'} (Revision ${versionNum})`, LEGAL_MARGINS.right, currentY + 4.5, { align: 'right' })
 
   currentY += 12
 
@@ -69,9 +71,10 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
   currentY += 8
 
   // STEP 2: Customer Details Section
-  const customer = agreement.customer || {}
+  const customer = agreement.lessee_snapshot || agreement.customer || {}
   const booking = agreement.booking || {}
-  const vehiclesList = agreement.vehicles || []
+  const vehicleObj = agreement.vehicle_snapshot || {}
+  const rentalObj = agreement.rental_snapshot || {}
 
   doc.setFillColor(248, 250, 252)
   doc.setDrawColor(226, 232, 240)
@@ -82,7 +85,7 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
   doc.setFontSize(9)
   doc.setTextColor(15, 23, 42)
   doc.text(`HIRER: ${customer.full_name || 'N/A'}`, LEGAL_MARGINS.left + 4, boxY)
-  doc.text(`NIC/Passport: ${customer.nic || customer.passport_number || 'N/A'}`, LEGAL_MARGINS.left + 100, boxY)
+  doc.text(`NIC/Passport: ${customer.identifier_no || customer.nic || customer.passport_number || 'N/A'}`, LEGAL_MARGINS.left + 100, boxY)
 
   boxY += 5
   doc.setFont('helvetica', 'normal')
@@ -102,41 +105,35 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
 
   // STEP 3: Vehicle Details Section
   boxY += 6
-  if (vehiclesList.length > 0) {
-    const firstV = vehiclesList[0]
-    const vInfo = firstV.vehicle ? `${firstV.vehicle.vehicle_name} (${firstV.vehicle.registration_number})` : 'Allocated Vehicle'
-    const dInfo = firstV.driver ? `Driver: ${firstV.driver.full_name} (${firstV.driver.driver_code})` : 'Driver: Self Drive / Unassigned'
-    doc.setFont('helvetica', 'bold')
-    doc.text(`VEHICLE: ${vInfo}`, LEGAL_MARGINS.left + 4, boxY)
-    doc.setFont('helvetica', 'normal')
-    doc.text(dInfo, LEGAL_MARGINS.left + 100, boxY)
-  }
+  const vInfo = vehicleObj.make_model ? `${vehicleObj.make_model} (${vehicleObj.registration_number || 'N/A'})` : 'Allocated Vehicle'
+  doc.setFont('helvetica', 'bold')
+  doc.text(`VEHICLE: ${vInfo}`, LEGAL_MARGINS.left + 4, boxY)
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Fuel: ${vehicleObj.fuel_type || 'Petrol'} | Color: ${vehicleObj.color || 'White'}`, LEGAL_MARGINS.left + 100, boxY)
 
   currentY += 42
 
   // Financial Summary Box
-  if (booking.grand_total) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(15, 23, 42)
-    doc.text(`GRAND TOTAL: LKR ${formatNumberSafe(booking.grand_total)}`, LEGAL_MARGINS.left, currentY)
-    doc.text(`ADVANCE PAID: LKR ${formatNumberSafe(booking.advance_paid)}`, LEGAL_MARGINS.left + 65, currentY)
-    doc.text(`BALANCE DUE: LKR ${formatNumberSafe(booking.balance_due)}`, LEGAL_MARGINS.left + 130, currentY)
-    currentY += 8
-  }
-
-  // STEP 4: Terms & Conditions Section
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.5)
   doc.setTextColor(15, 23, 42)
-  doc.text('TERMS AND CONDITIONS:', LEGAL_MARGINS.left, currentY)
+  doc.text(`DAILY TARIFF: LKR ${formatNumberSafe(rentalObj.daily_rental_rate || 7500)}`, LEGAL_MARGINS.left, currentY)
+  doc.text(`SECURITY DEPOSIT: LKR ${formatNumberSafe(rentalObj.security_deposit || 50000)}`, LEGAL_MARGINS.left + 65, currentY)
+  doc.text(`EXTRA KM RATE: LKR ${rentalObj.extra_km_rate || 75}/KM`, LEGAL_MARGINS.left + 130, currentY)
+  currentY += 8
+
+  // STEP 4: Terms & Conditions Section Header
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8.5)
+  doc.setTextColor(15, 23, 42)
+  doc.text('TERMS AND CONDITIONS (USER_AGREEMENT_V1):', LEGAL_MARGINS.left, currentY)
 
   currentY += 4
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
   doc.setTextColor(71, 85, 105)
-  const terms = agreement.terms_snapshot || companySettings?.default_agreement_terms || ''
+  const terms = agreement.terms_snapshot || companySettings?.default_agreement_terms || 'Standard User Agreement V1 official legal terms apply.'
   const splitTerms = doc.splitTextToSize(terms, LEGAL_MARGINS.width)
   doc.text(splitTerms, LEGAL_MARGINS.left, currentY)
 
@@ -173,7 +170,7 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     doc.setTextColor(148, 163, 184)
-    doc.text(`Agreement Ref: ${agreement.agreement_number || 'N/A'}`, LEGAL_MARGINS.left, 348)
+    doc.text(`Agreement Ref: ${agreement.agreement_number || 'N/A'} | Revision ${versionNum}`, LEGAL_MARGINS.left, 348)
     doc.text(`Page ${i} of ${totalPages}`, LEGAL_MARGINS.right, 348, { align: 'right' })
   }
 
