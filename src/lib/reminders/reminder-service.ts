@@ -203,5 +203,46 @@ export async function syncSystemReminders(supabase: any) {
     }
   }
 
+  // 6. Stage 17: Owner Agreement Expiry Reminders
+  const { data: expiringOwnerAgreements } = await supabase
+    .from('owner_agreements')
+    .select('id, agreement_number, agreement_end_date, status, owner:vehicle_owners(full_name)')
+    .eq('is_archived', false)
+    .in('status', ['active', 'signed'])
+    .not('agreement_end_date', 'is', null)
+
+  if (expiringOwnerAgreements) {
+    const d30Future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const d14Future = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const d7Future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+    for (const oag of expiringOwnerAgreements) {
+      const endDate = oag.agreement_end_date
+      if (endDate <= d30Future) {
+        const dedupeKey = `owner_agreement_expiry:${oag.id}`
+        let priority: 'normal' | 'high' | 'critical' = 'normal'
+        if (endDate <= todayStr) priority = 'critical'
+        else if (endDate <= d7Future || endDate <= d14Future) priority = 'high'
+
+        await supabase.from('reminders').upsert(
+          {
+            reminder_number: `REM-OAG-${oag.agreement_number}`,
+            reminder_type: 'owner_agreement_expiry',
+            entity_type: 'owner_agreement',
+            entity_id: oag.id,
+            title: `Owner Agreement Expiry: ${oag.agreement_number}`,
+            message: `Owner Agreement ${oag.agreement_number} for partner ${oag.owner?.full_name || 'Vehicle Owner'} is expiring on ${endDate}.`,
+            priority,
+            due_at: `${endDate}T00:00:00.000Z`,
+            status: endDate <= todayStr ? 'overdue' : 'pending',
+            source: 'system',
+            dedupe_key: dedupeKey,
+          },
+          { onConflict: 'dedupe_key' }
+        )
+      }
+    }
+  }
+
   return { success: true }
 }

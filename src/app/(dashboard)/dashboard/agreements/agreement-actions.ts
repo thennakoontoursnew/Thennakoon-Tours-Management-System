@@ -83,7 +83,6 @@ export async function createAgreementFromBooking(bookingId: string) {
       .single()
 
     if (aErr) {
-      // Gracefully handle concurrent request unique constraint violation
       if (aErr.code === '23505' || aErr.message.includes('unique_active_agreement_per_booking')) {
         const { data: reQueried } = await supabase
           .from('rental_agreements')
@@ -131,5 +130,137 @@ export async function createAgreementFromBooking(bookingId: string) {
     return { success: true, agreementId: agr.id, agreementNumber: agr.agreement_number }
   } catch (err: any) {
     return { success: false, error: err.message || 'Agreement generation failed.' }
+  }
+}
+
+// =============================================
+// CREATE OWNER AGREEMENT (OAG-YYYY-XXXXXX)
+// =============================================
+export async function createOwnerAgreementAction(data: {
+  vehicle_owner_id: string
+  vehicle_ids: string[]
+  agreement_start_date: string
+  agreement_end_date?: string
+  settlement_rule: string
+  revenue_share_pct?: number
+  flat_rate_per_day?: number
+  fixed_monthly_amount?: number
+  per_booking_amount?: number
+  security_deposit?: number
+  advance_amount?: number
+  maintenance_responsibility?: string
+  insurance_responsibility?: string
+  repair_responsibility?: string
+  termination_notice_days?: number
+  terms_and_conditions?: string
+  special_conditions?: string
+}) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated.' }
+
+    // Generate atomic Owner Agreement Number
+    let oagNumber = `OAG-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`
+    try {
+      const { data: generated } = await supabase.rpc('generate_next_owner_agreement_number')
+      if (generated) oagNumber = generated
+    } catch (_) {}
+
+    // Insert Owner Agreement
+    const { data: agreement, error: aErr } = await supabase
+      .from('owner_agreements')
+      .insert({
+        agreement_number: oagNumber,
+        vehicle_owner_id: data.vehicle_owner_id,
+        agreement_start_date: data.agreement_start_date,
+        agreement_end_date: data.agreement_end_date || null,
+        settlement_rule: data.settlement_rule,
+        revenue_share_pct: data.revenue_share_pct || null,
+        flat_rate_per_day: data.flat_rate_per_day || null,
+        fixed_monthly_amount: data.fixed_monthly_amount || null,
+        per_booking_amount: data.per_booking_amount || null,
+        security_deposit: data.security_deposit || 0,
+        advance_amount: data.advance_amount || 0,
+        maintenance_responsibility: data.maintenance_responsibility || 'owner',
+        insurance_responsibility: data.insurance_responsibility || 'owner',
+        repair_responsibility: data.repair_responsibility || 'owner',
+        termination_notice_days: data.termination_notice_days || 30,
+        terms_and_conditions: data.terms_and_conditions || null,
+        special_conditions: data.special_conditions || null,
+        status: 'active',
+        activated_at: new Date().toISOString(),
+        created_by: user.id,
+      })
+      .select()
+      .single()
+
+    if (aErr || !agreement) {
+      return { success: false, error: aErr?.message || 'Failed to create Owner Agreement.' }
+    }
+
+    // Insert covered vehicles in junction table
+    if (data.vehicle_ids && data.vehicle_ids.length > 0) {
+      const vehicleRows = data.vehicle_ids.map((vid) => ({
+        owner_agreement_id: agreement.id,
+        vehicle_id: vid,
+        revenue_share_pct: data.revenue_share_pct || null,
+        flat_rate_per_day: data.flat_rate_per_day || null,
+      }))
+
+      await supabase.from('owner_agreement_vehicles').insert(vehicleRows)
+    }
+
+    // Write audit log
+    await supabase.rpc('log_audit_action_internal', {
+      p_action: 'OWNER_AGREEMENT_CREATED',
+      p_entity_type: 'owner_agreement',
+      p_entity_id: agreement.id,
+      p_description: `Created Owner Agreement ${agreement.agreement_number}`,
+    })
+
+    revalidatePath('/dashboard/agreements')
+    revalidatePath(`/dashboard/fleet/owners/${data.vehicle_owner_id}`)
+    return { success: true, agreement }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Owner Agreement creation failed.' }
+  }
+}
+
+// =============================================
+// UPDATE OWNER AGREEMENT STATUS
+// =============================================
+export async function updateOwnerAgreementStatusAction(id: string, status: string) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated.' }
+
+    const updatePayload: any = { status, updated_at: new Date().toISOString() }
+
+    if (status === 'active') updatePayload.activated_at = new Date().toISOString()
+    if (status === 'completed') updatePayload.completed_at = new Date().toISOString()
+    if (status === 'cancelled') updatePayload.cancelled_at = new Date().toISOString()
+    if (status === 'archived') updatePayload.is_archived = true
+
+    const { error } = await supabase
+      .from('owner_agreements')
+      .update(updatePayload)
+      .eq('id', id)
+
+    if (error) return { success: false, error: error.message }
+
+    const actionText = `OWNER_AGREEMENT_${status.toUpperCase()}`
+    await supabase.rpc('log_audit_action_internal', {
+      p_action: actionText,
+      p_entity_type: 'owner_agreement',
+      p_entity_id: id,
+      p_description: `Updated Owner Agreement status to ${status}`,
+    })
+
+    revalidatePath('/dashboard/agreements')
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Status update failed.' }
   }
 }

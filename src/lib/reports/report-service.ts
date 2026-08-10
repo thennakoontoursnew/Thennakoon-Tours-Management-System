@@ -25,6 +25,19 @@ export async function getConsolidatedReportData(supabase: any, reportId: string,
       .order('created_at', { ascending: false })
       .limit(50)
     rows = data || []
+  } else if (reportId === 'user_agreements_report' || reportId === 'agreement_summary') {
+    const { data } = await supabase
+      .from('rental_agreements')
+      .select('id, agreement_number, rental_start_at, rental_end_at, status, created_at, customer:customers(full_name), booking:bookings(booking_number)')
+      .order('created_at', { ascending: false })
+    rows = data || []
+  } else if (reportId === 'owner_agreements_report' || reportId === 'owner_agreements_expiry_report') {
+    const { data } = await supabase
+      .from('owner_agreements')
+      .select('id, agreement_number, agreement_start_date, agreement_end_date, settlement_rule, revenue_share_pct, flat_rate_per_day, status, owner:vehicle_owners(full_name, owner_number)')
+      .eq('is_archived', false)
+      .order('created_at', { ascending: false })
+    rows = data || []
   } else if (reportId === 'revenue_report' || reportId === 'accounts_receivable') {
     const { data } = await supabase
       .from('invoices')

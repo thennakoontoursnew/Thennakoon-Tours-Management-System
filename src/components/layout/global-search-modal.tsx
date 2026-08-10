@@ -15,6 +15,7 @@ import {
   Fuel,
   X,
   ArrowRight,
+  ShieldCheck,
 } from 'lucide-react'
 
 interface GlobalSearchModalProps {
@@ -44,10 +45,11 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
   if (!isOpen) return null
 
   const quickCategories = [
+    { label: 'User Agreement', href: '/dashboard/agreements', icon: ScrollText, queryParam: 'q' },
+    { label: 'Owner Agreement', href: '/dashboard/agreements', icon: ShieldCheck, queryParam: 'q' },
     { label: 'Bookings', href: '/dashboard/bookings', icon: CalendarCheck, queryParam: 'q' },
     { label: 'Quotations', href: '/dashboard/quotations', icon: FileText, queryParam: 'q' },
     { label: 'Invoices', href: '/dashboard/invoices', icon: FileSpreadsheet, queryParam: 'q' },
-    { label: 'Agreements', href: '/dashboard/agreements', icon: ScrollText, queryParam: 'q' },
     { label: 'Customers', href: '/dashboard/customers', icon: Users, queryParam: 'q' },
     { label: 'Vehicles', href: '/dashboard/vehicles', icon: Car, queryParam: 'q' },
     { label: 'Vehicle Owners', href: '/dashboard/fleet/owners', icon: Building2, queryParam: 'q' },
@@ -74,7 +76,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search bookings, quotations, invoices, customers, owners, fuel..."
+            placeholder="Search User Agreements, Owner Agreements, bookings, quotations, invoices..."
             autoFocus
             className="w-full bg-transparent border-none text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none"
           />

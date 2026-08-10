@@ -12,7 +12,9 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
   // Operations
   { id: 'booking_summary', name: 'Booking Summary Report', description: 'Comprehensive view of all booking reservations, rental dates, and collection status.', category: 'operations', supportsCsv: true, supportsPdf: true },
   { id: 'quotation_summary', name: 'Quotation Conversion Report', description: 'Quotation volume, accepted rates, and booking conversion tracking.', category: 'operations', supportsCsv: true, supportsPdf: true },
-  { id: 'agreement_summary', name: 'Rental Agreement Report', description: 'Signed rental agreements, vehicle handover logs, and contract status.', category: 'operations', supportsCsv: true, supportsPdf: true },
+  { id: 'user_agreements_report', name: 'User Agreement Report', description: 'Comprehensive register of all hirer User Agreements, booking references, and contract status.', category: 'operations', supportsCsv: true, supportsPdf: true },
+  { id: 'owner_agreements_report', name: 'Owner Agreement Report', description: 'Register of vehicle owner partner agreements, covered vehicles, and settlement rules.', category: 'fleet', supportsCsv: true, supportsPdf: true },
+  { id: 'owner_agreements_expiry_report', name: 'Owner Agreement Expiry Report', description: 'Partner owner agreements expiring within 30 days requiring contract renewal.', category: 'fleet', supportsCsv: true, supportsPdf: true },
 
   // Finance
   { id: 'revenue_report', name: 'Revenue & Collection Report', description: 'Authoritative collected revenue, invoiced grand totals, and net cash flow.', category: 'finance', supportsCsv: true, supportsPdf: true },
