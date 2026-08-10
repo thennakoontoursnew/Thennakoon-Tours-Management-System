@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getInitialUserAgreementFormData } from '@/lib/agreements/user-agreement-service'
+import { USER_AGREEMENT_VERSION, USER_AGREEMENT_COMPANY_REG_NO } from '@/lib/agreements/templates/user-agreement-v1'
 
 export async function createAgreementFromBooking(bookingId: string) {
   try {
@@ -21,7 +23,7 @@ export async function createAgreementFromBooking(bookingId: string) {
     // 2. Search for existing ACTIVE agreement for the booking
     const { data: existingAgr } = await supabase
       .from('rental_agreements')
-      .select('id, agreement_number, status')
+      .select('id, agreement_number, status, template_version, lessee_snapshot')
       .eq('booking_id', bookingId)
       .neq('status', 'cancelled')
       .order('created_at', { ascending: true })
@@ -29,6 +31,29 @@ export async function createAgreementFromBooking(bookingId: string) {
       .maybeSingle()
 
     if (existingAgr) {
+      // If existing agreement has NULL template_version, upgrade it to USER_AGREEMENT_V1
+      if (!existingAgr.template_version || !existingAgr.lessee_snapshot) {
+        try {
+          const initialForm = await getInitialUserAgreementFormData(supabase, bookingId)
+          await supabase
+            .from('rental_agreements')
+            .update({
+              template_version: USER_AGREEMENT_VERSION,
+              lessee_snapshot: initialForm.lessee,
+              vehicle_snapshot: initialForm.vehicle,
+              rental_snapshot: initialForm.rental,
+              agreement_variables_snapshot: initialForm.variables,
+              company_snapshot: { name: 'Thennakoon Tours (Pvt) Ltd', reg_no: USER_AGREEMENT_COMPANY_REG_NO },
+              nominated_drivers_snapshot: initialForm.nominated_drivers,
+              witnesses_snapshot: initialForm.witnesses,
+              lessor_representative_snapshot: initialForm.lessor_representative,
+              pickup_delivery_snapshot: initialForm.pickup_delivery,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingAgr.id)
+        } catch (_) {}
+      }
+
       return {
         success: true,
         existing: true,
@@ -47,38 +72,37 @@ export async function createAgreementFromBooking(bookingId: string) {
       return { success: false, error: 'Cannot generate agreement: No vehicles allocated to this booking.' }
     }
 
-    // 4. Fetch document template terms or company settings terms
-    const { data: template } = await supabase
-      .from('document_templates')
-      .select('default_terms_and_conditions')
-      .eq('document_type', 'rental_agreement')
-      .eq('is_active', true)
-      .maybeSingle()
+    // 4. Generate complete USER_AGREEMENT_V1 Form Data & Snapshots
+    const initialForm = await getInitialUserAgreementFormData(supabase, bookingId)
 
-    const { data: companySettings } = await supabase
-      .from('company_settings')
-      .select('default_agreement_terms')
-      .limit(1)
-      .maybeSingle()
-
-    const terms =
-      template?.default_terms_and_conditions ||
-      companySettings?.default_agreement_terms ||
-      '1. Hirer is responsible for vehicle during rental period. 2. Fuel level must match pickup level. 3. Vehicle must be returned on time.'
+    const payload: any = {
+      booking_id: b.id,
+      customer_id: b.customer_id,
+      agreement_number: initialForm.agreement_number,
+      agreement_date: initialForm.agreement_date,
+      rental_start_at: b.rental_start_at,
+      rental_end_at: b.rental_end_at,
+      template_version: USER_AGREEMENT_VERSION,
+      lessee_snapshot: initialForm.lessee,
+      vehicle_snapshot: initialForm.vehicle,
+      rental_snapshot: initialForm.rental,
+      agreement_variables_snapshot: initialForm.variables,
+      company_snapshot: { name: 'Thennakoon Tours (Pvt) Ltd', reg_no: USER_AGREEMENT_COMPANY_REG_NO },
+      nominated_drivers_snapshot: initialForm.nominated_drivers,
+      witnesses_snapshot: initialForm.witnesses,
+      lessor_representative_snapshot: initialForm.lessor_representative,
+      pickup_delivery_snapshot: initialForm.pickup_delivery,
+      special_notes: initialForm.special_notes || null,
+      inventory_remarks: initialForm.inventory_remarks || null,
+      terms_snapshot: `Standard User Agreement V1 terms applied for ${initialForm.agreement_number}`,
+      status: 'generated',
+      prepared_by: user.id,
+    }
 
     // 5. Generate agreement record with race-condition safety
     const { data: agr, error: aErr } = await supabase
       .from('rental_agreements')
-      .insert({
-        booking_id: b.id,
-        customer_id: b.customer_id,
-        agreement_date: new Date().toISOString().split('T')[0],
-        rental_start_at: b.rental_start_at,
-        rental_end_at: b.rental_end_at,
-        terms_snapshot: terms,
-        status: 'generated',
-        prepared_by: user.id,
-      })
+      .insert(payload)
       .select()
       .single()
 
@@ -112,8 +136,8 @@ export async function createAgreementFromBooking(bookingId: string) {
       document_type: 'booking',
       document_id: bookingId,
       action: 'GENERATE_RENTAL_AGREEMENT',
-      change_summary: `Generated rental agreement ${agr.agreement_number}`,
-      metadata: { agreement_id: agr.id, agreement_number: agr.agreement_number },
+      change_summary: `Generated rental agreement ${agr.agreement_number} (USER_AGREEMENT_V1)`,
+      metadata: { agreement_id: agr.id, agreement_number: agr.agreement_number, template_version: USER_AGREEMENT_VERSION },
       user_id: user.id,
     })
 
@@ -122,7 +146,7 @@ export async function createAgreementFromBooking(bookingId: string) {
       p_action: 'CREATE_RENTAL_AGREEMENT',
       p_entity_type: 'rental_agreement',
       p_entity_id: agr.id,
-      p_description: `Generated rental agreement ${agr.agreement_number} from booking ${b.booking_number}`,
+      p_description: `Generated USER_AGREEMENT_V1 rental agreement ${agr.agreement_number} from booking ${b.booking_number}`,
     })
 
     revalidatePath('/dashboard/agreements')

@@ -1,4 +1,6 @@
 import { getColomboTodayString } from '@/lib/utils/colombo-date-utils'
+import { getInitialUserAgreementFormData } from './user-agreement-service'
+import { USER_AGREEMENT_VERSION, USER_AGREEMENT_COMPANY_REG_NO } from './templates/user-agreement-v1'
 
 export interface AgreementsKPIs {
   totalAgreements: number
@@ -85,15 +87,59 @@ export async function getUserAgreementById(supabase: any, id: string) {
 
   if (!agreement) return null
 
-  // STEP 2 - Detect Template Version
-  const isV1 = agreement.template_version === 'USER_AGREEMENT_V1' && agreement.lessee_snapshot && Object.keys(agreement.lessee_snapshot).length > 0
-  console.log('[USER AGREEMENT PREVIEW] STEP 2 - Detect Template Version:', {
+  // STEP 2 - Detect Template Version & Snapshot Health
+  let isV1 = agreement.template_version === USER_AGREEMENT_VERSION || (agreement.lessee_snapshot && Object.keys(agreement.lessee_snapshot).length > 0)
+
+  // CRITICAL FIX: If template_version is missing/NULL or V1 snapshots are unpopulated, but a booking exists, auto-populate V1 snapshots dynamically!
+  if (!isV1 && agreement.booking_id) {
+    try {
+      console.log('[USER AGREEMENT PREVIEW] Dynamically upgrading agreement record to USER_AGREEMENT_V1 snapshots')
+      const initialForm = await getInitialUserAgreementFormData(supabase, agreement.booking_id)
+      agreement.template_version = USER_AGREEMENT_VERSION
+      agreement.lessee_snapshot = agreement.lessee_snapshot || initialForm.lessee
+      agreement.vehicle_snapshot = agreement.vehicle_snapshot || initialForm.vehicle
+      agreement.rental_snapshot = agreement.rental_snapshot || initialForm.rental
+      agreement.agreement_variables_snapshot = agreement.agreement_variables_snapshot || initialForm.variables
+      agreement.company_snapshot = agreement.company_snapshot || { name: 'Thennakoon Tours (Pvt) Ltd', reg_no: USER_AGREEMENT_COMPANY_REG_NO }
+      agreement.nominated_drivers_snapshot = agreement.nominated_drivers_snapshot || initialForm.nominated_drivers
+      agreement.witnesses_snapshot = agreement.witnesses_snapshot || initialForm.witnesses
+      agreement.lessor_representative_snapshot = agreement.lessor_representative_snapshot || initialForm.lessor_representative
+      agreement.pickup_delivery_snapshot = agreement.pickup_delivery_snapshot || initialForm.pickup_delivery
+      isV1 = true
+
+      // Persist the V1 upgrade to database asynchronously for future loads
+      await supabase
+        .from('rental_agreements')
+        .update({
+          template_version: USER_AGREEMENT_VERSION,
+          lessee_snapshot: agreement.lessee_snapshot,
+          vehicle_snapshot: agreement.vehicle_snapshot,
+          rental_snapshot: agreement.rental_snapshot,
+          agreement_variables_snapshot: agreement.agreement_variables_snapshot,
+          company_snapshot: agreement.company_snapshot,
+          nominated_drivers_snapshot: agreement.nominated_drivers_snapshot,
+          witnesses_snapshot: agreement.witnesses_snapshot,
+          lessor_representative_snapshot: agreement.lessor_representative_snapshot,
+          pickup_delivery_snapshot: agreement.pickup_delivery_snapshot,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', agreement.id)
+    } catch (err) {
+      console.warn('[USER AGREEMENT PREVIEW] Dynamic V1 upgrade failed:', err)
+    }
+  }
+
+  // Mandatory V1 Enforcement: If template_version === 'USER_AGREEMENT_V1', isV1 MUST BE TRUE!
+  if (agreement.template_version === USER_AGREEMENT_VERSION) {
+    isV1 = true
+  }
+
+  console.log('[USER AGREEMENT PREVIEW] STEP 2 - Final Template Version Decision:', {
     template_version: agreement.template_version,
     isV1,
   })
 
   // STEP 3 - Load Legacy/New Data
-  console.log('[USER AGREEMENT PREVIEW] STEP 3 - Load Legacy/New Data')
   let bookingData: any = agreement.booking || null
   let customerData: any = agreement.customer || null
   let vehicleData: any = null
@@ -130,7 +176,6 @@ export async function getUserAgreementById(supabase: any, id: string) {
     .limit(1)
     .maybeSingle()
 
-  console.log('[USER AGREEMENT PREVIEW] STEP 4 - Build PDF Data')
   return {
     agreement,
     isV1,
