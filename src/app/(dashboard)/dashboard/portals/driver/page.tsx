@@ -1,15 +1,19 @@
-import { ComingSoonModule } from '@/components/ui/coming-soon-module'
+import { createClient } from '@/lib/supabase/server'
+import { getDriverPortalData } from '@/lib/portals/portal-service'
+import { DriverPortalClient } from './driver-portal-client'
 
 export const metadata = {
-  title: 'Driver Mobile Portal — Thennakoon Tours',
+  title: 'Driver Portal — Thennakoon Tours',
 }
 
-export default function DriverPortalPage() {
+export default async function DriverPortalPage() {
+  const supabase = await createClient()
+
+  const portalData = await getDriverPortalData(supabase)
+
   return (
-    <ComingSoonModule
-      title="Driver Mobile Duty Portal"
-      description="Mobile interface for drivers to view assigned trips, record start/return mileage, update fuel levels, and complete trip logs."
-      plannedPhase="Phase 4 — Driver Mobile Application"
-    />
+    <div className="px-4 py-6 md:px-8">
+      <DriverPortalClient portalData={portalData} />
+    </div>
   )
 }
