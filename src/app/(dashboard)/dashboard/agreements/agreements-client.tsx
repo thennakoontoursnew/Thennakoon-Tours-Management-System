@@ -14,8 +14,10 @@ import {
   Car,
   ChevronRight,
   ShieldCheck,
+  Play,
 } from 'lucide-react'
 import { NewOwnerAgreementModal } from '@/components/agreements/new-owner-agreement-modal'
+import { SelectBookingModal } from '@/components/agreements/select-booking-modal'
 import { updateOwnerAgreementStatusAction } from './agreement-actions'
 
 interface AgreementsClientProps {
@@ -30,6 +32,7 @@ interface AgreementsClientProps {
   ownerAgreements: any[]
   owners: any[]
   vehicles: any[]
+  bookings: any[]
 }
 
 export function AgreementsClient({
@@ -38,11 +41,13 @@ export function AgreementsClient({
   ownerAgreements,
   owners,
   vehicles,
+  bookings,
 }: AgreementsClientProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<'user' | 'owner'>('user')
   const [searchQuery, setSearchQuery] = useState('')
   const [showNewOwnerModal, setShowNewOwnerModal] = useState(false)
+  const [showSelectBookingModal, setShowSelectBookingModal] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
 
   const handleStatusChange = async (id: string, status: string) => {
@@ -86,12 +91,19 @@ export function AgreementsClient({
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
-      {/* Modal for creating Owner Agreement */}
+      {/* Modals */}
       <NewOwnerAgreementModal
         owners={owners}
         vehicles={vehicles}
         isOpen={showNewOwnerModal}
         onClose={() => setShowNewOwnerModal(false)}
+      />
+
+      <SelectBookingModal
+        bookings={bookings}
+        existingUserAgreements={userAgreements}
+        isOpen={showSelectBookingModal}
+        onClose={() => setShowSelectBookingModal(false)}
       />
 
       {/* Header */}
@@ -105,12 +117,22 @@ export function AgreementsClient({
           </p>
         </div>
 
-        <button
-          onClick={() => setShowNewOwnerModal(true)}
-          className="px-4 py-2.5 rounded-xl bg-amber-400 text-slate-950 font-bold text-xs hover:bg-amber-300 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
-        >
-          <Plus size={15} /> New Owner Agreement
-        </button>
+        {/* Dynamic Header Action Button */}
+        {activeTab === 'user' ? (
+          <button
+            onClick={() => setShowSelectBookingModal(true)}
+            className="px-4 py-2.5 rounded-xl bg-amber-400 text-slate-950 font-bold text-xs hover:bg-amber-300 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+          >
+            <Plus size={15} /> + New User Agreement
+          </button>
+        ) : (
+          <button
+            onClick={() => setShowNewOwnerModal(true)}
+            className="px-4 py-2.5 rounded-xl bg-amber-400 text-slate-950 font-bold text-xs hover:bg-amber-300 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+          >
+            <Plus size={15} /> + New Owner Agreement
+          </button>
+        )}
       </div>
 
       {/* Primary KPI Cards */}
@@ -196,27 +218,37 @@ export function AgreementsClient({
                   {filteredUserAgreements.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
                       <td className="py-3.5 px-4 font-mono font-bold text-amber-500">{item.agreement_number}</td>
-                      <td className="py-3.5 px-4 font-mono font-bold text-slate-700 dark:text-slate-300">{item.booking?.booking_number}</td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-700 dark:text-slate-300">{item.booking?.booking_number || 'N/A'}</td>
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-900 dark:text-white">{item.customer?.full_name || 'Customer'}</div>
                         <div className="text-[11px] text-slate-400">{item.customer?.mobile}</div>
                       </td>
                       <td className="py-3.5 px-4 text-[11px]">
-                        {new Date(item.rental_start_at).toLocaleDateString()} to {new Date(item.rental_end_at).toLocaleDateString()}
+                        {item.rental_start_at ? new Date(item.rental_start_at).toLocaleDateString() : 'N/A'} to {item.rental_end_at ? new Date(item.rental_end_at).toLocaleDateString() : 'N/A'}
                       </td>
                       <td className="py-3.5 px-4">
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 uppercase">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${item.status === 'cancelled' ? 'bg-rose-500/10 text-rose-600 border border-rose-200' : item.status === 'draft' ? 'bg-slate-100 text-slate-600' : 'bg-amber-500/10 text-amber-600 border border-amber-500/20'}`}>
                           {item.status}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <Link
-                          href={`/dashboard/agreements/${item.id}/preview`}
-                          className="p-1.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 inline-flex items-center gap-1 font-semibold text-[11px]"
-                        >
-                          <Printer size={13} />
-                          <span>PDF</span>
-                        </Link>
+                      <td className="py-3.5 px-4 text-right space-x-1.5">
+                        {item.status === 'draft' ? (
+                          <Link
+                            href={`/dashboard/agreements/new?booking_id=${item.booking_id}`}
+                            className="p-1.5 rounded bg-amber-400 text-slate-950 font-bold text-[11px] hover:bg-amber-300 inline-flex items-center gap-1"
+                          >
+                            <Play size={13} />
+                            <span>Continue</span>
+                          </Link>
+                        ) : (
+                          <Link
+                            href={`/dashboard/agreements/${item.id}/preview`}
+                            className="p-1.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 inline-flex items-center gap-1 font-semibold text-[11px]"
+                          >
+                            <Printer size={13} />
+                            <span>View / PDF</span>
+                          </Link>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -227,7 +259,7 @@ export function AgreementsClient({
             <div className="py-16 text-center space-y-3">
               <FileText size={36} className="mx-auto text-slate-400" />
               <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No User Agreements found</p>
-              <p className="text-xs text-slate-400">User Agreements are generated automatically from confirmed bookings.</p>
+              <p className="text-xs text-slate-400">Click "+ New User Agreement" above to select a booking reservation.</p>
             </div>
           )}
         </div>
@@ -289,7 +321,7 @@ export function AgreementsClient({
                             <button
                               onClick={() => handleStatusChange(item.id, 'active')}
                               disabled={updatingId === item.id}
-                              className="px-2 py-1 rounded bg-emerald-500 text-white font-bold text-[10px] hover:bg-emerald-600"
+                              className="px-2 py-1 rounded bg-emerald-500 text-white font-bold text-[10px] hover:bg-emerald-600 cursor-pointer"
                             >
                               Activate
                             </button>
@@ -305,7 +337,7 @@ export function AgreementsClient({
             <div className="py-16 text-center space-y-3">
               <FileText size={36} className="mx-auto text-slate-400" />
               <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No Owner Agreements recorded yet</p>
-              <p className="text-xs text-slate-400">Click "New Owner Agreement" above to register a partner agreement.</p>
+              <p className="text-xs text-slate-400">Click "+ New Owner Agreement" above to register a partner agreement.</p>
             </div>
           )}
         </div>

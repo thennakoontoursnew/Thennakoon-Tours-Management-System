@@ -24,8 +24,9 @@ export async function getAgreementsKPIs(supabase: any): Promise<AgreementsKPIs> 
   const ownerAgreementsCount = ownerItems.length
   const totalAgreements = userAgreementsCount + ownerAgreementsCount
 
+  // Active status: excludes cancelled and completed
   const activeUser = userItems.filter((u: any) => ['active', 'generated', 'signed'].includes(u.status)).length
-  const activeOwner = ownerItems.filter((o: any) => o.status === 'active' || o.status === 'signed').length
+  const activeOwner = ownerItems.filter((o: any) => ['active', 'signed'].includes(o.status)).length
   const activeAgreementsCount = activeUser + activeOwner
 
   let expiringSoonCount = 0
@@ -63,6 +64,81 @@ export async function getUserAgreements(supabase: any) {
     .order('created_at', { ascending: false })
 
   return data || []
+}
+
+export async function getUserAgreementById(supabase: any, id: string) {
+  console.log('[USER AGREEMENT PREVIEW] STEP 1 - Load Agreement ID:', id)
+  const { data: agreement, error: aErr } = await supabase
+    .from('rental_agreements')
+    .select('*, customer:customers(*), booking:bookings(*)')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (aErr) {
+    console.error('[USER AGREEMENT PREVIEW] STEP 1 ERROR:', {
+      code: aErr.code,
+      message: aErr.message,
+      details: aErr.details,
+      hint: aErr.hint,
+    })
+  }
+
+  if (!agreement) return null
+
+  // STEP 2 - Detect Template Version
+  const isV1 = agreement.template_version === 'USER_AGREEMENT_V1' && agreement.lessee_snapshot && Object.keys(agreement.lessee_snapshot).length > 0
+  console.log('[USER AGREEMENT PREVIEW] STEP 2 - Detect Template Version:', {
+    template_version: agreement.template_version,
+    isV1,
+  })
+
+  // STEP 3 - Load Legacy/New Data
+  console.log('[USER AGREEMENT PREVIEW] STEP 3 - Load Legacy/New Data')
+  let bookingData: any = agreement.booking || null
+  let customerData: any = agreement.customer || null
+  let vehicleData: any = null
+
+  if (agreement.booking_id && !bookingData) {
+    const { data: b } = await supabase.from('bookings').select('*, customer:customers(*)').eq('id', agreement.booking_id).maybeSingle()
+    if (b) {
+      bookingData = b
+      if (!customerData) customerData = b.customer
+    }
+  }
+
+  if (agreement.customer_id && !customerData) {
+    const { data: c } = await supabase.from('customers').select('*').eq('id', agreement.customer_id).maybeSingle()
+    if (c) customerData = c
+  }
+
+  // Fetch allocated vehicle for legacy records
+  if (agreement.booking_id) {
+    const { data: bvs } = await supabase
+      .from('booking_vehicles')
+      .select('*, vehicle:vehicles(*)')
+      .eq('booking_id', agreement.booking_id)
+      .limit(1)
+
+    if (bvs && bvs.length > 0) {
+      vehicleData = bvs[0].vehicle
+    }
+  }
+
+  const { data: companySettings } = await supabase
+    .from('company_settings')
+    .select('*')
+    .limit(1)
+    .maybeSingle()
+
+  console.log('[USER AGREEMENT PREVIEW] STEP 4 - Build PDF Data')
+  return {
+    agreement,
+    isV1,
+    booking: bookingData,
+    customer: customerData,
+    vehicle: vehicleData,
+    companySettings,
+  }
 }
 
 export async function getOwnerAgreements(supabase: any, ownerId?: string) {
