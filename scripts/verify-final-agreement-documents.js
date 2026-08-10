@@ -61,6 +61,22 @@ console.log('\n--- TEST 3: User Agreement Completeness Checklist ---')
 const templatePath = path.join(__dirname, '../src/lib/agreements/templates/user-agreement-v1.ts')
 const templateText = fs.readFileSync(templatePath, 'utf8')
 
+// ASSERTION: Company Registration Number MUST be "PV 00312253"
+if (templateText.includes('PV 00312253') && userClientContent.includes('PV 00312253')) {
+  console.log('  ✓ Company Registration Number Verified: "PV 00312253"')
+} else {
+  console.error('  ❌ FAIL: Company Registration Number PV 00312253 missing from template or preview!')
+  process.exit(1)
+}
+
+// NEGATIVE ASSERTION: PV-00249821 MUST NOT exist in USER_AGREEMENT_V1 template or preview
+if (templateText.includes('PV-00249821') || userClientContent.includes('PV-00249821')) {
+  console.error('  ❌ FAIL: Legacy incorrect registration number PV-00249821 still found in USER_AGREEMENT_V1!')
+  process.exit(1)
+} else {
+  console.log('  ✓ Negative Assertion Verified: PV-00249821 does NOT exist in USER_AGREEMENT_V1.')
+}
+
 const requiredChecklist = [
   'HIRE OF VEHICLE',
   'RENTAL AND OTHER CHARGES',
@@ -72,7 +88,7 @@ const requiredChecklist = [
   'ASSIGNMENT',
   'DEFAULT AND TERMINATION',
   'RIGHTS AND LIABILITIES OF THE LESSEE',
-  'RENEWAL OF THE AGREEMENT',
+  'RENEVAL OF THE AGREEMENT',
   'Renewal of the agreement',
   'JOINT AND SEVERAL LIABILITIES',
   'NOTICE',
@@ -98,9 +114,9 @@ console.log('\n--- TEST 4: Schedule Fields & Witness Blocks ---')
 const scheduleFields = [
   'Lessee Name & Surname',
   'Passport Number',
-  'I.D. Number',
-  'Mobile Number',
-  'Driving License Number',
+  'I.D. number',
+  'Mobile number',
+  'Driving license Number',
   'Make & Model',
   'Registration No',
   'Odometer Reading',

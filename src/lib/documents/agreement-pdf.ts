@@ -1,4 +1,5 @@
 import { jsPDF, LEGAL_MARGINS } from './pdf-engine'
+import { USER_AGREEMENT_COMPANY_REG_NO } from '@/lib/agreements/templates/user-agreement-v1'
 
 function formatDateSafe(val: any): string {
   if (!val) return 'N/A'
@@ -49,7 +50,7 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
 
   doc.setFontSize(9)
   doc.setTextColor(71, 85, 105)
-  doc.text(`39 A, 1st Cross Street, Pagoda Road, Nugegoda | Reg No. PV-00249821`, LEGAL_MARGINS.left, currentY + 4.5)
+  doc.text(`39A, 1st cross street, Pagoda Road, Nugegoda | Reg No. ${USER_AGREEMENT_COMPANY_REG_NO}`, LEGAL_MARGINS.left, currentY + 4.5)
 
   doc.setFontSize(12)
   doc.setTextColor(15, 23, 42)
