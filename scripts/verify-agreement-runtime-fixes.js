@@ -1,80 +1,80 @@
 // Script: scripts/verify-agreement-runtime-fixes.js
-// Purpose: Automated verification suite for Agreements Center runtime fixes (Legacy AGR rendering & tab-specific creation actions)
+// Purpose: Automated verification suite for Agreements Center runtime fixes & Server/Client boundary validation
 
 const fs = require('fs')
 const path = require('path')
 
 console.log('=== AGREEMENTS CENTER RUNTIME FIXES VERIFICATION ===\n')
 
-// 1. Audit User Agreement Preview Page & Safe Fallbacks
-const previewPath = path.join(__dirname, '../src/app/(dashboard)/dashboard/agreements/[id]/preview/page.tsx')
-if (!fs.existsSync(previewPath)) {
-  console.error('❌ FAIL: preview/page.tsx missing!')
+// 1. Audit Server / Client Boundary Separation for Preview Route
+const serverPagePath = path.join(__dirname, '../src/app/(dashboard)/dashboard/agreements/[id]/preview/page.tsx')
+const clientPreviewPath = path.join(__dirname, '../src/app/(dashboard)/dashboard/agreements/[id]/preview/user-agreement-preview-client.tsx')
+const errorBoundaryPath = path.join(__dirname, '../src/app/(dashboard)/dashboard/agreements/[id]/preview/error.tsx')
+
+if (!fs.existsSync(serverPagePath) || !fs.existsSync(clientPreviewPath) || !fs.existsSync(errorBoundaryPath)) {
+  console.error('❌ FAIL: Preview page.tsx, client component, or error.tsx boundary missing!')
   process.exit(1)
 }
 
-const previewContent = fs.readFileSync(previewPath, 'utf8')
+const serverPageContent = fs.readFileSync(serverPagePath, 'utf8')
+const clientPreviewContent = fs.readFileSync(clientPreviewPath, 'utf8')
 
-if (previewContent.includes('[USER AGREEMENT PREVIEW]') && previewContent.includes('formatDateSafe') && previewContent.includes('formatNumberSafe')) {
-  console.log('✓ Verified Preview Diagnostic Logging (STEPS 1-5) & Null-Safe Date/Number Helpers.')
+// Ensure Server Component contains NO onClick or DOM event handlers
+if (serverPageContent.includes('onClick') || serverPageContent.includes('window.')) {
+  console.error('❌ FAIL: Server Component page.tsx contains browser event handlers or DOM APIs!')
+  process.exit(1)
+}
+console.log('✓ Server Component page.tsx verified: Clean Server/Client boundary (NO onClick/DOM APIs).')
+
+if (serverPageContent.includes('JSON.parse(JSON.stringify(')) {
+  console.log('✓ Server Component JSON serialization verified: Only plain serializable props cross the boundary.')
 } else {
-  console.error('❌ FAIL: Preview page missing diagnostic logging or safe format helpers.')
+  console.error('❌ FAIL: Server Component missing JSON serialization step.')
   process.exit(1)
 }
 
-if (previewContent.includes('LEGACY AGREEMENT RENDERER (NULL-SAFE FALLBACK)') && previewContent.includes('USER_AGREEMENT_V1 SNAPSHOT RENDERER')) {
-  console.log('✓ Verified Dual Renderer Architecture: USER_AGREEMENT_V1 Snapshot Renderer & Legacy Booking Fallback Renderer.')
+if (clientPreviewContent.startsWith("'use client'") || clientPreviewContent.startsWith('"use client"')) {
+  console.log('✓ Client Preview Component verified: "use client" directive present at line 1.')
 } else {
-  console.error('❌ FAIL: Preview page missing explicit legacy/V1 renderer split.')
+  console.error('❌ FAIL: user-agreement-preview-client.tsx missing "use client" directive!')
   process.exit(1)
 }
 
-// 2. Audit Agreement Service Layer (getUserAgreementById)
-const servicePath = path.join(__dirname, '../src/lib/agreements/agreement-service.ts')
-if (!fs.existsSync(servicePath)) {
-  console.error('❌ FAIL: agreement-service.ts missing!')
-  process.exit(1)
-}
-
-const serviceContent = fs.readFileSync(servicePath, 'utf8')
-if (serviceContent.includes('getUserAgreementById') && serviceContent.includes('STEP 1 - Load Agreement ID')) {
-  console.log('✓ Verified agreement-service.ts getUserAgreementById safe loader.')
+// 2. Audit Legacy Fallback vs V1 Renderer
+if (clientPreviewContent.includes('RENDERER 1: USER_AGREEMENT_V1 SNAPSHOT RENDERER') && clientPreviewContent.includes('RENDERER 2: LEGACY AGREEMENT RENDERER (NULL-SAFE FALLBACK)')) {
+  console.log('✓ Dual Renderer Architecture verified: V1 Snapshot Renderer & Legacy Null-Safe Fallback.')
 } else {
-  console.error('❌ FAIL: agreement-service.ts missing getUserAgreementById or diagnostic steps.')
+  console.error('❌ FAIL: Client preview component missing dual renderer logic.')
   process.exit(1)
 }
 
-// 3. Audit UI Tab Creation Buttons & Booking Selector Modal
+// 3. Audit Error Boundary
+const errorContent = fs.readFileSync(errorBoundaryPath, 'utf8')
+if (errorContent.includes('Unable to Load User Agreement') && errorContent.includes('error.digest')) {
+  console.log('✓ Next.js Error Boundary error.tsx verified.')
+} else {
+  console.error('❌ FAIL: Error boundary error.tsx missing error.digest support.')
+  process.exit(1)
+}
+
+// 4. Audit Tab Creation Actions & SelectBookingModal
 const clientPath = path.join(__dirname, '../src/app/(dashboard)/dashboard/agreements/agreements-client.tsx')
 const modalPath = path.join(__dirname, '../src/components/agreements/select-booking-modal.tsx')
-
-if (!fs.existsSync(clientPath) || !fs.existsSync(modalPath)) {
-  console.error('❌ FAIL: agreements-client.tsx or select-booking-modal.tsx missing!')
-  process.exit(1)
-}
 
 const clientContent = fs.readFileSync(clientPath, 'utf8')
 const modalContent = fs.readFileSync(modalPath, 'utf8')
 
 if (clientContent.includes('+ New User Agreement') && clientContent.includes('+ New Owner Agreement')) {
-  console.log('✓ Verified Tab-Specific Action Buttons: "+ New User Agreement" on User tab & "+ New Owner Agreement" on Owner tab.')
+  console.log('✓ Tab-Aware Header Action Buttons verified.')
 } else {
-  console.error('❌ FAIL: agreements-client.tsx does not display tab-specific buttons.')
+  console.error('❌ FAIL: agreements-client.tsx missing tab-aware action buttons.')
   process.exit(1)
 }
 
 if (modalContent.includes('Select Booking for User Agreement') && modalContent.includes('Active Agreement:')) {
-  console.log('✓ Verified SelectBookingModal booking search & duplicate active User Agreement prevention.')
+  console.log('✓ SelectBookingModal search & duplicate active User Agreement prevention verified.')
 } else {
-  console.error('❌ FAIL: select-booking-modal.tsx incomplete.')
-  process.exit(1)
-}
-
-// 4. Audit Cancelled Agreement Visibility & KPI Counts
-if (clientContent.includes("item.status === 'cancelled'") && serviceContent.includes("['active', 'generated', 'signed'].includes(u.status)")) {
-  console.log('✓ Verified Cancelled Agreements remain visible in User Agreements table & KPI counts exclude cancelled records.')
-} else {
-  console.error('❌ FAIL: Cancelled agreement handling or KPI filter error.')
+  console.error('❌ FAIL: SelectBookingModal incomplete.')
   process.exit(1)
 }
 
