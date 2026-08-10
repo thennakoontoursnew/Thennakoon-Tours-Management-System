@@ -116,13 +116,18 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
       .replace(/{{LESSEE_ADDRESS}}/g, lessee.address || 'Sri Lanka')
       .replace(/{{LESSEE_MOBILE}}/g, lessee.mobile || 'N/A')
       .replace(/{{LESSEE_EMAIL}}/g, lessee.email || 'N/A')
+      .replace(/{{ALLOWED_KM_PER_DAY}}/g, String(rental.allowed_km_per_day || variables.allowed_km_per_day || 100))
       .replace(/{{EXTRA_KM_RATE}}/g, String(rental.extra_km_rate || 75))
       .replace(/{{SECURITY_DEPOSIT}}/g, formatNumberSafe(rental.security_deposit || 50000))
       .replace(/{{SECURITY_DEPOSIT_HOLD_DAYS}}/g, String(variables.security_deposit_hold_days || 14))
-      .replace(/{{COMPANY_BANK_DETAILS}}/g, variables.company_bank_details || 'Nations Trust Bank - Nugegoda Branch, Account # 100530013140')
-      .replace(/{{INSURANCE_EXCESS}}/g, formatNumberSafe(variables.insurance_excess || 25000))
-      .replace(/{{MINOR_REPAIR_LIMIT}}/g, formatNumberSafe(variables.minor_repair_limit || 5000))
-      .replace(/{{FULL_INTERIOR_CLEANING_FEE}}/g, formatNumberSafe(variables.full_interior_cleaning_fee || 7500))
+      .replace(/{{COMPANY_BANK_DETAILS}}/g, variables.company_bank_details || 'Nations Trust Bank - Nugegoda Branch, Account # 100530013140, Swift Code: NTBCLKLX, Thennakoon Tours (Pvt) Ltd')
+      .replace(/{{INSURANCE_EXCESS}}/g, formatNumberSafe(variables.insurance_excess || 15000))
+      .replace(/{{MINOR_ACCIDENT_THRESHOLD}}/g, formatNumberSafe(variables.minor_accident_threshold || 25000))
+      .replace(/{{THIRD_PARTY_INSURANCE_COVER}}/g, formatNumberSafe(variables.third_party_insurance_cover || 500000))
+      .replace(/{{ADDITIONAL_DRIVER_FEE}}/g, formatNumberSafe(variables.additional_driver_fee || 5000))
+      .replace(/{{MINOR_REPAIR_LIMIT}}/g, formatNumberSafe(variables.minor_repair_limit || 13500))
+      .replace(/{{CLEANING_FEE}}/g, formatNumberSafe(variables.cleaning_fee || 1500))
+      .replace(/{{FULL_INTERIOR_CLEANING_FEE}}/g, formatNumberSafe(variables.full_interior_cleaning_fee || 12000))
   }
 
   return (

@@ -29,16 +29,17 @@ export const USER_AGREEMENT_CLAUSES: LegalClause[] = [
     number: '2',
     title: 'RENTAL AND OTHER CHARGES',
     content: `2.1 The Lessee shall pay to the Lessor the rental charges, security deposit, advance payment, and all other applicable fees specified in the Schedule hereto in accordance with the payment schedule agreed upon.
-2.2 If the Vehicle is used beyond the agreed mileage limit specified in the Schedule, the Lessee shall pay an excess mileage charge at the rate of LKR {{EXTRA_KM_RATE}} per additional kilometer.
-2.3 The security deposit of LKR {{SECURITY_DEPOSIT}} shall be held by the Lessor as security for the due performance of the Lessee's obligations hereunder. The Lessor shall be entitled to deduct from the security deposit any unpaid rental charges, excess mileage charges, traffic fines, damage costs, cleaning fees, or other liabilities incurred by the Lessee. The balance, if any, shall be refunded to the Lessee within {{SECURITY_DEPOSIT_HOLD_DAYS}} days after the safe return of the Vehicle.
+2.2 If the Vehicle is used beyond the agreed mileage limit specified in the Schedule (standard {{ALLOWED_KM_PER_DAY}} KM per day), the Lessee shall pay an excess mileage charge at the rate of LKR {{EXTRA_KM_RATE}} per additional kilometer.
+2.3 The security deposit of LKR {{SECURITY_DEPOSIT}} shall be held by the Lessor as security for the due performance of the Lessee's obligations hereunder. The Lessor shall be entitled to deduct from the security deposit any unpaid rental charges, excess mileage charges, traffic fines, damage costs, cleaning fees (standard vehicle return cleaning LKR {{CLEANING_FEE}}), or other liabilities incurred by the Lessee. The balance, if any, shall be refunded to the Lessee within {{SECURITY_DEPOSIT_HOLD_DAYS}} days after the safe return of the Vehicle.
 2.4 All payments shall be made into the Lessor's designated bank account: {{COMPANY_BANK_DETAILS}} or by official payment methods authorized by the Lessor.`,
   },
   {
     number: '3',
     title: 'LICENSE AND INSURANCE',
-    content: `3.1 The Lessee warrants that the Lessee and any Nominated Driver listed in the Schedule holds a valid Sri Lankan Driving License or International Driving Permit recognized under Sri Lankan law for the class of vehicle hired.
-3.2 The Vehicle is insured under a Comprehensive Motor Insurance Policy. In the event of any damage, accident, loss, or theft involving the Vehicle, the Lessee shall be liable for the insurance excess deductible amount of LKR {{INSURANCE_EXCESS}} per incident.
-3.3 The insurance policy shall become void and the Lessee shall be fully liable for all loss, damage, legal costs, and third-party claims if the Vehicle is driven by an unnominated driver, driven under the influence of alcohol or drugs, driven off-road or illegally, or used in breach of any provision of this Agreement.`,
+    content: `3.1 The Lessee warrants that the Lessee and any Nominated Driver listed in the Schedule holds a valid Sri Lankan Driving License or International Driving Permit recognized under Sri Lankan law for the class of vehicle hired. Additional nominated drivers are subject to a fee of LKR {{ADDITIONAL_DRIVER_FEE}} per driver.
+3.2 The Vehicle is insured under a Comprehensive Motor Insurance Policy (with third-party cover reference of LKR {{THIRD_PARTY_INSURANCE_COVER}}). In the event of any damage, accident, loss, or theft involving the Vehicle, the Lessee shall be liable for the insurance claim excess deductible amount of LKR {{INSURANCE_EXCESS}} per incident.
+3.3 For minor accident damage below the threshold of LKR {{MINOR_ACCIDENT_THRESHOLD}}, the Lessee remains fully responsible for direct repair costs without insurance claim filing.
+3.4 The insurance policy shall become void and the Lessee shall be fully liable for all loss, damage, legal costs, and third-party claims if the Vehicle is driven by an unnominated driver, driven under the influence of alcohol or drugs, driven off-road or illegally, or used in breach of any provision of this Agreement.`,
   },
   {
     number: '4',
@@ -57,7 +58,7 @@ export const USER_AGREEMENT_CLAUSES: LegalClause[] = [
     (c) Use the Vehicle for racing, speed testing, rally driving, towing, or off-road driving;
     (d) Transport contraband, hazardous materials, explosives, or illegal substances;
     (e) Allow any person other than the Lessee or Nominated Drivers listed in the Schedule to operate the Vehicle;
-    (f) Smoke, consume alcohol, or carry pets inside the Vehicle without explicit written permission. A professional interior cleaning charge of LKR {{FULL_INTERIOR_CLEANING_FEE}} shall apply if this clause is breached.`,
+    (f) Smoke, consume alcohol, or carry pets inside the Vehicle without explicit written permission. A professional full interior cleaning charge of LKR {{FULL_INTERIOR_CLEANING_FEE}} shall apply if this clause is breached.`,
   },
   {
     number: '6',

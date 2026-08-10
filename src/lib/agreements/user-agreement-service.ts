@@ -101,11 +101,14 @@ export interface UserAgreementFormData {
   variables: {
     minor_repair_limit: number
     insurance_excess: number
+    minor_accident_threshold: number
     cleaning_fee: number
     full_interior_cleaning_fee: number
     additional_driver_fee: number
     security_deposit_hold_days: number
     notice_period_days: number
+    allowed_km_per_day: number
+    third_party_insurance_cover: number
     agreement_location: string
     company_hotline: string
     company_bank_details: string
@@ -260,17 +263,21 @@ export async function getInitialUserAgreementFormData(
       witness_2: { name: '', address: '', mobile: '' },
     },
 
+    // Audited monetary values from official source template
     variables: {
-      minor_repair_limit: companySettings?.default_minor_repair_limit || 5000,
-      insurance_excess: companySettings?.default_insurance_excess || 25000,
-      cleaning_fee: companySettings?.default_cleaning_fee || 3500,
-      full_interior_cleaning_fee: companySettings?.default_full_interior_cleaning_fee || 7500,
-      additional_driver_fee: companySettings?.default_additional_driver_fee || 2500,
+      minor_repair_limit: companySettings?.default_minor_repair_limit || 13500,
+      insurance_excess: companySettings?.default_insurance_excess || 15000,
+      minor_accident_threshold: companySettings?.default_minor_accident_threshold || 25000,
+      cleaning_fee: companySettings?.default_cleaning_fee || 1500,
+      full_interior_cleaning_fee: companySettings?.default_full_interior_cleaning_fee || 12000,
+      additional_driver_fee: companySettings?.default_additional_driver_fee || 5000,
       security_deposit_hold_days: companySettings?.default_security_deposit_hold_days || 14,
       notice_period_days: companySettings?.default_notice_period_days || 30,
+      allowed_km_per_day: 100,
+      third_party_insurance_cover: 500000,
       agreement_location: companySettings?.default_agreement_location || 'Nugegoda, Sri Lanka',
       company_hotline: companySettings?.default_company_hotline || '+94 112 823 723 / +94 760 080 155',
-      company_bank_details: companySettings?.default_agreement_bank_info || 'Nations Trust Bank - Nugegoda Branch, Account # 100530013140, Swift Code: NTBCLKLX',
+      company_bank_details: companySettings?.default_agreement_bank_info || 'Nations Trust Bank - Nugegoda Branch, Account # 100530013140, Swift Code: NTBCLKLX, Thennakoon Tours (Pvt) Ltd',
     },
   }
 }
