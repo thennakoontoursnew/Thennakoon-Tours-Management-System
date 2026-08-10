@@ -134,7 +134,7 @@ export async function createAgreementFromBooking(bookingId: string) {
 }
 
 // =============================================
-// CREATE OWNER AGREEMENT (OAG-YYYY-XXXXXX)
+// CREATE OWNER AGREEMENT (OAG-YYYY-XXXXXX) WITH OVERLAP CHECK
 // =============================================
 export async function createOwnerAgreementAction(data: {
   vehicle_owner_id: string
@@ -159,6 +159,32 @@ export async function createOwnerAgreementAction(data: {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated.' }
+
+    // Overlap validation: Check if selected vehicle(s) already have an active Owner Agreement
+    if (data.vehicle_ids && data.vehicle_ids.length > 0) {
+      const { data: overlappingVehicles } = await supabase
+        .from('owner_agreement_vehicles')
+        .select('vehicle_id, agreement:owner_agreements!inner(id, agreement_number, status, vehicle_owner:vehicle_owners(full_name))')
+        .in('vehicle_id', data.vehicle_ids)
+
+      if (overlappingVehicles && overlappingVehicles.length > 0) {
+        const activeOverlap = overlappingVehicles.find((ov: any) => {
+          const agr = Array.isArray(ov.agreement) ? ov.agreement[0] : ov.agreement
+          return agr?.status === 'active'
+        })
+
+        if (activeOverlap) {
+          const agrObj: any = Array.isArray(activeOverlap.agreement) ? activeOverlap.agreement[0] : activeOverlap.agreement
+          const ownerObj: any = Array.isArray(agrObj?.vehicle_owner) ? agrObj.vehicle_owner[0] : agrObj?.vehicle_owner
+          const agrNum = agrObj?.agreement_number || 'OAG-XXXX'
+          const ownerName = ownerObj?.full_name || 'Owner'
+          return {
+            success: false,
+            error: `Selected vehicle already has an active Owner Agreement (${agrNum} — ${ownerName}). Overlapping active agreements are not allowed.`,
+          }
+        }
+      }
+    }
 
     // Generate atomic Owner Agreement Number
     let oagNumber = `OAG-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`

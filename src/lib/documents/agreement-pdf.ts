@@ -1,4 +1,4 @@
-import { jsPDF, getLetterheadBase64, A4_MARGINS } from './pdf-engine'
+import { jsPDF, getLetterheadBase64, LEGAL_MARGINS, drawLetterheadOnLegalPage } from './pdf-engine'
 
 function formatDateSafe(val: any): string {
   if (!val) return 'N/A'
@@ -32,34 +32,39 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
     throw new Error('Agreement data missing')
   }
 
-  const doc = new jsPDF('p', 'mm', 'a4')
+  // Create US Legal Size PDF: 8.5 x 14 in (215.9 x 355.6 mm)
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: [215.9, 355.6],
+  })
 
-  console.log('Rendering Page 1')
+  console.log('Rendering Legal Page 1')
 
-  // STEP 1: Draw Letterhead Background Image FIRST before any content
+  // STEP 1: Draw Letterhead Background Image FIRST on US Legal canvas
   const base64Letterhead = await getLetterheadBase64()
   if (base64Letterhead) {
-    doc.addImage(base64Letterhead, 'PNG', 0, 0, 210, 297)
+    drawLetterheadOnLegalPage(doc, base64Letterhead)
   }
 
-  let currentY = A4_MARGINS.top
+  let currentY = LEGAL_MARGINS.top
 
   // STEP 2: Draw Header Title & Document Number
   console.log('Rendering Header')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
   doc.setTextColor(15, 23, 42) // Dark Slate
-  doc.text('VEHICLE RENTAL AGREEMENT', A4_MARGINS.left, currentY)
+  doc.text('VEHICLE RENTAL AGREEMENT', LEGAL_MARGINS.left, currentY)
 
   doc.setFontSize(10)
   doc.setTextColor(71, 85, 105)
-  doc.text(`Agreement No: ${agreement.agreement_number || 'N/A'}`, A4_MARGINS.right, currentY, { align: 'right' })
+  doc.text(`Agreement No: ${agreement.agreement_number || 'N/A'}`, LEGAL_MARGINS.right, currentY, { align: 'right' })
 
   currentY += 6
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
-  doc.text(`Date: ${agreement.agreement_date || new Date().toISOString().split('T')[0]}`, A4_MARGINS.left, currentY)
+  doc.text(`Date: ${agreement.agreement_date || new Date().toISOString().split('T')[0]}`, LEGAL_MARGINS.left, currentY)
 
   currentY += 8
 
@@ -71,30 +76,30 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
 
   doc.setFillColor(248, 250, 252)
   doc.setDrawColor(226, 232, 240)
-  doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, 36, 2, 2, 'FD')
+  doc.roundedRect(LEGAL_MARGINS.left, currentY, LEGAL_MARGINS.width, 36, 2, 2, 'FD')
 
   let boxY = currentY + 5
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   doc.setTextColor(15, 23, 42)
-  doc.text(`HIRER: ${customer.full_name || 'N/A'}`, A4_MARGINS.left + 4, boxY)
-  doc.text(`NIC/Passport: ${customer.nic || customer.passport_number || 'N/A'}`, A4_MARGINS.left + 100, boxY)
+  doc.text(`HIRER: ${customer.full_name || 'N/A'}`, LEGAL_MARGINS.left + 4, boxY)
+  doc.text(`NIC/Passport: ${customer.nic || customer.passport_number || 'N/A'}`, LEGAL_MARGINS.left + 100, boxY)
 
   boxY += 5
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(71, 85, 105)
-  doc.text(`Phone: ${customer.mobile || customer.phone || 'N/A'}`, A4_MARGINS.left + 4, boxY)
-  doc.text(`Address: ${customer.address || customer.address_line_1 || 'Sri Lanka'}`, A4_MARGINS.left + 100, boxY)
+  doc.text(`Phone: ${customer.mobile || customer.phone || 'N/A'}`, LEGAL_MARGINS.left + 4, boxY)
+  doc.text(`Address: ${customer.address || customer.address_line_1 || 'Sri Lanka'}`, LEGAL_MARGINS.left + 100, boxY)
 
   boxY += 5
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(15, 23, 42)
-  doc.text(`RENTAL PERIOD:`, A4_MARGINS.left + 4, boxY)
+  doc.text(`RENTAL PERIOD:`, LEGAL_MARGINS.left + 4, boxY)
   doc.setFont('helvetica', 'normal')
   const startStr = formatDateSafe(agreement.rental_start_at || booking.rental_start_at)
   const endStr = formatDateSafe(agreement.rental_end_at || booking.rental_end_at)
-  doc.text(`${startStr} to ${endStr}`, A4_MARGINS.left + 35, boxY)
+  doc.text(`${startStr} to ${endStr}`, LEGAL_MARGINS.left + 35, boxY)
 
   // STEP 4: Vehicle Details Section
   console.log('Rendering Vehicle')
@@ -104,9 +109,9 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
     const vInfo = firstV.vehicle ? `${firstV.vehicle.vehicle_name} (${firstV.vehicle.registration_number})` : 'Allocated Vehicle'
     const dInfo = firstV.driver ? `Driver: ${firstV.driver.full_name} (${firstV.driver.driver_code})` : 'Driver: Self Drive / Unassigned'
     doc.setFont('helvetica', 'bold')
-    doc.text(`VEHICLE: ${vInfo}`, A4_MARGINS.left + 4, boxY)
+    doc.text(`VEHICLE: ${vInfo}`, LEGAL_MARGINS.left + 4, boxY)
     doc.setFont('helvetica', 'normal')
-    doc.text(dInfo, A4_MARGINS.left + 100, boxY)
+    doc.text(dInfo, LEGAL_MARGINS.left + 100, boxY)
   }
 
   currentY += 42
@@ -116,9 +121,9 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8.5)
     doc.setTextColor(15, 23, 42)
-    doc.text(`GRAND TOTAL: LKR ${formatNumberSafe(booking.grand_total)}`, A4_MARGINS.left, currentY)
-    doc.text(`ADVANCE PAID: LKR ${formatNumberSafe(booking.advance_paid)}`, A4_MARGINS.left + 65, currentY)
-    doc.text(`BALANCE DUE: LKR ${formatNumberSafe(booking.balance_due)}`, A4_MARGINS.left + 130, currentY)
+    doc.text(`GRAND TOTAL: LKR ${formatNumberSafe(booking.grand_total)}`, LEGAL_MARGINS.left, currentY)
+    doc.text(`ADVANCE PAID: LKR ${formatNumberSafe(booking.advance_paid)}`, LEGAL_MARGINS.left + 65, currentY)
+    doc.text(`BALANCE DUE: LKR ${formatNumberSafe(booking.balance_due)}`, LEGAL_MARGINS.left + 130, currentY)
     currentY += 8
   }
 
@@ -127,7 +132,7 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.5)
   doc.setTextColor(15, 23, 42)
-  doc.text('TERMS AND CONDITIONS:', A4_MARGINS.left, currentY)
+  doc.text('TERMS AND CONDITIONS:', LEGAL_MARGINS.left, currentY)
 
   currentY += 4
 
@@ -135,31 +140,31 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
   doc.setFontSize(7.5)
   doc.setTextColor(71, 85, 105)
   const terms = agreement.terms_snapshot || companySettings?.default_agreement_terms || ''
-  const splitTerms = doc.splitTextToSize(terms, A4_MARGINS.width)
-  doc.text(splitTerms, A4_MARGINS.left, currentY)
+  const splitTerms = doc.splitTextToSize(terms, LEGAL_MARGINS.width)
+  doc.text(splitTerms, LEGAL_MARGINS.left, currentY)
 
-  currentY += Math.min(splitTerms.length * 3.5, 80) + 15
+  currentY += Math.min(splitTerms.length * 3.5, 120) + 15
 
   // STEP 6: Footer / Signature Section
   console.log('Rendering Footer')
-  const sigY = Math.max(currentY, 225)
+  const sigY = Math.max(currentY, 290)
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.5)
   doc.setTextColor(15, 23, 42)
 
   // Customer Signature
-  doc.line(A4_MARGINS.left, sigY, A4_MARGINS.left + 65, sigY)
-  doc.text('Signature of Hirer', A4_MARGINS.left, sigY + 4)
+  doc.line(LEGAL_MARGINS.left, sigY, LEGAL_MARGINS.left + 65, sigY)
+  doc.text('Signature of Hirer', LEGAL_MARGINS.left, sigY + 4)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
-  doc.text(`Date: ${agreement.agreement_date || ''}`, A4_MARGINS.left, sigY + 8)
+  doc.text(`Date: ${agreement.agreement_date || ''}`, LEGAL_MARGINS.left, sigY + 8)
 
   // Company Signature
-  const compX = A4_MARGINS.right - 65
+  const compX = LEGAL_MARGINS.right - 65
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.5)
-  doc.line(compX, sigY, A4_MARGINS.right, sigY)
+  doc.line(compX, sigY, LEGAL_MARGINS.right, sigY)
   doc.text('For Thennakoon Tours (Pvt) Ltd', compX, sigY + 4)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
