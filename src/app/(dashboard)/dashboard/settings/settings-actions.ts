@@ -3,66 +3,96 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
+// =============================================
+// SAVE COMPANY SETTINGS (FORM DATA HANDLER)
+// =============================================
 export async function saveCompanySettings(formData: FormData) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const companyName = formData.get('company_name')?.toString() || 'Thennakoon Tours'
+  const address = formData.get('address')?.toString() || null
+  const phonePrimary = formData.get('phone_primary')?.toString() || null
+  const phoneSecondary = formData.get('phone_secondary')?.toString() || null
+  const whatsappNumber = formData.get('whatsapp_number')?.toString() || null
+  const email = formData.get('email')?.toString() || null
+  const website = formData.get('website')?.toString() || null
+  const currency = formData.get('currency')?.toString() || 'LKR'
+  const timezone = formData.get('timezone')?.toString() || 'Asia/Colombo'
+  const quotationPrefix = formData.get('quotation_prefix')?.toString() || 'QT'
+  const invoicePrefix = formData.get('invoice_prefix')?.toString() || 'TT-IN-'
+  const receiptPrefix = formData.get('receipt_prefix')?.toString() || 'RCPT'
 
-  if (!user) return { success: false, error: 'Not authenticated.' }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile || profile.role !== 'owner') {
-    return { success: false, error: 'Unauthorized.' }
-  }
-
-  const invoicePrefix = ((formData.get('invoice_prefix') as string) || 'TT-IN-').trim().toUpperCase()
-  const allowManualEdit = (formData.get('allow_manual_edit') as string) === 'true'
-
-  const updates = {
-    company_name: formData.get('company_name') as string,
-    address: formData.get('address') as string,
-    phone_primary: formData.get('phone_primary') as string,
-    phone_secondary: formData.get('phone_secondary') as string,
-    whatsapp_number: formData.get('whatsapp_number') as string,
-    email: formData.get('email') as string,
-    website: formData.get('website') as string,
-    currency: formData.get('currency') as string,
-    timezone: formData.get('timezone') as string,
-    quotation_prefix: formData.get('quotation_prefix') as string,
-    invoice_prefix: invoicePrefix,
-    receipt_prefix: formData.get('receipt_prefix') as string,
-  }
-
+  // Update company_settings table
   const { error } = await supabase
     .from('company_settings')
-    .update(updates)
-    .eq('id', '00000000-0000-0000-0000-000000000000')
+    .upsert({
+      company_name: companyName,
+      address,
+      phone_primary: phonePrimary,
+      phone_secondary: phoneSecondary,
+      whatsapp_number: whatsappNumber,
+      email,
+      website,
+      currency,
+      timezone,
+      quotation_prefix: quotationPrefix,
+      invoice_prefix: invoicePrefix,
+      receipt_prefix: receiptPrefix,
+      updated_at: new Date().toISOString(),
+    })
 
-  if (error) return { success: false, error: error.message }
-
-  // Update or Insert into number_counters for invoice
-  await supabase.from('number_counters').upsert({
-    document_type: 'invoice',
-    prefix: invoicePrefix,
-    allow_manual_edit: allowManualEdit,
-    updated_at: new Date().toISOString(),
-  })
-
-  // Audit log
-  await supabase.rpc('log_audit_action_internal', {
-    p_action: 'UPDATE_COMPANY_SETTINGS',
-    p_entity_type: 'company_settings',
-    p_entity_id: null,
-    p_description: 'Owner updated company & invoice numbering settings',
-  })
+  if (error) return { error: error.message }
 
   revalidatePath('/dashboard/settings')
+  return { success: true }
+}
+
+// =============================================
+// UPDATE SYSTEM SETTINGS
+// =============================================
+export async function updateSystemSettingsAction(settingKey: string, settingValue: any) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { error } = await supabase
+    .from('system_settings')
+    .upsert({ setting_key: settingKey, setting_value: settingValue, updated_at: new Date().toISOString() }, { onConflict: 'setting_key' })
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/dashboard/settings')
+  return { success: true }
+}
+
+// =============================================
+// UPDATE ROLE PERMISSIONS MATRIX
+// =============================================
+export async function updateRolePermissionsAction(role: string, moduleName: string, permissions: { can_view: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean }) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { error } = await supabase
+    .from('role_permissions')
+    .upsert(
+      {
+        role,
+        module: moduleName,
+        can_view: permissions.can_view,
+        can_create: permissions.can_create,
+        can_edit: permissions.can_edit,
+        can_delete: permissions.can_delete,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'role,module' }
+    )
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard/users')
   return { success: true }
 }
