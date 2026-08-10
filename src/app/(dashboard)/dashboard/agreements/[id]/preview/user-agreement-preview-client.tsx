@@ -83,13 +83,13 @@ export function UserAgreementPreviewClient({
 
   const handlePrint = () => {
     if (typeof window !== 'undefined') {
-      window.print()
+      window.open(`/print/user-agreement/${activeAgreementData.id}`, '_blank')
     }
   }
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 p-4 md:p-8 flex flex-col items-center">
-      {/* Strict Print CSS hiding ALL application UI chrome */}
+      {/* Print CSS hiding ALL application UI chrome */}
       <style jsx global>{`
         @media print {
           @page {
@@ -256,18 +256,37 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
 
   const replaceTokens = (str: string) => {
     if (!str) return ''
+    const lesseeName = lessee.full_name || 'Lessee'
+    const lesseeId = lessee.identifier_no || lessee.nic || lessee.passport_number || 'N/A'
+    const lesseeAddr = lessee.address || 'Sri Lanka'
+    const rentalStart = formatDateSafe(agreement.rental_start_at)
+    const rentalEnd = formatDateSafe(agreement.rental_end_at)
+    const rentalPeriod = String(rental.rental_period_days || 30)
+    const rentalAmount = formatNumberSafe(rental.monthly_rental_rate || rental.daily_rental_rate || 7500)
+    const dueDateDay = String(variables.due_date_day || '1st')
+    const extraKmRate = String(rental.extra_km_rate || 75)
+    const minorAccidentThreshold = formatNumberSafe(variables.minor_accident_threshold || 25000)
+
     return str
       .replace(/{{AGREEMENT_NUMBER}}/g, agreement.agreement_number || 'N/A')
       .replace(/{{AGREEMENT_DATE}}/g, agreement.agreement_date || formatDateSafe(new Date()))
-      .replace(/{{RENTAL_START}}/g, formatDateSafe(agreement.rental_start_at))
-      .replace(/{{RENTAL_END}}/g, formatDateSafe(agreement.rental_end_at))
-      .replace(/{{RENTAL_PERIOD_DAYS}}/g, String(rental.rental_period_days || 30))
-      .replace(/{{MONTHLY_OR_DAILY_RENTAL}}/g, formatNumberSafe(rental.monthly_rental_rate || rental.daily_rental_rate || 7500))
-      .replace(/{{DUE_DATE_DAY}}/g, String(variables.due_date_day || '1st'))
-      .replace(/{{LESSEE_FULL_NAME}}/g, lessee.full_name || 'Lessee')
-      .replace(/{{LESSEE_IDENTIFIER_NO}}/g, lessee.identifier_no || lessee.nic || lessee.passport_number || 'N/A')
-      .replace(/{{EXTRA_KM_RATE}}/g, String(rental.extra_km_rate || 75))
-      .replace(/{{MINOR_ACCIDENT_THRESHOLD}}/g, formatNumberSafe(variables.minor_accident_threshold || 25000))
+      .replace(/{{RENTAL_START}}/g, rentalStart)
+      .replace(/{{RENTAL_END}}/g, rentalEnd)
+      .replace(/{{RENTAL_PERIOD_DAYS}}/g, rentalPeriod)
+      .replace(/{{MONTHLY_OR_DAILY_RENTAL}}/g, rentalAmount)
+      .replace(/{{DUE_DATE_DAY}}/g, dueDateDay)
+      .replace(/{{LESSEE_FULL_NAME}}/g, lesseeName)
+      .replace(/{{LESSEE_IDENTIFIER_NO}}/g, lesseeId)
+      .replace(/{{EXTRA_KM_RATE}}/g, extraKmRate)
+      .replace(/{{MINOR_ACCIDENT_THRESHOLD}}/g, minorAccidentThreshold)
+      // Source placeholder variations
+      .replace(/\(FULL NAME OF USER\)/gi, lesseeName)
+      .replace(/\(USER FULL ADDRESS\)/gi, lesseeAddr)
+      .replace(/\(Name of the Lessee\)/gi, lesseeName)
+      .replace(/\(RENTAL STARTING DATE AND YEAR\)/gi, rentalStart)
+      .replace(/\(PERIOD\)/gi, `${rentalPeriod} days`)
+      .replace(/\(RENTAL AMAOUNT\)/gi, `LKR ${rentalAmount}`)
+      .replace(/\(RENTAL DATE ONLY\)/gi, dueDateDay)
   }
 
   return (
@@ -297,13 +316,13 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
         </h2>
         <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded border border-slate-200 text-[11px]">
           <div><span className="font-bold text-slate-500 block">Lessee Name & Surname:</span><span className="font-bold">{lessee.full_name || 'N/A'}</span></div>
-          <div><span className="font-bold text-slate-500 block">Passport Number:</span><span className="font-mono">{lessee.passport_number || 'N/A'}</span></div>
+          <div><span className="font-bold text-slate-500 block">Passport Number:</span><span className="font-mono">{lessee.passport_number || '........................'}</span></div>
           <div><span className="font-bold text-slate-500 block">I.D. number:</span><span className="font-mono font-bold">{lessee.nic || lessee.identifier_no || 'N/A'}</span></div>
           <div><span className="font-bold text-slate-500 block">Mobile number:</span><span>{lessee.mobile || 'N/A'}</span></div>
-          <div><span className="font-bold text-slate-500 block">Fixed Line/Relative:</span><span>{lessee.fixed_line || 'N/A'}</span></div>
-          <div><span className="font-bold text-slate-500 block">E-mail address:</span><span>{lessee.email || 'N/A'}</span></div>
+          <div><span className="font-bold text-slate-500 block">Fixed Line/Relative:</span><span>{lessee.fixed_line || '........................'}</span></div>
+          <div><span className="font-bold text-slate-500 block">E-mail address:</span><span>{lessee.email || '........................'}</span></div>
           <div className="col-span-2"><span className="font-bold text-slate-500 block">Registered post address:</span><span>{lessee.address || 'Sri Lanka'}</span></div>
-          <div><span className="font-bold text-slate-500 block">Driving license Number:</span><span className="font-mono font-bold">{lessee.driving_license_number || 'N/A'}</span></div>
+          <div><span className="font-bold text-slate-500 block">Driving license Number:</span><span className="font-mono font-bold">{lessee.driving_license_number || '........................'}</span></div>
           <div><span className="font-bold text-slate-500 block">License & Insurance of vehicle:</span><span className="italic text-slate-600">Received at delivery, Signature...........</span></div>
 
           <div className="col-span-2 border-t border-slate-200 my-1 pt-2 font-bold text-slate-700 uppercase">Vehicle & Rental Details</div>
@@ -318,12 +337,12 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
           <div><span className="font-bold text-slate-500 block">Daily Rental Fee:</span><span className="font-mono">LKR {formatNumberSafe(rental.daily_rental_rate || 7500)}</span></div>
           <div><span className="font-bold text-slate-500 block">Security Deposit:</span><span className="font-mono">LKR {formatNumberSafe(rental.security_deposit || 50000)}</span></div>
           <div><span className="font-bold text-slate-500 block">Extra Mileage Fee:</span><span className="font-mono">Rs {rental.extra_km_rate || 75}/=</span></div>
-          <div><span className="font-bold text-slate-500 block">Deliver Fee:</span><span>To: {rental.delivery_fee ? `LKR ${formatNumberSafe(rental.delivery_fee)}` : 'N/A'}</span></div>
-          <div><span className="font-bold text-slate-500 block">Pick up fee:</span><span>From (8.am to 6.P.M): {rental.pickup_fee ? `LKR ${formatNumberSafe(rental.pickup_fee)}` : 'N/A'}</span></div>
+          <div><span className="font-bold text-slate-500 block">Deliver Fee:</span><span>To: {rental.delivery_fee ? `LKR ${formatNumberSafe(rental.delivery_fee)}` : '........................'}</span></div>
+          <div><span className="font-bold text-slate-500 block">Pick up fee:</span><span>From (8.am to 6.P.M): {rental.pickup_fee ? `LKR ${formatNumberSafe(rental.pickup_fee)}` : '........................'}</span></div>
           <div><span className="font-bold text-slate-500 block">Advance:</span><span className="font-mono">LKR {formatNumberSafe(rental.advance_paid || 0)}</span></div>
           <div><span className="font-bold text-slate-500 block">Time:</span><span>09:00 AM</span></div>
-          <div className="col-span-2"><span className="font-bold text-slate-500 block">Inventory Remarks:</span><span>Refer delivery and return note</span></div>
-          <div className="col-span-2"><span className="font-bold text-slate-500 block">Special Note:</span><span>{agreement.special_notes || ''}</span></div>
+          <div className="col-span-2"><span className="font-bold text-slate-500 block">Inventory Remarks:</span><span>{agreement.inventory_remarks || 'Refer delivery and return note'}</span></div>
+          <div className="col-span-2"><span className="font-bold text-slate-500 block">Special Note:</span><span>{agreement.special_notes || '........................'}</span></div>
         </div>
       </div>
 
@@ -345,8 +364,8 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
               drivers.map((d: any, idx: number) => (
                 <tr key={idx} className="border-b border-slate-100">
                   <td className="p-2 font-bold">{d.name}</td>
-                  <td className="p-2 font-mono">{d.license_number}</td>
-                  <td className="p-2">{d.mobile}</td>
+                  <td className="p-2 font-mono">{d.license_number || '........................'}</td>
+                  <td className="p-2">{d.mobile || '........................'}</td>
                 </tr>
               ))
             ) : (
