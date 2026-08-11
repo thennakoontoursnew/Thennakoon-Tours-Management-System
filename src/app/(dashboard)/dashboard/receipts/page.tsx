@@ -1,23 +1,57 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { Printer, Eye, FileCheck2 } from 'lucide-react'
+import { WalletCards, Printer, Search, Send } from 'lucide-react'
 
-export default async function ReceiptsPage() {
+interface PageProps {
+  searchParams: Promise<{ q?: string }>
+}
+
+export default async function ReceiptsPage({ searchParams }: PageProps) {
+  const { q } = await searchParams
   const supabase = await createClient()
 
-  const { data: receipts } = await supabase
+  let query = supabase
     .from('receipts')
-    .select('*, customer:customers(full_name, mobile)')
+    .select('*, customer:customers(full_name, mobile, whatsapp)')
     .order('created_at', { ascending: false })
 
+  if (q) {
+    query = query.or(`receipt_number.ilike.%${q}%`)
+  }
+
+  const { data: receipts } = await query
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-black text-slate-900 dark:text-white">Payment Receipts</h1>
-        <p className="text-xs text-slate-500">Official proof-of-payment receipts generated for customer transactions.</p>
+    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-amber-400/10 text-amber-500 dark:text-amber-400">
+            <WalletCards size={22} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 dark:text-white">Payment Receipts</h1>
+            <p className="text-xs text-slate-500 mt-0.5">Official proof-of-payment receipts generated for customer transactions.</p>
+          </div>
+        </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-sm">
+      {/* Filter Bar */}
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800">
+        <form method="GET" className="relative max-w-md">
+          <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+          <input
+            type="text"
+            name="q"
+            defaultValue={q || ''}
+            placeholder="Search receipt number..."
+            className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          />
+        </form>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
         {receipts && receipts.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
@@ -27,40 +61,59 @@ export default async function ReceiptsPage() {
                   <th className="py-3.5 px-4">Customer</th>
                   <th className="py-3.5 px-4">Payment Method</th>
                   <th className="py-3.5 px-4">Amount Paid</th>
-                  <th className="py-3.5 px-4">Date</th>
+                  <th className="py-3.5 px-4">Receipt Date</th>
                   <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-slate-700 dark:text-slate-300">
-                {receipts.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-bold text-amber-500">{item.receipt_number}</td>
-                    <td className="py-3.5 px-4">
-                      <div className="font-bold text-slate-900 dark:text-white">{item.customer?.full_name || 'N/A'}</div>
-                      <div className="text-[11px] text-slate-400">{item.customer?.mobile}</div>
-                    </td>
-                    <td className="py-3.5 px-4 uppercase font-semibold text-slate-600 dark:text-slate-400">{item.payment_method}</td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-emerald-500">
-                      LKR {Number(item.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-400">{new Date(item.receipt_date || item.created_at).toLocaleDateString()}</td>
-                    <td className="py-3.5 px-4 text-right">
-                      <Link
-                        href={`/dashboard/receipts/${item.id}/preview`}
-                        className="p-1.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 inline-flex items-center gap-1 font-semibold text-[11px]"
-                      >
-                        <Printer size={13} />
-                        <span>PDF</span>
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {receipts.map((item) => {
+                  const waNumber = (item.customer?.whatsapp || item.customer?.mobile || '').replace(/[^0-9]/g, '')
+                  const waText = encodeURIComponent(
+                    `Dear ${item.customer?.full_name || 'Customer'},\nThank you for your payment of LKR ${Number(item.amount).toLocaleString()} to Thennakoon Tours.\nReceipt No: ${item.receipt_number}`
+                  )
+                  const waUrl = `https://wa.me/${waNumber}?text=${waText}`
+
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-amber-500">{item.receipt_number}</td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-slate-900 dark:text-white">{item.customer?.full_name || 'N/A'}</div>
+                        <div className="text-[11px] text-slate-400 font-mono">{item.customer?.mobile}</div>
+                      </td>
+                      <td className="py-3.5 px-4 uppercase font-semibold text-slate-600 dark:text-slate-400">{item.payment_method}</td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-emerald-500">
+                        LKR {Number(item.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono">{new Date(item.receipt_date || item.created_at).toLocaleDateString('en-GB')}</td>
+                      <td className="py-3.5 px-4 text-right space-x-1.5">
+                        <Link
+                          href={`/dashboard/receipts/${item.id}/preview`}
+                          className="px-2.5 py-1 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 inline-flex items-center gap-1 font-semibold text-[11px]"
+                        >
+                          <Printer size={13} />
+                          <span>PDF</span>
+                        </Link>
+                        {waNumber && (
+                          <a
+                            href={waUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 inline-flex items-center gap-1 font-semibold text-[11px]"
+                          >
+                            <Send size={13} />
+                            <span>WA</span>
+                          </a>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         ) : (
           <div className="py-16 text-center space-y-3">
-            <FileCheck2 size={36} className="mx-auto text-slate-400" />
+            <WalletCards size={36} className="mx-auto text-slate-400" />
             <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No Receipts Generated</p>
             <p className="text-xs text-slate-400">Payment receipts will automatically appear here once payments are recorded.</p>
           </div>

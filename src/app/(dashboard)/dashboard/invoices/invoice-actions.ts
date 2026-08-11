@@ -227,3 +227,90 @@ export async function issueInvoice(id: string) {
     return { success: false, error: err.message }
   }
 }
+
+export async function duplicateInvoiceAction(id: string) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated.' }
+
+    const { data: orig, error: origErr } = await supabase
+      .from('invoices')
+      .select('*, items:invoice_items(*)')
+      .eq('id', id)
+      .single()
+
+    if (origErr || !orig) return { success: false, error: 'Original invoice not found.' }
+
+    const res = await createInvoice({
+      customer_id: orig.customer_id,
+      booking_id: orig.booking_id,
+      quotation_id: orig.quotation_id,
+      invoice_date: new Date().toISOString().split('T')[0],
+      due_date: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().split('T')[0],
+      currency: orig.currency || 'LKR',
+      discount_amount: orig.discount_amount || 0,
+      tax_rate: orig.tax_rate || 0,
+      refundable_deposit: orig.refundable_deposit || 0,
+      total_deductions: orig.total_deductions || 0,
+      notes: `Duplicated from ${orig.invoice_number}. ${orig.notes || ''}`,
+      status: 'draft',
+      items: (orig.items || []).map((it: any, idx: number) => ({
+        description: it.description,
+        quantity: it.quantity,
+        unit_price: it.unit_price,
+        display_order: it.display_order ?? idx,
+      })),
+    })
+
+    if (res.success && res.invoiceId) {
+      await supabase.from('document_activity_logs').insert({
+        document_type: 'invoice',
+        document_id: res.invoiceId,
+        action: 'INVOICE_DUPLICATED',
+        change_summary: `Created duplicate draft invoice from ${orig.invoice_number}`,
+        user_id: user.id,
+      })
+    }
+
+    return res
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Duplication failed.' }
+  }
+}
+
+export async function cancelOrVoidInvoiceAction(id: string, reason: string) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    const { data: inv } = await supabase.from('invoices').select('status, invoice_number').eq('id', id).single()
+    if (!inv) return { success: false, error: 'Invoice not found.' }
+
+    const targetStatus = inv.status === 'issued' ? 'void' : 'cancelled'
+
+    const { error } = await supabase
+      .from('invoices')
+      .update({
+        status: targetStatus,
+        notes: `[${targetStatus.toUpperCase()}: ${reason}]`,
+      })
+      .eq('id', id)
+
+    if (error) return { success: false, error: error.message }
+
+    await supabase.from('document_activity_logs').insert({
+      document_type: 'invoice',
+      document_id: id,
+      action: targetStatus === 'void' ? 'INVOICE_VOIDED' : 'INVOICE_CANCELLED',
+      change_summary: `Updated status of ${inv.invoice_number} to ${targetStatus}: ${reason}`,
+      user_id: user?.id || null,
+    })
+
+    revalidatePath('/dashboard/invoices')
+    revalidatePath(`/dashboard/invoices/${id}`)
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Operation failed.' }
+  }
+}
