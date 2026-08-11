@@ -12,7 +12,7 @@ function calculateRentalPeriodDisplay(days) {
     return {
       valueStr: val,
       unit: 'days',
-      formattedHtml: `${val} (<u>days</u> / weeks / month / Years)`,
+      formattedHtml: `${val} (<u>days</u>/weeks/month/ Years)`,
       formattedText: `${val} (Days)`,
     }
   } else if (d < 30) {
@@ -21,7 +21,7 @@ function calculateRentalPeriodDisplay(days) {
     return {
       valueStr: val,
       unit: 'weeks',
-      formattedHtml: `${val} (days / <u>weeks</u> / month / Years)`,
+      formattedHtml: `${val} (days/<u>weeks</u>/month/ Years)`,
       formattedText: `${val} (Weeks)`,
     }
   } else if (d < 365) {
@@ -30,7 +30,7 @@ function calculateRentalPeriodDisplay(days) {
     return {
       valueStr: val,
       unit: 'month',
-      formattedHtml: `${val} (days / weeks / <u>month</u> / Years)`,
+      formattedHtml: `${val} (days/weeks/<u>month</u>/ Years)`,
       formattedText: `${val} (Month)`,
     }
   } else {
@@ -39,7 +39,7 @@ function calculateRentalPeriodDisplay(days) {
     return {
       valueStr: val,
       unit: 'years',
-      formattedHtml: `${val} (days / weeks / month / <u>Years</u>)`,
+      formattedHtml: `${val} (days/weeks/month/ <u>Years</u>)`,
       formattedText: `${val} (Years)`,
     }
   }
@@ -50,14 +50,14 @@ console.log('=== USER AGREEMENT V1 SOURCE TEXT, TYPOGRAPHY & RENTAL UNIT AUDIT =
 // 1. Audit Rental Period Duration Unit Calculation & Active Underline Selection
 console.log('--- TEST 1: Rental Duration Unit Calculation & Underline Formatting ---')
 const durationTests = [
-  { days: 3, expectedUnit: 'days', expectedHtml: '03 (<u>days</u> / weeks / month / Years)' },
-  { days: 7, expectedUnit: 'weeks', expectedHtml: '01 (days / <u>weeks</u> / month / Years)' },
-  { days: 14, expectedUnit: 'weeks', expectedHtml: '02 (days / <u>weeks</u> / month / Years)' },
-  { days: 21, expectedUnit: 'weeks', expectedHtml: '03 (days / <u>weeks</u> / month / Years)' },
-  { days: 30, expectedUnit: 'month', expectedHtml: '01 (days / weeks / <u>month</u> / Years)' },
-  { days: 60, expectedUnit: 'month', expectedHtml: '02 (days / weeks / <u>month</u> / Years)' },
-  { days: 365, expectedUnit: 'years', expectedHtml: '01 (days / weeks / month / <u>Years</u>)' },
-  { days: 730, expectedUnit: 'years', expectedHtml: '02 (days / weeks / month / <u>Years</u>)' },
+  { days: 3, expectedUnit: 'days', expectedHtml: '03 (<u>days</u>/weeks/month/ Years)' },
+  { days: 7, expectedUnit: 'weeks', expectedHtml: '01 (days/<u>weeks</u>/month/ Years)' },
+  { days: 14, expectedUnit: 'weeks', expectedHtml: '02 (days/<u>weeks</u>/month/ Years)' },
+  { days: 21, expectedUnit: 'weeks', expectedHtml: '03 (days/<u>weeks</u>/month/ Years)' },
+  { days: 30, expectedUnit: 'month', expectedHtml: '01 (days/weeks/<u>month</u>/ Years)' },
+  { days: 60, expectedUnit: 'month', expectedHtml: '02 (days/weeks/<u>month</u>/ Years)' },
+  { days: 365, expectedUnit: 'years', expectedHtml: '01 (days/weeks/month/ <u>Years</u>)' },
+  { days: 730, expectedUnit: 'years', expectedHtml: '02 (days/weeks/month/ <u>Years</u>)' },
 ]
 
 durationTests.forEach(({ days, expectedUnit, expectedHtml }) => {
@@ -116,7 +116,7 @@ const requiredClauses = [
   'JOINT AND SEVERAL LIABILITIES',
   'NOTICE',
   'SERVICE OF NOTICE',
-  'IT IS FURTHER AGREED...',
+  'IT IS FURTHER AGREED',
   'JURISDICTION',
   'INTERPRETATION',
 ]
@@ -130,22 +130,29 @@ requiredClauses.forEach((cl) => {
   }
 })
 
-// Clause 18 exact key terms assertion
+// Clause 18 exact key terms & contact lines assertion
 const clause18Terms = [
+  'Head of Operations Ms. Rashanthi Gunasekara: +94777273820',
+  'Marketing, Administration & Customer Relations: +94 76 676 2829',
+  'Accounts and Finance :+94760080155',
+  'For technical support: +94 77 747 4938',
+  'Complains and more information Hot Line: +94 112 823 723 / +94 77 727 3820,',
   'Decision or Approval by the Lessor',
   'Posting Address of the Lessor',
-  'Message via Whatsapp to the Lessor',
+  'Message via WhatsApp to the Lessor',
   'Exclusive',
   'Final and Conclusive',
-  'Day — 24 hours',
+  'Day – 24 hours',
+  'Month – 30 days',
   'Year- 365 days',
+  'Default',
 ]
 
 clause18Terms.forEach((term) => {
   if (templateText.includes(term)) {
-    console.log(`  ✓ Clause 18 Exact Term Verified: "${term}"`)
+    console.log(`  ✓ Clause 18 Exact Line Verified: "${term}"`)
   } else {
-    console.error(`❌ FAIL: Clause 18 missing term: "${term}"!`)
+    console.error(`❌ FAIL: Clause 18 missing line: "${term}"!`)
     process.exit(1)
   }
 })
@@ -158,8 +165,8 @@ const numericAssertions = [
   { key: 'Minor Accident Threshold', val: '25,000' },
   { key: 'Third Party Cover Reference', val: '500,000' },
   { key: 'Additional Nominated Driver Charge', val: '5000' },
-  { key: 'Return Cleaning Fee', val: '1 500' },
-  { key: 'Full Interior Cleaning Fee', val: '12 000' },
+  { key: 'Return Cleaning Fee', val: '1,500' },
+  { key: 'Full Interior Cleaning Fee', val: '12,000' },
   { key: 'Deposit Hold Days', val: '14' },
   { key: 'Deposit Release Hours', val: '48 working hours' },
   { key: 'Daily Mileage Allowance', val: '100' },
