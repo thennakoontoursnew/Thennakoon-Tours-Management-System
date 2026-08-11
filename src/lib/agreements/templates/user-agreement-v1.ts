@@ -11,6 +11,54 @@ export interface LegalClause {
   content: string
 }
 
+export interface RentalPeriodResult {
+  valueStr: string
+  unit: 'days' | 'weeks' | 'month' | 'years'
+  formattedHtml: string
+  formattedText: string
+}
+
+export function calculateRentalPeriodDisplay(days: number): RentalPeriodResult {
+  const d = Math.max(1, Number(days) || 1)
+
+  if (d < 7) {
+    const val = String(d).padStart(2, '0')
+    return {
+      valueStr: val,
+      unit: 'days',
+      formattedHtml: `${val} (<u>days</u> / weeks / month / Years)`,
+      formattedText: `${val} (Days)`,
+    }
+  } else if (d < 30) {
+    const weeks = Math.floor(d / 7)
+    const val = String(weeks).padStart(2, '0')
+    return {
+      valueStr: val,
+      unit: 'weeks',
+      formattedHtml: `${val} (days / <u>weeks</u> / month / Years)`,
+      formattedText: `${val} (Weeks)`,
+    }
+  } else if (d < 365) {
+    const months = Math.floor(d / 30)
+    const val = String(months).padStart(2, '0')
+    return {
+      valueStr: val,
+      unit: 'month',
+      formattedHtml: `${val} (days / weeks / <u>month</u> / Years)`,
+      formattedText: `${val} (Month)`,
+    }
+  } else {
+    const years = Math.floor(d / 365)
+    const val = String(years).padStart(2, '0')
+    return {
+      valueStr: val,
+      unit: 'years',
+      formattedHtml: `${val} (days / weeks / month / <u>Years</u>)`,
+      formattedText: `${val} (Years)`,
+    }
+  }
+}
+
 export const USER_AGREEMENT_PREAMBLE = `Agreement No: {{AGREEMENT_NUMBER}}
 
 VEHICLE RENTAL AGREEMENT
@@ -25,7 +73,7 @@ export const USER_AGREEMENT_CLAUSES: LegalClause[] = [
   {
     number: '1',
     title: 'HIRE OF VEHICLE',
-    content: `Subject to and upon the terms and conditions contained in this Agreement The Lessor shall provide The Vehicle to The lessee on hire and The lessee can use the vehicle as from the {{RENTAL_START}} and during the entirety of the definite and ascertained period of {{RENTAL_PERIOD_DAYS}} (days/weeks/month/ Years) commencing from {{RENTAL_START}} (Hereinafter referred to The Period").`,
+    content: `Subject to and upon the terms and conditions contained in this Agreement The Lessor shall provide The Vehicle to The lessee on hire and The lessee can use the vehicle as from the {{RENTAL_START}} and during the entirety of the definite and ascertained period of {{RENTAL_PERIOD_DISPLAY}} commencing from {{RENTAL_START}} (Hereinafter referred to The Period").`,
   },
   {
     number: '2',

@@ -21,6 +21,9 @@ import {
   USER_AGREEMENT_DECLARATION,
   USER_AGREEMENT_COMPANY_REG_NO,
   USER_AGREEMENT_VERSION,
+  calculateRentalPeriodDisplay,
+  RentalPeriodResult,
+  LegalClause,
 } from '@/lib/agreements/templates/user-agreement-v1'
 import { UserAgreementFormData, validateUserAgreementData } from '@/lib/agreements/user-agreement-service'
 import { amendUserAgreementAction } from '@/app/(dashboard)/dashboard/agreements/user-agreement-actions'
@@ -276,11 +279,13 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
   const lesseeId = lessee.nic || lessee.identifier_no || lessee.passport_number || '........................'
   const lesseeAddr = lessee.address || lessee.address_line_1 || 'Sri Lanka'
 
+  const rentalPeriodDays = rental.rental_period_days || 30
+  const periodDisplay = calculateRentalPeriodDisplay(rentalPeriodDays)
+
   const replaceTokens = (str: string) => {
     if (!str) return ''
     const rentalStart = formatDateLegal(agreement.rental_start_at)
     const rentalEnd = formatDateLegal(agreement.rental_end_at)
-    const rentalPeriod = String(rental.rental_period_days || 30)
     const rentalAmount = formatNumberSafe(rental.monthly_rental_rate || rental.daily_rental_rate || 7500)
     const dueDateDay = String(variables.due_date_day || '1st')
     const extraKmRate = String(rental.extra_km_rate || 75)
@@ -291,7 +296,8 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
       .replace(/{{AGREEMENT_DATE}}/g, agreement.agreement_date || formatDateLegal(new Date()))
       .replace(/{{RENTAL_START}}/g, rentalStart)
       .replace(/{{RENTAL_END}}/g, rentalEnd)
-      .replace(/{{RENTAL_PERIOD_DAYS}}/g, rentalPeriod)
+      .replace(/{{RENTAL_PERIOD_DAYS}}/g, periodDisplay.valueStr)
+      .replace(/{{RENTAL_PERIOD_DISPLAY}}/g, periodDisplay.formattedText)
       .replace(/{{MONTHLY_OR_DAILY_RENTAL}}/g, rentalAmount)
       .replace(/{{DUE_DATE_DAY}}/g, dueDateDay)
       .replace(/{{LESSEE_FULL_NAME}}/g, lesseeName)
@@ -303,16 +309,59 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
       .replace(/\(USER FULL ADDRESS\)/gi, lesseeAddr)
       .replace(/\(Name of the Lessee\)/gi, lesseeName)
       .replace(/\(RENTAL STARTING DATE AND YEAR\)/gi, rentalStart)
-      .replace(/\(PERIOD\)/gi, `${rentalPeriod} days`)
+      .replace(/\(PERIOD\)/gi, periodDisplay.formattedText)
       .replace(/\(RENTAL AMAOUNT\)/gi, `LKR ${rentalAmount}`)
       .replace(/\(RENTAL DATE ONLY\)/gi, dueDateDay)
   }
 
+  const renderClause18Content = (content: string) => {
+    const blocks = content.split('\n\n')
+    return blocks.map((block, idx) => {
+      const match = block.match(/^([A-Za-z0-9\s\&\(\)\,\.]+)\s*(\-\s*|\:\s*|\–\s*)([\s\S]*)$/)
+      if (match) {
+        const term = match[1].trim()
+        const sep = match[2]
+        const def = match[3]
+        return (
+          <p key={idx} className="my-1.5">
+            <strong className="font-bold">{term}</strong> {sep} {replaceTokens(def)}
+          </p>
+        )
+      }
+      return <p key={idx} className="my-1.5">{replaceTokens(block)}</p>
+    })
+  }
+
+  const renderClauseContent = (clause: LegalClause) => {
+    if (clause.number === '1') {
+      const rentalStart = formatDateLegal(agreement.rental_start_at)
+      return (
+        <span>
+          Subject to and upon the terms and conditions contained in this Agreement The Lessor shall provide The Vehicle to The lessee on hire and The lessee can use the vehicle as from the {rentalStart} and during the entirety of the definite and ascertained period of <span dangerouslySetInnerHTML={{ __html: periodDisplay.formattedHtml }} /> commencing from {rentalStart} (Hereinafter referred to The Period&quot;).
+        </span>
+      )
+    }
+    if (clause.number === '18') {
+      return renderClause18Content(clause.content)
+    }
+    return replaceTokens(clause.content)
+  }
+
   return (
     <div className="space-y-6">
-      {/* PREAMBLE */}
+      {/* PREAMBLE WITH RICH BOLD TYPOGRAPHY */}
       <div className="p-4 border border-slate-300 bg-white whitespace-pre-wrap text-xs leading-relaxed text-justify text-slate-950">
-        {replaceTokens(USER_AGREEMENT_PREAMBLE)}
+        <p className="font-bold">Agreement No: {agreement.agreement_number || 'N/A'}</p>
+        <p className="font-bold text-center my-2 text-sm uppercase tracking-wide">VEHICLE RENTAL AGREEMENT</p>
+        <p>
+          <strong className="font-bold">Thennakoon Tours (Pvt) Ltd</strong> bearing registration No <strong className="font-bold font-mono">PV 00312253</strong> Having its Principal Business Place at 39A, 1st cross street, Pagoda Road, Nugegoda (hereinafter referred to as <strong className="font-bold">&quot;The Lessor&quot;</strong> which term or expression shall where the context so requires or admits be taken to mean and include the said Thennakoon Tours (Pvt) Ltd and his heirs executors and administrators of the <strong className="font-bold">First Part</strong> and (the Lessee) No <strong className="font-bold font-mono">{lesseeId}</strong> (Hereinafter referred to as <strong className="font-bold">&quot;The Lessee&quot;</strong> which term or expression shall where the context so requires or admits betaken to mean and include the said <strong className="font-bold">{lesseeName}</strong> (Name of the Lessee) and it&apos;s Successor or Successors in Office and assigns) of the <strong className="font-bold">Second Part</strong>.
+        </p>
+        <p className="mt-2">
+          Whereas the Lessee is desirous of hiring from <strong className="font-bold">The Lessor</strong> a motor car belonging to <strong className="font-bold">The Lessor</strong> and described in the Schedule to this agreement (hereinafter referred to as <strong className="font-bold">&quot;The Vehicle&quot;</strong>) and <strong className="font-bold">&quot;Lessor&quot;</strong> has agreed with the <strong className="font-bold">&quot;Lessee&quot;</strong> to hire the Vehicle to The lessee subject to and upon the terms and conditions hereinafter set forth.
+        </p>
+        <p className="mt-2">
+          Now it is hereby agreed between <strong className="font-bold">The Lessor</strong> and <strong className="font-bold">The Lessee</strong> that in consideration ofthe parties doing, observing and performing all of the respective terms, conditions, covenants, stipulations and obligations contained in this agreement to be done, observed and performed respectively by either of them the parties hereto agree as follows:-
+        </p>
       </div>
 
       {/* LEGAL CLAUSES 1 to 18 */}
@@ -324,7 +373,7 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
           <div key={clause.number} className="space-y-1.5 text-xs">
             <h3 className="font-bold text-slate-950 uppercase">{clause.number}. {clause.title}</h3>
             <div className="whitespace-pre-wrap text-slate-950 pl-3 border-l-2 border-slate-300 leading-relaxed text-justify">
-              {replaceTokens(clause.content)}
+              {renderClauseContent(clause)}
             </div>
           </div>
         ))}

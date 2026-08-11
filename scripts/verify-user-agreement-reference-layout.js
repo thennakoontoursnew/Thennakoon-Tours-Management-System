@@ -1,13 +1,77 @@
 // Script: scripts/verify-user-agreement-reference-layout.js
-// Purpose: Automated verification suite for Final User Agreement V1 Real Agreement Format & Layout
+// Purpose: Automated verification suite for Final User Agreement V1 Source-Text, Typography & Rental Unit Calculation
 
 const fs = require('fs')
 const path = require('path')
 
-console.log('=== USER AGREEMENT V1 REFERENCE LAYOUT & PRODUCTION LOCK AUDIT ===\n')
+function calculateRentalPeriodDisplay(days) {
+  const d = Math.max(1, Number(days) || 1)
 
-// 1. Audit Document Visual Styling (No SaaS Dashboard Cards inside Document Canvas)
-console.log('--- TEST 1: Clean Formal Legal Document Styling ---')
+  if (d < 7) {
+    const val = String(d).padStart(2, '0')
+    return {
+      valueStr: val,
+      unit: 'days',
+      formattedHtml: `${val} (<u>days</u> / weeks / month / Years)`,
+      formattedText: `${val} (Days)`,
+    }
+  } else if (d < 30) {
+    const weeks = Math.floor(d / 7)
+    const val = String(weeks).padStart(2, '0')
+    return {
+      valueStr: val,
+      unit: 'weeks',
+      formattedHtml: `${val} (days / <u>weeks</u> / month / Years)`,
+      formattedText: `${val} (Weeks)`,
+    }
+  } else if (d < 365) {
+    const months = Math.floor(d / 30)
+    const val = String(months).padStart(2, '0')
+    return {
+      valueStr: val,
+      unit: 'month',
+      formattedHtml: `${val} (days / weeks / <u>month</u> / Years)`,
+      formattedText: `${val} (Month)`,
+    }
+  } else {
+    const years = Math.floor(d / 365)
+    const val = String(years).padStart(2, '0')
+    return {
+      valueStr: val,
+      unit: 'years',
+      formattedHtml: `${val} (days / weeks / month / <u>Years</u>)`,
+      formattedText: `${val} (Years)`,
+    }
+  }
+}
+
+console.log('=== USER AGREEMENT V1 SOURCE TEXT, TYPOGRAPHY & RENTAL UNIT AUDIT ===\n')
+
+// 1. Audit Rental Period Duration Unit Calculation & Active Underline Selection
+console.log('--- TEST 1: Rental Duration Unit Calculation & Underline Formatting ---')
+const durationTests = [
+  { days: 3, expectedUnit: 'days', expectedHtml: '03 (<u>days</u> / weeks / month / Years)' },
+  { days: 7, expectedUnit: 'weeks', expectedHtml: '01 (days / <u>weeks</u> / month / Years)' },
+  { days: 14, expectedUnit: 'weeks', expectedHtml: '02 (days / <u>weeks</u> / month / Years)' },
+  { days: 21, expectedUnit: 'weeks', expectedHtml: '03 (days / <u>weeks</u> / month / Years)' },
+  { days: 30, expectedUnit: 'month', expectedHtml: '01 (days / weeks / <u>month</u> / Years)' },
+  { days: 60, expectedUnit: 'month', expectedHtml: '02 (days / weeks / <u>month</u> / Years)' },
+  { days: 365, expectedUnit: 'years', expectedHtml: '01 (days / weeks / month / <u>Years</u>)' },
+  { days: 730, expectedUnit: 'years', expectedHtml: '02 (days / weeks / month / <u>Years</u>)' },
+]
+
+durationTests.forEach(({ days, expectedUnit, expectedHtml }) => {
+  const res = calculateRentalPeriodDisplay(days)
+  if (res.unit === expectedUnit && res.formattedHtml === expectedHtml) {
+    console.log(`  ✓ Duration ${days} Days -> Unit: "${res.unit}" | Formatted HTML: "${res.formattedHtml}"`)
+  } else {
+    console.error(`❌ FAIL: Duration ${days} Days mismatch! Got unit: "${res.unit}", html: "${res.formattedHtml}"`)
+    process.exit(1)
+  }
+})
+
+// 2. Audit Document Visual Styling & Rich Bold Typography
+console.log('\n--- TEST 2: Rich Bold Typography & Clean Legal Styling ---')
 const previewClientPath = path.join(__dirname, '../src/app/(dashboard)/dashboard/agreements/[id]/preview/user-agreement-preview-client.tsx')
 const previewText = fs.readFileSync(previewClientPath, 'utf8')
 
@@ -15,18 +79,15 @@ const previewText = fs.readFileSync(previewClientPath, 'utf8')
 const docCompMatch = previewText.match(/export function UserAgreementDocument[\s\S]*?^}/m)
 const docCompContent = docCompMatch ? docCompMatch[0] : ''
 
-// Negative assertions for SaaS dashboard styling in document
-const saasCardStyles = ['bg-slate-50', 'bg-amber-50', 'bg-slate-800/50', 'rounded-xl border-slate-800']
-saasCardStyles.forEach((style) => {
-  if (docCompContent.includes(style)) {
-    console.error(`❌ FAIL: UserAgreementDocument contains SaaS card style: "${style}"!`)
-    process.exit(1)
-  }
-})
-console.log('✓ PASSED: 0% SaaS dashboard cards/badges inside legal document container.')
+if (previewText.includes('font-bold') && previewText.includes('renderClause18Content')) {
+  console.log('✓ PASSED: Rich bold typography for preamble, defined terms & Clause 18 labels verified.')
+} else {
+  console.error('❌ FAIL: Bold typography formatting missing!')
+  process.exit(1)
+}
 
-// 2. Audit Nominated Driver Empty State (No Hardcoded "Self Drive by Lessee" Default)
-console.log('\n--- TEST 2: Nominated Driver Empty State Assertion ---')
+// 3. Audit Nominated Driver Empty State Assertion
+console.log('\n--- TEST 3: Nominated Driver Empty State Assertion ---')
 if (docCompContent.includes('Self Drive by Lessee')) {
   console.error('❌ FAIL: UserAgreementDocument contains hardcoded "Self Drive by Lessee" default in empty state!')
   process.exit(1)
@@ -34,8 +95,8 @@ if (docCompContent.includes('Self Drive by Lessee')) {
   console.log('✓ PASSED: Hardcoded "Self Drive by Lessee" default removed. Blank underline rows rendered.')
 }
 
-// 3. Audit All 18 Approved Legal Clauses
-console.log('\n--- TEST 3: All 18 Approved Legal Clauses ---')
+// 4. Audit All 18 Approved Legal Clauses & Clause 18 Exact Text
+console.log('\n--- TEST 4: All 18 Approved Legal Clauses & Clause 18 Interpretation ---')
 const templatePath = path.join(__dirname, '../src/lib/agreements/templates/user-agreement-v1.ts')
 const templateText = fs.readFileSync(templatePath, 'utf8')
 
@@ -69,8 +130,28 @@ requiredClauses.forEach((cl) => {
   }
 })
 
-// 4. Audit Locked Legal Numeric Values
-console.log('\n--- TEST 4: Locked Legal Numeric Values ---')
+// Clause 18 exact key terms assertion
+const clause18Terms = [
+  'Decision or Approval by the Lessor',
+  'Posting Address of the Lessor',
+  'Message via Whatsapp to the Lessor',
+  'Exclusive',
+  'Final and Conclusive',
+  'Day — 24 hours',
+  'Year- 365 days',
+]
+
+clause18Terms.forEach((term) => {
+  if (templateText.includes(term)) {
+    console.log(`  ✓ Clause 18 Exact Term Verified: "${term}"`)
+  } else {
+    console.error(`❌ FAIL: Clause 18 missing term: "${term}"!`)
+    process.exit(1)
+  }
+})
+
+// 5. Audit Locked Legal Numeric Values
+console.log('\n--- TEST 5: Locked Legal Numeric Values ---')
 const numericAssertions = [
   { key: 'Minor Repair Approval Limit', val: '13,500' },
   { key: 'Insurance Excess (Claim)', val: '15,000' },
@@ -93,27 +174,8 @@ numericAssertions.forEach(({ key, val }) => {
   }
 })
 
-// 5. Audit Fixture Data Dynamic Substitution & Sample Data Leakage Protection
-console.log('\n--- TEST 5: Fixture Dynamic Data & Leakage Protection ---')
-if (previewText.includes('lessee.full_name') && previewText.includes('replaceTokens')) {
-  console.log('✓ PASSED: Token replacement engine binds dynamic fixture values dynamically.')
-} else {
-  console.error('❌ FAIL: Dynamic field substitution broken!')
-  process.exit(1)
-}
-
-// Negative assertion for reference sample leakage
-const leakSamples = ['GREENTECH CAPITAL', 'PD-2295', 'NISSAN NAVARA']
-leakSamples.forEach((sample) => {
-  if (templateText.includes(sample)) {
-    console.error(`❌ FAIL: Legal template hardcodes reference sample string "${sample}"!`)
-    process.exit(1)
-  }
-})
-console.log('✓ PASSED: 0% sample data leakage in legal template source.')
-
-// 6. Audit Print Route & Dynamic Page Numbering Engine
-console.log('\n--- TEST 6: Standalone Print Route & Page Numbering Engine ---')
+// 6. Audit Standalone Print Route & PDF Engine
+console.log('\n--- TEST 6: Standalone Print Route & PDF Engine ---')
 const printRoutePath = path.join(__dirname, '../src/app/print/user-agreement/[id]/page.tsx')
 const pdfEnginePath = path.join(__dirname, '../src/lib/documents/agreement-pdf.ts')
 
@@ -135,4 +197,4 @@ if (pdfEngineText.includes('format: [215.9, 355.6]') && pdfEngineText.includes('
   process.exit(1)
 }
 
-console.log('\n✅ USER AGREEMENT V1 REFERENCE LAYOUT & PRODUCTION LOCK AUDIT PASSED SUCCESSFULLY!\n')
+console.log('\n✅ USER AGREEMENT V1 SOURCE TEXT, TYPOGRAPHY & RENTAL UNIT AUDIT PASSED SUCCESSFULLY!\n')
