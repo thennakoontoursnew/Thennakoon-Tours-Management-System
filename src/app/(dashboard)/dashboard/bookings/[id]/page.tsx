@@ -150,10 +150,10 @@ export default async function BookingDetailPage({ params }: PageProps) {
   const linkedInvoices = invData || []
 
   // STEP 8: Payments and Receipts Query
-  const { data: pData } = await supabase.from('payments').select('id, payment_number, amount, payment_date, payment_method, status').eq('booking_id', id)
+  const { data: pData } = await supabase.from('payments').select('id, reference_number, amount, payment_date, payment_method, status').eq('booking_id', id)
   const linkedPayments = pData || []
 
-  const { data: rData } = await supabase.from('receipts').select('id, receipt_number, amount_paid, issued_at').eq('booking_id', id)
+  const { data: rData } = await supabase.from('receipts').select('id, receipt_number, amount, created_at').eq('booking_id', id)
   const linkedReceipts = rData || []
 
   // STEP 9: Rental Agreement Query
@@ -318,7 +318,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
               className="px-2.5 py-1 bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-mono font-bold flex items-center gap-1"
             >
               <Receipt size={13} />
-              <span>Payment: {String(pmt.payment_number ?? 'N/A')} (LKR {formatNumberSafe(pmt.amount)})</span>
+              <span>Payment: {String(pmt.reference_number ?? 'N/A')} (LKR {formatNumberSafe(pmt.amount)})</span>
             </span>
           ))}
         </div>

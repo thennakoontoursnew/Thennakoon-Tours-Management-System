@@ -324,10 +324,10 @@ export async function getRevenueSeries(periodFilter: string = '30d') {
 
     supabase
       .from('invoices')
-      .select('grand_total, amount_paid, balance_due, issue_date, status')
+      .select('grand_total, amount_paid, balance_due, invoice_date, status')
       .neq('status', 'cancelled')
-      .gte('issue_date', startDate)
-      .order('issue_date', { ascending: true }),
+      .gte('invoice_date', startDate)
+      .order('invoice_date', { ascending: true }),
   ])
 
   const payments = paymentsRes.data || []
@@ -347,7 +347,7 @@ export async function getRevenueSeries(periodFilter: string = '30d') {
   })
 
   invoices.forEach((inv: any) => {
-    const key = String(inv.issue_date).slice(0, 10)
+    const key = String(inv.invoice_date).slice(0, 10)
     if (!dateMap[key]) dateMap[key] = { collected: 0, invoiced: 0 }
     dateMap[key].invoiced += Number(inv.grand_total || 0)
   })
