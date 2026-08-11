@@ -10,12 +10,9 @@ import {
   WalletCards,
   FileSpreadsheet,
   FileBarChart,
-  DollarSign,
   AlertCircle,
   CheckCircle2,
   Calendar,
-  Eye,
-  Search,
 } from 'lucide-react'
 import { getFinanceSummaryKPIs } from '@/lib/finance/finance-service'
 import { RecordPaymentButton } from '@/components/finance/record-payment-button'
@@ -63,27 +60,44 @@ export default async function FinanceDashboardPage({ searchParams }: PageProps) 
     .order('created_at', { ascending: false })
     .limit(5)
 
-  interface CustomerRelation {
-    full_name?: string | null
-  }
-  interface InvoiceRelation {
-    invoice_number?: string | null
+  const toSafeNumber = (value: unknown): number => {
+    const num = Number(value ?? 0)
+    return Number.isFinite(num) ? num : 0
   }
 
-  const getCustomerName = (customer: CustomerRelation | CustomerRelation[] | null | undefined): string => {
+  const getCustomerName = (customer: unknown): string => {
     if (!customer) return 'Customer'
-    if (Array.isArray(customer)) return customer[0]?.full_name || 'Customer'
-    return customer.full_name || 'Customer'
+    if (Array.isArray(customer)) {
+      const first = customer[0]
+      if (first && typeof first === 'object' && 'full_name' in first && typeof first.full_name === 'string' && first.full_name.trim()) {
+        return first.full_name
+      }
+      return 'Customer'
+    }
+    if (typeof customer === 'object' && 'full_name' in customer && typeof customer.full_name === 'string' && customer.full_name.trim()) {
+      return customer.full_name
+    }
+    return 'Customer'
   }
 
-  const getInvoiceNumber = (invoice: InvoiceRelation | InvoiceRelation[] | null | undefined): string | null => {
+  const getInvoiceNumber = (invoice: unknown): string | null => {
     if (!invoice) return null
-    if (Array.isArray(invoice)) return invoice[0]?.invoice_number || null
-    return invoice.invoice_number || null
+    if (Array.isArray(invoice)) {
+      const first = invoice[0]
+      if (first && typeof first === 'object' && 'invoice_number' in first && typeof first.invoice_number === 'string' && first.invoice_number.trim()) {
+        return first.invoice_number
+      }
+      return null
+    }
+    if (typeof invoice === 'object' && 'invoice_number' in invoice && typeof invoice.invoice_number === 'string' && invoice.invoice_number.trim()) {
+      return invoice.invoice_number
+    }
+    return null
   }
 
-  const getStatusBadge = (st: string) => {
-    switch (st) {
+  const getStatusBadge = (st: unknown) => {
+    const statusStr = typeof st === 'string' ? st.toLowerCase() : ''
+    switch (statusStr) {
       case 'paid':
         return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Paid</span>
       case 'partially_paid':
@@ -93,7 +107,7 @@ export default async function FinanceDashboardPage({ searchParams }: PageProps) 
       case 'overdue':
         return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">Overdue</span>
       default:
-        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/10 text-slate-500 border border-slate-500/20">{st.toUpperCase()}</span>
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/10 text-slate-500 border border-slate-500/20">{(statusStr || 'UNKNOWN').toUpperCase()}</span>
     }
   }
 
@@ -173,32 +187,32 @@ export default async function FinanceDashboardPage({ searchParams }: PageProps) 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <span className="text-[10px] font-bold uppercase text-slate-400 block">Today&apos;s Collections</span>
-          <span className="font-mono font-black text-emerald-500 text-xl block mt-1">LKR {kpis.todaysCollections.toLocaleString()}</span>
+          <span className="font-mono font-black text-emerald-500 text-xl block mt-1">LKR {toSafeNumber(kpis.todaysCollections).toLocaleString()}</span>
           <span className="text-[10px] text-slate-400 block mt-1">Real-time daily cash inflow</span>
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <span className="text-[10px] font-bold uppercase text-slate-400 block">This Month Collections</span>
-          <span className="font-mono font-black text-emerald-500 text-xl block mt-1">LKR {kpis.thisMonthsCollections.toLocaleString()}</span>
+          <span className="font-mono font-black text-emerald-500 text-xl block mt-1">LKR {toSafeNumber(kpis.thisMonthsCollections).toLocaleString()}</span>
           <span className="text-[10px] text-slate-400 block mt-1">Monthly total received</span>
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <span className="text-[10px] font-bold uppercase text-slate-400 block">Total Invoiced</span>
-          <span className="font-mono font-black text-slate-900 dark:text-white text-xl block mt-1">LKR {kpis.totalInvoiced.toLocaleString()}</span>
+          <span className="font-mono font-black text-slate-900 dark:text-white text-xl block mt-1">LKR {toSafeNumber(kpis.totalInvoiced).toLocaleString()}</span>
           <span className="text-[10px] text-slate-400 block mt-1">Valid non-cancelled invoices</span>
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <span className="text-[10px] font-bold uppercase text-amber-500 block">Outstanding Balance</span>
-          <span className="font-mono font-black text-amber-500 text-xl block mt-1">LKR {kpis.outstandingBalance.toLocaleString()}</span>
-          <span className="text-[10px] text-amber-500/80 block mt-1">{kpis.partiallyPaidCount} partial / {kpis.issuedCount} issued</span>
+          <span className="font-mono font-black text-amber-500 text-xl block mt-1">LKR {toSafeNumber(kpis.outstandingBalance).toLocaleString()}</span>
+          <span className="text-[10px] text-amber-500/80 block mt-1">{toSafeNumber(kpis.partiallyPaidCount)} partial / {toSafeNumber(kpis.issuedCount)} issued</span>
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <span className="text-[10px] font-bold uppercase text-rose-500 block">Overdue Amount</span>
-          <span className="font-mono font-black text-rose-500 text-xl block mt-1">LKR {kpis.overdueBalance.toLocaleString()}</span>
-          <span className="text-[10px] text-rose-500/80 block mt-1">{kpis.overdueCount} overdue invoices</span>
+          <span className="font-mono font-black text-rose-500 text-xl block mt-1">LKR {toSafeNumber(kpis.overdueBalance).toLocaleString()}</span>
+          <span className="text-[10px] text-rose-500/80 block mt-1">{toSafeNumber(kpis.overdueCount)} overdue invoices</span>
         </div>
       </div>
 
@@ -209,7 +223,7 @@ export default async function FinanceDashboardPage({ searchParams }: PageProps) 
             <span className="text-[10px] font-bold uppercase text-slate-400">Total Collected</span>
             <CheckCircle2 size={16} className="text-emerald-500" />
           </div>
-          <span className="font-mono font-black text-emerald-500 text-2xl block mt-1">LKR {kpis.totalCollected.toLocaleString()}</span>
+          <span className="font-mono font-black text-emerald-500 text-2xl block mt-1">LKR {toSafeNumber(kpis.totalCollected).toLocaleString()}</span>
           <span className="text-[10px] text-slate-400 block mt-1">Completed payment records</span>
         </div>
 
@@ -218,17 +232,17 @@ export default async function FinanceDashboardPage({ searchParams }: PageProps) 
             <span className="text-[10px] font-bold uppercase text-slate-400">Operating Expenses</span>
             <ReceiptText size={16} className="text-rose-500" />
           </div>
-          <span className="font-mono font-black text-rose-500 text-2xl block mt-1">LKR {kpis.totalExpenses.toLocaleString()}</span>
+          <span className="font-mono font-black text-rose-500 text-2xl block mt-1">LKR {toSafeNumber(kpis.totalExpenses).toLocaleString()}</span>
           <span className="text-[10px] text-slate-400 block mt-1">Fuel, maintenance, repairs, etc.</span>
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold uppercase text-slate-400">Net Cash Flow</span>
-            <TrendingUp size={16} className={kpis.netCashFlow >= 0 ? 'text-emerald-500' : 'text-rose-500'} />
+            <TrendingUp size={16} className={toSafeNumber(kpis.netCashFlow) >= 0 ? 'text-emerald-500' : 'text-rose-500'} />
           </div>
-          <span className={`font-mono font-black text-2xl block mt-1 ${kpis.netCashFlow >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-            LKR {kpis.netCashFlow.toLocaleString()}
+          <span className={`font-mono font-black text-2xl block mt-1 ${toSafeNumber(kpis.netCashFlow) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+            LKR {toSafeNumber(kpis.netCashFlow).toLocaleString()}
           </span>
           <span className="text-[10px] text-slate-400 block mt-1">Completed Collections - Expenses</span>
         </div>
@@ -236,10 +250,10 @@ export default async function FinanceDashboardPage({ searchParams }: PageProps) 
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold uppercase text-slate-400">Collection Rate</span>
-            <span className="font-mono text-xs font-bold text-amber-500">{kpis.collectionRate}%</span>
+            <span className="font-mono text-xs font-bold text-amber-500">{toSafeNumber(kpis.collectionRate)}%</span>
           </div>
           <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
-            <div className="bg-amber-400 h-full rounded-full transition-all" style={{ width: `${Math.min(100, kpis.collectionRate)}%` }} />
+            <div className="bg-amber-400 h-full rounded-full transition-all" style={{ width: `${Math.min(100, toSafeNumber(kpis.collectionRate))}%` }} />
           </div>
           <span className="text-[10px] text-slate-400 block mt-2">Collected vs Invoiced</span>
         </div>
@@ -267,15 +281,15 @@ export default async function FinanceDashboardPage({ searchParams }: PageProps) 
                   <div>
                     <div className="flex items-center gap-2">
                       <Link href={`/dashboard/invoices/${inv.id}`} className="font-mono font-bold text-amber-500 hover:underline">
-                        {inv.invoice_number}
+                        {inv.invoice_number || 'INV'}
                       </Link>
                       {getStatusBadge(inv.status)}
                     </div>
                     <div className="text-[11px] text-slate-500 mt-0.5">{getCustomerName(inv.customer)}</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-mono font-bold text-slate-900 dark:text-white">LKR {Number(inv.grand_total).toLocaleString()}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">Bal: LKR {Number(inv.balance_due).toLocaleString()}</div>
+                    <div className="font-mono font-bold text-slate-900 dark:text-white">LKR {toSafeNumber(inv.grand_total).toLocaleString()}</div>
+                    <div className="text-[10px] text-slate-400 font-mono">Bal: LKR {toSafeNumber(inv.balance_due).toLocaleString()}</div>
                   </div>
                 </div>
               ))}
@@ -302,17 +316,19 @@ export default async function FinanceDashboardPage({ searchParams }: PageProps) 
             <div className="space-y-2.5">
               {recentPayments.map((p) => {
                 const invNum = getInvoiceNumber(p.invoice)
+                const methodStr = p.payment_method ? String(p.payment_method).toUpperCase() : 'PAYMENT'
+                const pDateStr = p.payment_date ? String(p.payment_date).slice(0, 10) : ''
                 return (
                   <div key={p.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-850 flex items-center justify-between text-xs">
                     <div>
                       <div className="font-bold text-slate-900 dark:text-white">{getCustomerName(p.customer)}</div>
                       <div className="text-[11px] text-slate-400 font-mono">
-                        Via {p.payment_method?.toUpperCase()} {invNum ? `(${invNum})` : ''}
+                        Via {methodStr} {invNum ? `(${invNum})` : ''}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-mono font-bold text-emerald-500">LKR {Number(p.amount).toLocaleString()}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">{(p.payment_date || '').slice(0, 10)}</div>
+                      <div className="font-mono font-bold text-emerald-500">LKR {toSafeNumber(p.amount).toLocaleString()}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">{pDateStr}</div>
                     </div>
                   </div>
                 )
@@ -341,12 +357,12 @@ export default async function FinanceDashboardPage({ searchParams }: PageProps) 
               {recentExpenses.map((exp) => (
                 <div key={exp.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-850 flex items-center justify-between text-xs">
                   <div>
-                    <div className="font-bold text-slate-900 dark:text-white">{exp.description}</div>
-                    <div className="text-[11px] text-slate-400 font-mono">{exp.expense_number} • {exp.category?.toUpperCase()}</div>
+                    <div className="font-bold text-slate-900 dark:text-white">{exp.description || 'Expense'}</div>
+                    <div className="text-[11px] text-slate-400 font-mono">{exp.expense_number || 'EXP'} • {exp.category ? String(exp.category).toUpperCase() : 'GENERAL'}</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-mono font-bold text-rose-500">LKR {Number(exp.amount).toLocaleString()}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">{exp.expense_date}</div>
+                    <div className="font-mono font-bold text-rose-500">LKR {toSafeNumber(exp.amount).toLocaleString()}</div>
+                    <div className="text-[10px] text-slate-400 font-mono">{exp.expense_date || ''}</div>
                   </div>
                 </div>
               ))}
@@ -374,12 +390,12 @@ export default async function FinanceDashboardPage({ searchParams }: PageProps) 
               {recentReceipts.map((r) => (
                 <div key={r.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-850 flex items-center justify-between text-xs">
                   <div>
-                    <div className="font-mono font-bold text-amber-500">{r.receipt_number}</div>
+                    <div className="font-mono font-bold text-amber-500">{r.receipt_number || 'RCPT'}</div>
                     <div className="text-[11px] text-slate-500">{getCustomerName(r.customer)}</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-mono font-bold text-emerald-500">LKR {Number(r.amount).toLocaleString()}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">{r.payment_method?.toUpperCase()}</div>
+                    <div className="font-mono font-bold text-emerald-500">LKR {toSafeNumber(r.amount).toLocaleString()}</div>
+                    <div className="text-[10px] text-slate-400 font-mono">{r.payment_method ? String(r.payment_method).toUpperCase() : 'RECEIPT'}</div>
                   </div>
                 </div>
               ))}

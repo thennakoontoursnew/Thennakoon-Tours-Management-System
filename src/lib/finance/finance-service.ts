@@ -1,4 +1,5 @@
-import { getColomboTodayString, getColomboDayBounds } from '@/lib/utils/colombo-date-utils'
+import { getColomboTodayString } from '@/lib/utils/colombo-date-utils'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface FinanceKPIs {
   totalInvoiced: number
@@ -88,7 +89,7 @@ export function getPeriodDateRange(period: string = 'this_month'): { startStr?: 
   return {}
 }
 
-export async function getFinanceSummaryKPIs(supabase: any, period: string = 'this_month'): Promise<FinanceKPIs> {
+export async function getFinanceSummaryKPIs(supabase: SupabaseClient, period: string = 'this_month'): Promise<FinanceKPIs> {
   const todayStr = getColomboTodayString()
   const range = getPeriodDateRange(period)
   const thisMonthStartStr = `${todayStr.slice(0, 7)}-01`
@@ -160,7 +161,7 @@ export async function getFinanceSummaryKPIs(supabase: any, period: string = 'thi
   let overdueCount = 0
   let cancelledCount = 0
 
-  invoices.forEach((inv: any) => {
+  invoices.forEach((inv: Record<string, unknown>) => {
     const grand = Number(inv.grand_total || 0)
     const bal = Number(inv.balance_due || 0)
     totalInvoiced += grand
@@ -173,7 +174,7 @@ export async function getFinanceSummaryKPIs(supabase: any, period: string = 'thi
 
     if (bal > 0) {
       outstandingBalance += bal
-      const isOverdue = inv.status === 'overdue' || (inv.due_date && inv.due_date < todayStr)
+      const isOverdue = inv.status === 'overdue' || Boolean(inv.due_date && String(inv.due_date) < todayStr)
       if (isOverdue) {
         overdueBalance += bal
         overdueCount++
@@ -181,9 +182,9 @@ export async function getFinanceSummaryKPIs(supabase: any, period: string = 'thi
     }
   })
 
-  const totalCollected = payments.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0)
-  const totalExpenses = expenses.reduce((acc: number, e: any) => acc + Number(e.amount || 0), 0)
-  const depositsHeld = deposits.reduce((acc: number, d: any) => acc + Number(d.amount || 0), 0)
+  const totalCollected = payments.reduce((acc: number, p: Record<string, unknown>) => acc + Number(p.amount || 0), 0)
+  const totalExpenses = expenses.reduce((acc: number, e: Record<string, unknown>) => acc + Number(e.amount || 0), 0)
+  const depositsHeld = deposits.reduce((acc: number, d: Record<string, unknown>) => acc + Number(d.amount || 0), 0)
   const netCashFlow = totalCollected - totalExpenses
 
   const collectionRate = totalInvoiced > 0 ? Math.min(100, Math.round((totalCollected / totalInvoiced) * 10000) / 100) : 0
@@ -191,9 +192,9 @@ export async function getFinanceSummaryKPIs(supabase: any, period: string = 'thi
   let todaysCollections = 0
   let thisMonthsCollections = 0
 
-  allPayments.forEach((p: any) => {
+  allPayments.forEach((p: Record<string, unknown>) => {
     const amt = Number(p.amount || 0)
-    const pDate = (p.payment_date || '').slice(0, 10)
+    const pDate = String(p.payment_date || '').slice(0, 10)
     if (pDate === todayStr) todaysCollections += amt
     if (pDate >= thisMonthStartStr) thisMonthsCollections += amt
   })
@@ -219,7 +220,7 @@ export async function getFinanceSummaryKPIs(supabase: any, period: string = 'thi
 }
 
 export async function getPaymentMethodBreakdown(
-  supabase: any,
+  supabase: SupabaseClient,
   period: string = 'this_month'
 ): Promise<PaymentMethodBreakdown[]> {
   const range = getPeriodDateRange(period)
@@ -246,8 +247,8 @@ export async function getPaymentMethodBreakdown(
 
   let grandTotal = 0
 
-  pList.forEach((p: any) => {
-    const m = (p.payment_method || 'other').toLowerCase()
+  pList.forEach((p: Record<string, unknown>) => {
+    const m = String(p.payment_method || 'other').toLowerCase()
     const amt = Number(p.amount || 0)
     grandTotal += amt
 
@@ -281,12 +282,12 @@ export async function getPaymentMethodBreakdown(
 }
 
 export async function getCustomerStatementLedger(
-  supabase: any,
+  supabase: SupabaseClient,
   customerId: string,
   dateFrom?: string,
   dateTo?: string
 ): Promise<{
-  customer: any
+  customer: Record<string, unknown> | null
   totalInvoiced: number
   totalCollected: number
   outstandingBalance: number
@@ -333,34 +334,36 @@ export async function getCustomerStatementLedger(
   let outstandingBalance = 0
   let overdueBalance = 0
 
-  invoices.forEach((inv: any) => {
+  invoices.forEach((inv: Record<string, unknown>) => {
     totalInvoiced += Number(inv.grand_total || 0)
     const bal = Number(inv.balance_due || 0)
     if (bal > 0) {
       outstandingBalance += bal
-      if (inv.status === 'overdue' || (inv.due_date && inv.due_date < todayStr)) {
+      if (inv.status === 'overdue' || (inv.due_date && String(inv.due_date) < todayStr)) {
         overdueBalance += bal
       }
     }
   })
 
-  payments.forEach((p: any) => {
+  payments.forEach((p: Record<string, unknown>) => {
     totalCollected += Number(p.amount || 0)
   })
 
   // Combine invoices and payments into a chronological ledger
   const rawEvents: { date: string; timeSort: string; item: CustomerStatementItem }[] = []
 
-  invoices.forEach((inv: any) => {
+  invoices.forEach((inv: Record<string, unknown>) => {
+    const invDateStr = String(inv.invoice_date || todayStr)
+    const invStatusStr = String(inv.status || '').toUpperCase()
     rawEvents.push({
-      date: inv.invoice_date,
-      timeSort: `${inv.invoice_date}T00:00:00`,
+      date: invDateStr,
+      timeSort: `${invDateStr}T00:00:00`,
       item: {
-        id: inv.id,
-        date: inv.invoice_date,
+        id: String(inv.id || ''),
+        date: invDateStr,
         type: 'invoice',
-        reference: inv.invoice_number,
-        description: `Invoice issued (${inv.status?.toUpperCase()})`,
+        reference: String(inv.invoice_number || ''),
+        description: `Invoice issued (${invStatusStr})`,
         debit: Number(inv.grand_total || 0),
         credit: 0,
         runningBalance: 0,
@@ -368,19 +371,21 @@ export async function getCustomerStatementLedger(
     })
   })
 
-  payments.forEach((p: any) => {
-    const pDate = (p.payment_date || '').slice(0, 10)
-    const invNum = p.invoice?.invoice_number ? ` for ${p.invoice.invoice_number}` : ''
+  payments.forEach((p: Record<string, unknown>) => {
+    const pDate = String(p.payment_date || '').slice(0, 10)
+    const invData = p.invoice as Record<string, unknown> | null
+    const invNum = invData?.invoice_number ? ` for ${invData.invoice_number}` : ''
     const ref = p.reference_number ? ` (Ref: ${p.reference_number})` : ''
+    const pMethodStr = String(p.payment_method || '').toUpperCase()
     rawEvents.push({
       date: pDate,
-      timeSort: p.payment_date || `${pDate}T12:00:00`,
+      timeSort: String(p.payment_date || `${pDate}T12:00:00`),
       item: {
-        id: p.id,
+        id: String(p.id || ''),
         date: pDate,
         type: 'payment',
-        reference: p.reference_number || 'PAYMENT',
-        description: `Payment received via ${p.payment_method?.toUpperCase()}${invNum}${ref}`,
+        reference: String(p.reference_number || 'PAYMENT'),
+        description: `Payment received via ${pMethodStr}${invNum}${ref}`,
         debit: 0,
         credit: Number(p.amount || 0),
         runningBalance: 0,
@@ -401,7 +406,7 @@ export async function getCustomerStatementLedger(
   })
 
   return {
-    customer,
+    customer: customer as Record<string, unknown> | null,
     totalInvoiced,
     totalCollected,
     outstandingBalance,
@@ -410,7 +415,7 @@ export async function getCustomerStatementLedger(
   }
 }
 
-export async function getAccountsReceivableAging(supabase: any): Promise<{
+export async function getAccountsReceivableAging(supabase: SupabaseClient): Promise<{
   summary: {
     notDue: number
     bucket0_30: number
@@ -441,10 +446,10 @@ export async function getAccountsReceivableAging(supabase: any): Promise<{
   let bucket90Plus = 0
   let totalOutstanding = 0
 
-  const items: AgingBucketItem[] = invList.map((inv: any) => {
+  const items: AgingBucketItem[] = invList.map((inv: Record<string, unknown>) => {
     const bal = Number(inv.balance_due || 0)
     totalOutstanding += bal
-    const dueDateStr = inv.due_date || todayStr
+    const dueDateStr = String(inv.due_date || todayStr)
     const dueDate = new Date(dueDateStr)
 
     const diffTime = todayDate.getTime() - dueDate.getTime()
@@ -469,11 +474,13 @@ export async function getAccountsReceivableAging(supabase: any): Promise<{
       bucket90Plus += bal
     }
 
+    const custObj = inv.customer as Record<string, unknown> | null
+
     return {
-      id: inv.id,
-      invoiceNumber: inv.invoice_number,
-      customerName: inv.customer?.full_name || 'N/A',
-      customerId: inv.customer?.id || '',
+      id: String(inv.id || ''),
+      invoiceNumber: String(inv.invoice_number || ''),
+      customerName: String(custObj?.full_name || 'N/A'),
+      customerId: String(custObj?.id || ''),
       dueDate: dueDateStr,
       daysOverdue: dueDateStr >= todayStr ? 0 : daysOverdue,
       invoiceAmount: Number(inv.grand_total || 0),
