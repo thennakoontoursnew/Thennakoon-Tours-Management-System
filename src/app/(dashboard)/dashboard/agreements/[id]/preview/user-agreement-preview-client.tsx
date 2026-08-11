@@ -224,7 +224,6 @@ export function UserAgreementDocument({
         <div className="text-right">
           <h2 className="text-sm font-black text-slate-900 uppercase">VEHICLE RENTAL AGREEMENT</h2>
           <p className="text-xs font-mono font-bold text-amber-700">{agreement.agreement_number}</p>
-          <p className="text-[10px] font-mono text-slate-500">Revision {agreement.version_number || 1}</p>
         </div>
       </div>
 
@@ -235,11 +234,9 @@ export function UserAgreementDocument({
       )}
 
       {/* Dynamic Footer */}
-      <div className="pt-8 border-t border-slate-200 text-center text-[10px] text-slate-400 flex items-center justify-between font-mono">
+      <div className="pt-8 border-t border-slate-200 text-center text-[10px] text-slate-500 flex items-center justify-between font-mono">
         <span>Agreement Ref: {agreement.agreement_number}</span>
-        <span>Revision {agreement.version_number || 1}</span>
         <span>Thennakoon Tours (Pvt) Ltd (Reg No. {USER_AGREEMENT_COMPANY_REG_NO})</span>
-        <span>Page Document</span>
       </div>
     </div>
   )

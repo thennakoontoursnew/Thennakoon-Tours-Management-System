@@ -33,8 +33,6 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
     throw new Error('Agreement data missing')
   }
 
-  const versionNum = agreement.version_number || 1
-
   // Create US Legal Size PDF: 8.5 x 14 in (215.9 x 355.6 mm)
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -60,7 +58,7 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
 
   doc.setFontSize(9)
   doc.setTextColor(180, 83, 9)
-  doc.text(`Ref: ${agreement.agreement_number || 'N/A'} (Revision ${versionNum})`, LEGAL_MARGINS.right, currentY + 4.5, { align: 'right' })
+  doc.text(`Ref: ${agreement.agreement_number || 'N/A'}`, LEGAL_MARGINS.right, currentY + 4.5, { align: 'right' })
 
   currentY += 12
 
@@ -169,8 +167,8 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
     doc.setPage(i)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
-    doc.setTextColor(148, 163, 184)
-    doc.text(`Agreement Ref: ${agreement.agreement_number || 'N/A'} | Revision ${versionNum}`, LEGAL_MARGINS.left, 348)
+    doc.setTextColor(100, 116, 139)
+    doc.text(`Agreement Ref: ${agreement.agreement_number || 'N/A'}`, LEGAL_MARGINS.left, 348)
     doc.text(`Page ${i} of ${totalPages}`, LEGAL_MARGINS.right, 348, { align: 'right' })
   }
 
