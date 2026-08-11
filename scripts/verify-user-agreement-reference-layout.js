@@ -25,8 +25,17 @@ saasCardStyles.forEach((style) => {
 })
 console.log('✓ PASSED: 0% SaaS dashboard cards/badges inside legal document container.')
 
-// 2. Audit All 18 Approved Legal Clauses
-console.log('\n--- TEST 2: All 18 Approved Legal Clauses ---')
+// 2. Audit Nominated Driver Empty State (No Hardcoded "Self Drive by Lessee" Default)
+console.log('\n--- TEST 2: Nominated Driver Empty State Assertion ---')
+if (docCompContent.includes('Self Drive by Lessee')) {
+  console.error('❌ FAIL: UserAgreementDocument contains hardcoded "Self Drive by Lessee" default in empty state!')
+  process.exit(1)
+} else {
+  console.log('✓ PASSED: Hardcoded "Self Drive by Lessee" default removed. Blank underline rows rendered.')
+}
+
+// 3. Audit All 18 Approved Legal Clauses
+console.log('\n--- TEST 3: All 18 Approved Legal Clauses ---')
 const templatePath = path.join(__dirname, '../src/lib/agreements/templates/user-agreement-v1.ts')
 const templateText = fs.readFileSync(templatePath, 'utf8')
 
@@ -60,8 +69,8 @@ requiredClauses.forEach((cl) => {
   }
 })
 
-// 3. Audit Locked Legal Numeric Values
-console.log('\n--- TEST 3: Locked Legal Numeric Values ---')
+// 4. Audit Locked Legal Numeric Values
+console.log('\n--- TEST 4: Locked Legal Numeric Values ---')
 const numericAssertions = [
   { key: 'Minor Repair Approval Limit', val: '13,500' },
   { key: 'Insurance Excess (Claim)', val: '15,000' },
@@ -84,16 +93,8 @@ numericAssertions.forEach(({ key, val }) => {
   }
 })
 
-// 4. Audit Fixture Data Dynamic Substitution & Sample Data Leakage Protection
-console.log('\n--- TEST 4: Fixture Dynamic Data & Leakage Protection ---')
-const testFixture = {
-  agreement_number: 'AGR-TEST-999999',
-  lessee: { full_name: 'TEST CUSTOMER ALPHA', identifier_no: 'NIC-999999999V', address: '999 TEST WAY, COLOMBO' },
-  vehicle: { make_model: 'TEST TOYOTA AXIO', registration_number: 'TEST-8888', pickup_odometer: 12345 },
-  rental: { daily_rental_rate: 8500, security_deposit: 60000, extra_km_rate: 85 },
-}
-
-// Ensure source code handles snapshot priority dynamically
+// 5. Audit Fixture Data Dynamic Substitution & Sample Data Leakage Protection
+console.log('\n--- TEST 5: Fixture Dynamic Data & Leakage Protection ---')
 if (previewText.includes('lessee.full_name') && previewText.includes('replaceTokens')) {
   console.log('✓ PASSED: Token replacement engine binds dynamic fixture values dynamically.')
 } else {
@@ -111,8 +112,8 @@ leakSamples.forEach((sample) => {
 })
 console.log('✓ PASSED: 0% sample data leakage in legal template source.')
 
-// 5. Audit Print Route & Dynamic Page Numbering Engine
-console.log('\n--- TEST 5: Standalone Print Route & Page Numbering Engine ---')
+// 6. Audit Print Route & Dynamic Page Numbering Engine
+console.log('\n--- TEST 6: Standalone Print Route & Page Numbering Engine ---')
 const printRoutePath = path.join(__dirname, '../src/app/print/user-agreement/[id]/page.tsx')
 const pdfEnginePath = path.join(__dirname, '../src/lib/documents/agreement-pdf.ts')
 

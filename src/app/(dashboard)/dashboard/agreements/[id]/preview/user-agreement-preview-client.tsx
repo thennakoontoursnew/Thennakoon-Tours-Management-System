@@ -467,7 +467,13 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
                 </tr>
               ))
             ) : (
-              <tr><td colSpan={3} className="p-2 text-slate-700 italic border-t border-slate-300">Self Drive by Lessee.</td></tr>
+              [1, 2].map((idx) => (
+                <tr key={idx} className="border-b border-slate-300">
+                  <td className="p-2 font-mono text-slate-700 border-r border-slate-300">........................................</td>
+                  <td className="p-2 font-mono text-slate-700 border-r border-slate-300">........................................</td>
+                  <td className="p-2 font-mono text-slate-700">........................................</td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>
