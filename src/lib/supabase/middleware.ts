@@ -161,11 +161,14 @@ export async function updateSession(request: NextRequest) {
     }
 
     if (
+      pathname.startsWith('/dashboard/finance') ||
       pathname.startsWith('/dashboard/invoices') ||
+      pathname.startsWith('/dashboard/payments') ||
       pathname.startsWith('/dashboard/receipts') ||
-      pathname.startsWith('/dashboard/expenses')
+      pathname.startsWith('/dashboard/expenses') ||
+      pathname.startsWith('/dashboard/reports/earnings')
     ) {
-      const allowed = ['owner', 'manager', 'booking_staff', 'finance_staff']
+      const allowed = ['owner', 'admin', 'manager', 'booking_staff', 'finance_staff', 'viewer']
       if (!allowed.includes(profile.role)) {
         return safeRedirect('/unauthorized')
       }
