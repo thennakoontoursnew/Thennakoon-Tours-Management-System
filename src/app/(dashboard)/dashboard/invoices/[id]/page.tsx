@@ -4,6 +4,14 @@ import Link from 'next/link'
 import { ArrowLeft, Printer, DollarSign, CheckCircle2 } from 'lucide-react'
 import { issueInvoice } from '../invoice-actions'
 import { recordPayment } from '../../payments/payment-actions'
+import {
+  toSafeNumber,
+  toSafeDateString,
+  getCustomerName,
+  getCustomerMobile,
+  getReceiptId,
+  getReceiptNumber,
+} from '@/lib/utils/relation-utils'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -37,7 +45,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
   const handlePayment = async (formData: FormData) => {
     'use server'
     const amount = Number(formData.get('amount'))
-    const method = formData.get('payment_method') as any
+    const method = (formData.get('payment_method') as string) || 'bank_transfer'
     const ref = formData.get('reference_number') as string
 
     await recordPayment({
@@ -46,7 +54,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
       customer_id: invoice.customer_id,
       payment_date: new Date().toISOString(),
       amount,
-      payment_method: method,
+      payment_method: method as 'bank_transfer' | 'cash' | 'card' | 'online' | 'cheque' | 'other',
       reference_number: ref,
       status: 'completed',
     })
@@ -102,8 +110,8 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
             Billed To
           </h2>
           <div className="space-y-2 text-xs">
-            <div className="font-bold text-sm text-slate-900 dark:text-white">{invoice.customer?.full_name}</div>
-            <div className="text-slate-500">Mobile: {invoice.customer?.mobile}</div>
+            <div className="font-bold text-sm text-slate-900 dark:text-white">{getCustomerName(invoice.customer)}</div>
+            <div className="text-slate-500">Mobile: {getCustomerMobile(invoice.customer) || 'N/A'}</div>
           </div>
         </div>
 
@@ -112,15 +120,15 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
             Balance Summary
           </h2>
           <div className="space-y-2 text-xs">
-            <div><span className="font-bold text-slate-700 dark:text-slate-300">Grand Total:</span> <span className="font-mono font-bold text-slate-900 dark:text-white">LKR {Number(invoice.grand_total).toLocaleString()}</span></div>
-            <div><span className="font-bold text-slate-700 dark:text-slate-300">Amount Paid:</span> <span className="font-mono text-emerald-500 font-bold">LKR {Number(invoice.amount_paid).toLocaleString()}</span></div>
-            <div><span className="font-bold text-slate-700 dark:text-slate-300">Balance Due:</span> <span className="font-mono text-rose-500 font-bold text-sm">LKR {Number(invoice.balance_due).toLocaleString()}</span></div>
+            <div><span className="font-bold text-slate-700 dark:text-slate-300">Grand Total:</span> <span className="font-mono font-bold text-slate-900 dark:text-white">LKR {toSafeNumber(invoice.grand_total).toLocaleString()}</span></div>
+            <div><span className="font-bold text-slate-700 dark:text-slate-300">Amount Paid:</span> <span className="font-mono text-emerald-500 font-bold">LKR {toSafeNumber(invoice.amount_paid).toLocaleString()}</span></div>
+            <div><span className="font-bold text-slate-700 dark:text-slate-300">Balance Due:</span> <span className="font-mono text-rose-500 font-bold text-sm">LKR {toSafeNumber(invoice.balance_due).toLocaleString()}</span></div>
           </div>
         </div>
       </div>
 
       {/* Record Payment Form */}
-      {Number(invoice.balance_due) > 0 && (
+      {toSafeNumber(invoice.balance_due) > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-4 shadow-sm">
           <h2 className="text-xs font-bold uppercase tracking-wider text-amber-500 border-b border-slate-100 dark:border-slate-800 pb-2">
             Record New Payment
@@ -133,7 +141,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
                 step="0.01"
                 name="amount"
                 required
-                defaultValue={Number(invoice.balance_due)}
+                defaultValue={toSafeNumber(invoice.balance_due)}
                 className="w-full p-2 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-mono"
               />
             </div>
@@ -178,26 +186,32 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
         </h2>
         {payments && payments.length > 0 ? (
           <div className="space-y-3">
-            {payments.map((p) => (
-              <div key={p.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-850 flex items-center justify-between text-xs">
-                <div>
-                  <div className="font-bold text-slate-900 dark:text-white">
-                    LKR {Number(p.amount).toLocaleString()} via {p.payment_method?.toUpperCase()}
+            {payments.map((p) => {
+              const rcptId = getReceiptId(p.receipt)
+              const rcptNo = getReceiptNumber(p.receipt)
+              const methodStr = p.payment_method ? String(p.payment_method).toUpperCase() : 'PAYMENT'
+
+              return (
+                <div key={p.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-850 flex items-center justify-between text-xs">
+                  <div>
+                    <div className="font-bold text-slate-900 dark:text-white">
+                      LKR {toSafeNumber(p.amount).toLocaleString()} via {methodStr}
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      {toSafeDateString(p.payment_date)} {p.reference_number ? `| Ref: ${p.reference_number}` : ''}
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-400">
-                    {new Date(p.payment_date).toLocaleString()} {p.reference_number ? `| Ref: ${p.reference_number}` : ''}
-                  </div>
+                  {rcptId && rcptNo && (
+                    <Link
+                      href={`/dashboard/receipts/${rcptId}/preview`}
+                      className="px-2.5 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-mono font-bold rounded text-[11px] hover:underline"
+                    >
+                      Receipt: {rcptNo}
+                    </Link>
+                  )}
                 </div>
-                {p.receipt && p.receipt.length > 0 && (
-                  <Link
-                    href={`/dashboard/receipts/${p.receipt[0].id}/preview`}
-                    className="px-2.5 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-mono font-bold rounded text-[11px] hover:underline"
-                  >
-                    Receipt: {p.receipt[0].receipt_number}
-                  </Link>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
         ) : (
           <div className="text-xs text-slate-400 py-4 text-center">No payment transactions recorded yet.</div>

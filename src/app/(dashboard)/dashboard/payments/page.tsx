@@ -3,15 +3,19 @@ import Link from 'next/link'
 import {
   CreditCard,
   Search,
-  Filter,
-  DollarSign,
-  Printer,
-  FileText,
-  CheckCircle2,
-  Calendar,
   WalletCards,
 } from 'lucide-react'
 import { RecordPaymentButton } from '@/components/finance/record-payment-button'
+
+import {
+  toSafeNumber,
+  toSafeDateString,
+  getCustomerName,
+  getCustomerMobile,
+  getInvoiceNumber,
+  getReceiptId,
+  getReceiptNumber,
+} from '@/lib/utils/relation-utils'
 
 interface PageProps {
   searchParams: Promise<{ q?: string; method?: string }>
@@ -46,7 +50,7 @@ export default async function PaymentsPage({ searchParams }: PageProps) {
 
   payments.forEach((p) => {
     if (p.status === 'completed') {
-      const amt = Number(p.amount || 0)
+      const amt = toSafeNumber(p.amount)
       totalCompletedAmount += amt
       if (p.payment_method === 'cash') cashTotal += amt
       else if (p.payment_method === 'bank_transfer') bankTotal += amt
@@ -146,49 +150,58 @@ export default async function PaymentsPage({ searchParams }: PageProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-slate-700 dark:text-slate-300">
-                {payments.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
-                    <td className="py-3.5 px-4 font-mono">{(p.payment_date || '').slice(0, 10)}</td>
-                    <td className="py-3.5 px-4">
-                      <div className="font-bold text-slate-900 dark:text-white">{p.customer?.full_name || 'Customer'}</div>
-                      <div className="text-[11px] text-slate-400 font-mono">{p.customer?.mobile}</div>
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-amber-500">
-                      {p.invoice?.invoice_number ? (
-                        <Link href={`/dashboard/invoices/${p.invoice_id}`} className="hover:underline">
-                          {p.invoice.invoice_number}
-                        </Link>
-                      ) : (
-                        'Direct Payment'
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4 uppercase font-bold text-[11px] text-slate-700 dark:text-slate-300">
-                      {p.payment_method?.replace('_', ' ')}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono">{p.reference_number || '—'}</td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-emerald-500">
-                      LKR {Number(p.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 uppercase">
-                        {p.status}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      {p.receipt && p.receipt.length > 0 ? (
-                        <Link
-                          href={`/dashboard/receipts/${p.receipt[0].id}/preview`}
-                          className="px-2.5 py-1 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 font-mono font-bold text-[11px] inline-flex items-center gap-1"
-                        >
-                          <WalletCards size={12} />
-                          <span>{p.receipt[0].receipt_number}</span>
-                        </Link>
-                      ) : (
-                        <span className="text-[11px] text-slate-400 italic">No receipt</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {payments.map((p) => {
+                  const custName = getCustomerName(p.customer)
+                  const custMobile = getCustomerMobile(p.customer)
+                  const invNo = getInvoiceNumber(p.invoice)
+                  const rcptId = getReceiptId(p.receipt)
+                  const rcptNo = getReceiptNumber(p.receipt)
+                  const methodStr = p.payment_method ? String(p.payment_method).replace('_', ' ').toUpperCase() : 'PAYMENT'
+
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
+                      <td className="py-3.5 px-4 font-mono">{toSafeDateString(p.payment_date)}</td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-slate-900 dark:text-white">{custName}</div>
+                        {custMobile && <div className="text-[11px] text-slate-400 font-mono">{custMobile}</div>}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-amber-500">
+                        {invNo && p.invoice_id ? (
+                          <Link href={`/dashboard/invoices/${p.invoice_id}`} className="hover:underline">
+                            {invNo}
+                          </Link>
+                        ) : (
+                          'Direct Payment'
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 uppercase font-bold text-[11px] text-slate-700 dark:text-slate-300">
+                        {methodStr}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono">{p.reference_number || '—'}</td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-emerald-500">
+                        LKR {toSafeNumber(p.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 uppercase">
+                          {p.status || 'COMPLETED'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        {rcptId && rcptNo ? (
+                          <Link
+                            href={`/dashboard/receipts/${rcptId}/preview`}
+                            className="px-2.5 py-1 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 font-mono font-bold text-[11px] inline-flex items-center gap-1"
+                          >
+                            <WalletCards size={12} />
+                            <span>{rcptNo}</span>
+                          </Link>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">No receipt</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

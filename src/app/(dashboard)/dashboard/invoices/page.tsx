@@ -4,16 +4,18 @@ import {
   FileSpreadsheet,
   Plus,
   Search,
-  Filter,
   Eye,
   Printer,
-  DollarSign,
-  Copy,
-  AlertTriangle,
   Send,
-  Calendar,
 } from 'lucide-react'
 import { getFinanceSummaryKPIs } from '@/lib/finance/finance-service'
+
+import {
+  toSafeNumber,
+  toSafeDateString,
+  getCustomerName,
+  getCustomerMobile,
+} from '@/lib/utils/relation-utils'
 
 interface PageProps {
   searchParams: Promise<{ q?: string; status?: string }>
@@ -56,7 +58,7 @@ export default async function InvoicesPage({ searchParams }: PageProps) {
       case 'cancelled':
         return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/10 text-slate-500 border border-slate-500/20">{st.toUpperCase()}</span>
       default:
-        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/10 text-slate-500 border border-slate-500/20">{st.toUpperCase()}</span>
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/10 text-slate-500 border border-slate-500/20">{(st || 'UNKNOWN').toUpperCase()}</span>
     }
   }
 
@@ -87,22 +89,22 @@ export default async function InvoicesPage({ searchParams }: PageProps) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <span className="text-[10px] font-bold uppercase text-slate-400 block">Total Invoiced</span>
-          <span className="font-mono font-black text-slate-900 dark:text-white text-xl block mt-1">LKR {kpis.totalInvoiced.toLocaleString()}</span>
+          <span className="font-mono font-black text-slate-900 dark:text-white text-xl block mt-1">LKR {toSafeNumber(kpis.totalInvoiced).toLocaleString()}</span>
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <span className="text-[10px] font-bold uppercase text-emerald-500 block">Total Collected</span>
-          <span className="font-mono font-black text-emerald-500 text-xl block mt-1">LKR {kpis.totalCollected.toLocaleString()}</span>
+          <span className="font-mono font-black text-emerald-500 text-xl block mt-1">LKR {toSafeNumber(kpis.totalCollected).toLocaleString()}</span>
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <span className="text-[10px] font-bold uppercase text-amber-500 block">Outstanding Balance</span>
-          <span className="font-mono font-black text-amber-500 text-xl block mt-1">LKR {kpis.outstandingBalance.toLocaleString()}</span>
+          <span className="font-mono font-black text-amber-500 text-xl block mt-1">LKR {toSafeNumber(kpis.outstandingBalance).toLocaleString()}</span>
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <span className="text-[10px] font-bold uppercase text-rose-500 block">Overdue Balance</span>
-          <span className="font-mono font-black text-rose-500 text-xl block mt-1">LKR {kpis.overdueBalance.toLocaleString()}</span>
+          <span className="font-mono font-black text-rose-500 text-xl block mt-1">LKR {toSafeNumber(kpis.overdueBalance).toLocaleString()}</span>
         </div>
       </div>
 
@@ -156,9 +158,11 @@ export default async function InvoicesPage({ searchParams }: PageProps) {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-slate-700 dark:text-slate-300">
                 {invoices.map((item) => {
-                  const waNumber = (item.customer?.whatsapp || item.customer?.mobile || '').replace(/[^0-9]/g, '')
+                  const custName = getCustomerName(item.customer)
+                  const custMobile = getCustomerMobile(item.customer)
+                  const waNumber = custMobile.replace(/[^0-9]/g, '')
                   const waText = encodeURIComponent(
-                    `Dear ${item.customer?.full_name || 'Customer'},\nHere is your invoice ${item.invoice_number} from Thennakoon Tours.\nTotal: LKR ${Number(item.grand_total).toLocaleString()}\nBalance Due: LKR ${Number(item.balance_due).toLocaleString()}\nThank you!`
+                    `Dear ${custName},\nHere is your invoice ${item.invoice_number} from Thennakoon Tours.\nTotal: LKR ${toSafeNumber(item.grand_total).toLocaleString()}\nBalance Due: LKR ${toSafeNumber(item.balance_due).toLocaleString()}\nThank you!`
                   )
                   const waUrl = `https://wa.me/${waNumber}?text=${waText}`
 
@@ -166,22 +170,22 @@ export default async function InvoicesPage({ searchParams }: PageProps) {
                     <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
                       <td className="py-3.5 px-4 font-mono font-bold text-amber-500">
                         <Link href={`/dashboard/invoices/${item.id}`} className="hover:underline">
-                          {item.invoice_number}
+                          {item.invoice_number || 'INV'}
                         </Link>
                       </td>
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-900 dark:text-white">{item.customer?.full_name || 'N/A'}</div>
-                        <div className="text-[11px] text-slate-400 font-mono">{item.customer?.mobile}</div>
+                        <div className="font-bold text-slate-900 dark:text-white">{custName}</div>
+                        {custMobile && <div className="text-[11px] text-slate-400 font-mono">{custMobile}</div>}
                       </td>
-                      <td className="py-3.5 px-4 font-mono">{item.invoice_date}</td>
+                      <td className="py-3.5 px-4 font-mono">{toSafeDateString(item.invoice_date)}</td>
                       <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-white">
-                        LKR {Number(item.grand_total).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        LKR {toSafeNumber(item.grand_total).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="py-3.5 px-4 font-mono text-emerald-500 font-bold">
-                        LKR {Number(item.amount_paid).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        LKR {toSafeNumber(item.amount_paid).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="py-3.5 px-4 font-mono font-bold text-rose-500">
-                        LKR {Number(item.balance_due).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        LKR {toSafeNumber(item.balance_due).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="py-3.5 px-4">{getStatusBadge(item.status)}</td>
                       <td className="py-3.5 px-4 text-right space-x-1.5">

@@ -7,7 +7,7 @@ import { NewExpenseModal } from '@/components/finance/new-expense-modal'
 import { createExpenseAction } from '../invoices/finance-actions'
 
 interface ExpensesClientWrapperProps {
-  expenses: any[]
+  expenses: Record<string, unknown>[]
 }
 
 export function ExpensesClientWrapper({ expenses }: ExpensesClientWrapperProps) {
@@ -43,22 +43,29 @@ export function ExpensesClientWrapper({ expenses }: ExpensesClientWrapperProps) 
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-slate-700 dark:text-slate-300">
-                {expenses.map((e) => (
-                  <tr key={e.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
-                    <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">{e.expense_number}</td>
-                    <td className="py-3 px-4 font-mono">{e.expense_date}</td>
-                    <td className="py-3 px-4 font-bold capitalize text-rose-500">{e.category.replace('_', ' ')}</td>
-                    <td className="py-3 px-4 font-medium">{e.description}</td>
-                    <td className="py-3 px-4">{e.supplier_name || 'N/A'}</td>
-                    <td className="py-3 px-4 font-mono font-bold text-rose-500">LKR {Number(e.amount).toLocaleString()}</td>
-                    <td className="py-3 px-4 capitalize">{e.payment_method}</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-500 uppercase">
-                        {e.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {expenses.map((e, idx) => {
+                  const catStr = e.category ? String(e.category).replace('_', ' ') : 'General'
+                  const methodStr = e.payment_method ? String(e.payment_method).replace('_', ' ') : 'Cash'
+                  const amt = Number(e.amount || 0)
+                  const itemKey = String(e.id || idx)
+
+                  return (
+                    <tr key={itemKey} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
+                      <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">{String(e.expense_number || 'EXP')}</td>
+                      <td className="py-3 px-4 font-mono">{e.expense_date ? String(e.expense_date).slice(0, 10) : 'N/A'}</td>
+                      <td className="py-3 px-4 font-bold capitalize text-rose-500">{catStr}</td>
+                      <td className="py-3 px-4 font-medium">{String(e.description || '—')}</td>
+                      <td className="py-3 px-4">{String(e.supplier_name || 'N/A')}</td>
+                      <td className="py-3 px-4 font-mono font-bold text-rose-500">LKR {amt.toLocaleString()}</td>
+                      <td className="py-3 px-4 capitalize">{methodStr}</td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-500 uppercase">
+                          {String(e.status || 'APPROVED')}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

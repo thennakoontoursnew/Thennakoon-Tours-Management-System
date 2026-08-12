@@ -2,6 +2,13 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { WalletCards, Printer, Search, Send } from 'lucide-react'
 
+import {
+  toSafeNumber,
+  toSafeDateString,
+  getCustomerName,
+  getCustomerMobile,
+} from '@/lib/utils/relation-utils'
+
 interface PageProps {
   searchParams: Promise<{ q?: string }>
 }
@@ -67,24 +74,27 @@ export default async function ReceiptsPage({ searchParams }: PageProps) {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-slate-700 dark:text-slate-300">
                 {receipts.map((item) => {
-                  const waNumber = (item.customer?.whatsapp || item.customer?.mobile || '').replace(/[^0-9]/g, '')
+                  const custName = getCustomerName(item.customer)
+                  const custMobile = getCustomerMobile(item.customer)
+                  const waNumber = custMobile.replace(/[^0-9]/g, '')
                   const waText = encodeURIComponent(
-                    `Dear ${item.customer?.full_name || 'Customer'},\nThank you for your payment of LKR ${Number(item.amount).toLocaleString()} to Thennakoon Tours.\nReceipt No: ${item.receipt_number}`
+                    `Dear ${custName},\nThank you for your payment of LKR ${toSafeNumber(item.amount).toLocaleString()} to Thennakoon Tours.\nReceipt No: ${item.receipt_number || 'RCPT'}`
                   )
                   const waUrl = `https://wa.me/${waNumber}?text=${waText}`
+                  const methodStr = item.payment_method ? String(item.payment_method).replace('_', ' ').toUpperCase() : 'RECEIPT'
 
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
-                      <td className="py-3.5 px-4 font-mono font-bold text-amber-500">{item.receipt_number}</td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-amber-500">{item.receipt_number || 'RCPT'}</td>
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-900 dark:text-white">{item.customer?.full_name || 'N/A'}</div>
-                        <div className="text-[11px] text-slate-400 font-mono">{item.customer?.mobile}</div>
+                        <div className="font-bold text-slate-900 dark:text-white">{custName}</div>
+                        {custMobile && <div className="text-[11px] text-slate-400 font-mono">{custMobile}</div>}
                       </td>
-                      <td className="py-3.5 px-4 uppercase font-semibold text-slate-600 dark:text-slate-400">{item.payment_method}</td>
+                      <td className="py-3.5 px-4 uppercase font-semibold text-slate-600 dark:text-slate-400">{methodStr}</td>
                       <td className="py-3.5 px-4 font-mono font-bold text-emerald-500">
-                        LKR {Number(item.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        LKR {toSafeNumber(item.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </td>
-                      <td className="py-3.5 px-4 font-mono">{new Date(item.receipt_date || item.created_at).toLocaleDateString('en-GB')}</td>
+                      <td className="py-3.5 px-4 font-mono">{toSafeDateString(item.receipt_date || item.created_at)}</td>
                       <td className="py-3.5 px-4 text-right space-x-1.5">
                         <Link
                           href={`/dashboard/receipts/${item.id}/preview`}
