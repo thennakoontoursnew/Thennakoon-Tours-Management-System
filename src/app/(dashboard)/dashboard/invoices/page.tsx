@@ -3,12 +3,12 @@ import Link from 'next/link'
 import {
   FileSpreadsheet,
   Plus,
-  Search,
   Eye,
   Printer,
   Send,
 } from 'lucide-react'
 import { getFinanceSummaryKPIs } from '@/lib/finance/finance-service'
+import { InvoiceFilters } from '@/components/finance/invoice-filters'
 
 import {
   toSafeNumber,
@@ -108,36 +108,8 @@ export default async function InvoicesPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-3">
-        <form method="GET" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="relative sm:col-span-2">
-            <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
-            <input
-              type="text"
-              name="q"
-              defaultValue={q || ''}
-              placeholder="Search invoice number, customer name, mobile..."
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
-            />
-          </div>
-
-          <select
-            name="status"
-            defaultValue={status || 'all'}
-            onChange={(e) => e.target.form?.submit()}
-            className="py-2 px-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
-          >
-            <option value="all">All Invoice Statuses</option>
-            <option value="draft">Draft</option>
-            <option value="issued">Issued</option>
-            <option value="partially_paid">Partially Paid</option>
-            <option value="paid">Paid</option>
-            <option value="overdue">Overdue</option>
-            <option value="cancelled">Cancelled / Void</option>
-          </select>
-        </form>
-      </div>
+      {/* Filter Bar Client Component */}
+      <InvoiceFilters initialSearch={q} initialStatus={status} />
 
       {/* Invoices Table */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">

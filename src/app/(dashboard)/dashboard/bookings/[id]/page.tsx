@@ -21,7 +21,6 @@ import ActivityTimeline from './activity-timeline'
 import { BookingLifecycleProgress } from '@/components/bookings/booking-lifecycle-progress'
 import { BookingStatusActions } from '@/components/bookings/booking-status-actions'
 import { ExtraChargesSection } from '@/components/bookings/extra-charges-section'
-import { addBookingExtraChargeAction } from './booking-actions'
 import { BookingStatus } from '@/lib/bookings/booking-workflow'
 
 interface PageProps {
@@ -439,6 +438,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
       {/* Extra Charges Section */}
       <ExtraChargesSection
+        bookingId={String(id)}
         charges={bookingCharges.map((c: any) => ({
           id: String(c.id),
           charge_type: String(c.charge_type),
@@ -448,10 +448,6 @@ export default async function BookingDetailPage({ params }: PageProps) {
           amount: Number(c.amount),
           status: String(c.status),
         }))}
-        onAddCharge={async (newCharge) => {
-          'use server'
-          await addBookingExtraChargeAction(String(id), newCharge)
-        }}
       />
 
       {/* Activity Log Timeline */}

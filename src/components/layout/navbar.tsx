@@ -2,18 +2,26 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Menu, X, Bell, Calendar, Search, User, LogOut, Settings, ShieldCheck, ChevronDown } from 'lucide-react'
+import { Menu, X, Bell, Calendar, Search, LogOut, Settings, ChevronDown } from 'lucide-react'
 import { Sidebar } from './sidebar'
 import { Breadcrumbs } from './breadcrumbs'
 import { GlobalSearchModal } from './global-search-modal'
+import { logout } from '@/app/auth-actions'
 
 interface NavbarProps {
   role: string
   fullName: string
-  onLogout: () => Promise<void>
+  onLogout?: () => Promise<void>
 }
 
 export function Navbar({ role, fullName, onLogout }: NavbarProps) {
+  const handleLogout = async () => {
+    if (onLogout) {
+      await onLogout()
+    } else {
+      await logout()
+    }
+  }
   const [isOpen, setIsOpen] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
@@ -128,7 +136,7 @@ export function Navbar({ role, fullName, onLogout }: NavbarProps) {
                 <button
                   onClick={() => {
                     setIsUserMenuOpen(false)
-                    onLogout()
+                    handleLogout()
                   }}
                   className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
                 >

@@ -164,6 +164,19 @@ assert.strictEqual(FINANCE_ALLOWED_ROLES.includes('operations_staff'), false)
 console.log('Test 18: owner Finance access matrix check')
 assert.strictEqual(FINANCE_ALLOWED_ROLES.includes('owner'), true)
 
+// 19. RSC Event Handler Boundary Verification
+console.log('Test 19: RSC Event Handler Boundary Verification')
+const fs = require('fs')
+const path = require('path')
+
+const financePageContent = fs.readFileSync(path.join(__dirname, '../src/app/(dashboard)/dashboard/finance/page.tsx'), 'utf8')
+const invoicesPageContent = fs.readFileSync(path.join(__dirname, '../src/app/(dashboard)/dashboard/invoices/page.tsx'), 'utf8')
+const paymentsPageContent = fs.readFileSync(path.join(__dirname, '../src/app/(dashboard)/dashboard/payments/page.tsx'), 'utf8')
+
+assert.strictEqual(financePageContent.includes('onChange='), false, 'finance/page.tsx must not contain onChange')
+assert.strictEqual(invoicesPageContent.includes('onChange='), false, 'invoices/page.tsx must not contain onChange')
+assert.strictEqual(paymentsPageContent.includes('onChange='), false, 'payments/page.tsx must not contain onChange')
+
 console.log('----------------------------------------------------')
-console.log(' ALL 18 FINANCE REGRESSION TEST CASES PASSED SUCCESSFULLY!')
+console.log(' ALL 19 FINANCE REGRESSION TEST CASES PASSED SUCCESSFULLY!')
 console.log('----------------------------------------------------')

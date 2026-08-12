@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, DollarSign, ReceiptText, Tag } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { addBookingExtraChargeAction } from '@/app/(dashboard)/dashboard/bookings/[id]/booking-actions'
 
 interface BookingCharge {
   id: string
@@ -14,11 +15,12 @@ interface BookingCharge {
 }
 
 interface ExtraChargesSectionProps {
+  bookingId: string
   charges: BookingCharge[]
-  onAddCharge: (newCharge: any) => Promise<void>
+  onAddCharge?: (newCharge: Record<string, unknown>) => Promise<void>
 }
 
-export function ExtraChargesSection({ charges, onAddCharge }: ExtraChargesSectionProps) {
+export function ExtraChargesSection({ bookingId, charges, onAddCharge }: ExtraChargesSectionProps) {
   const [isAdding, setIsAdding] = useState(false)
   const [loading, setLoading] = useState(false)
   const [chargeType, setChargeType] = useState('fuel_shortage')
@@ -38,14 +40,19 @@ export function ExtraChargesSection({ charges, onAddCharge }: ExtraChargesSectio
 
     setLoading(true)
     try {
-      await onAddCharge({
+      const chargePayload = {
         charge_type: chargeType,
         description,
         quantity,
         unit_amount: unitAmount,
         amount: quantity * unitAmount,
         status: 'pending',
-      })
+      }
+      if (onAddCharge) {
+        await onAddCharge(chargePayload)
+      } else {
+        await addBookingExtraChargeAction(bookingId, chargePayload)
+      }
       setDescription('')
       setIsAdding(false)
     } catch (err) {

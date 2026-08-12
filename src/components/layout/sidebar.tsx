@@ -1,31 +1,35 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import * as LucideIcons from 'lucide-react'
 import { getFilteredNavigation, NavigationItem } from '@/lib/navigation/navigation-config'
 import { cn } from '@/lib/utils'
 import { ChevronLeft, ChevronRight, LogOut, ShieldCheck } from 'lucide-react'
+import { logout } from '@/app/auth-actions'
 
 interface SidebarProps {
   role: string
   fullName: string
-  onLogout: () => Promise<void>
+  onLogout?: () => Promise<void>
 }
 
 export function Sidebar({ role, fullName, onLogout }: SidebarProps) {
-  const pathname = usePathname()
-  const [isCollapsed, setIsCollapsed] = useState(false)
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-    const stored = localStorage.getItem('sidebar_collapsed')
-    if (stored === 'true') {
-      setIsCollapsed(true)
+  const handleLogout = async () => {
+    if (onLogout) {
+      await onLogout()
+    } else {
+      await logout()
     }
-  }, [])
+  }
+  const pathname = usePathname()
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sidebar_collapsed') === 'true'
+    }
+    return false
+  })
 
   const toggleCollapse = () => {
     const nextState = !isCollapsed
@@ -40,7 +44,8 @@ export function Sidebar({ role, fullName, onLogout }: SidebarProps) {
   }
 
   const renderIcon = (iconName: string, isActive: boolean) => {
-    const IconComponent = (LucideIcons as any)[iconName] || LucideIcons.FileText
+    const iconMap = LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>
+    const IconComponent = iconMap[iconName] || LucideIcons.FileText
     return (
       <IconComponent
         size={19}
@@ -149,7 +154,7 @@ export function Sidebar({ role, fullName, onLogout }: SidebarProps) {
           )}
         </div>
         <button
-          onClick={onLogout}
+          onClick={handleLogout}
           className={cn(
             'flex items-center gap-3 w-full mt-3 px-3 py-2 text-slate-400 hover:text-rose-400 rounded-xl text-xs font-semibold hover:bg-slate-900 transition-colors cursor-pointer',
             isCollapsed ? 'justify-center' : ''

@@ -12,11 +12,11 @@ import {
   FileBarChart,
   AlertCircle,
   CheckCircle2,
-  Calendar,
 } from 'lucide-react'
 import { getFinanceSummaryKPIs } from '@/lib/finance/finance-service'
 import { RecordPaymentButton } from '@/components/finance/record-payment-button'
 import { NewExpenseButton } from '@/components/finance/new-expense-button'
+import { FinancePeriodFilter } from '@/components/finance/finance-period-filter'
 
 interface PageProps {
   searchParams: Promise<{ period?: string }>
@@ -127,24 +127,8 @@ export default async function FinanceDashboardPage({ searchParams }: PageProps) 
           </div>
         </div>
 
-        {/* Period Selector Form */}
-        <form method="GET" className="flex items-center gap-2">
-          <Calendar size={14} className="text-slate-400" />
-          <select
-            name="period"
-            defaultValue={period}
-            onChange={(e) => e.target.form?.submit()}
-            className="py-2 px-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-400"
-          >
-            <option value="today">Today</option>
-            <option value="7d">Last 7 Days</option>
-            <option value="30d">Last 30 Days</option>
-            <option value="this_month">This Month</option>
-            <option value="last_month">Last Month</option>
-            <option value="ytd">Year to Date (YTD)</option>
-            <option value="all">All Time</option>
-          </select>
-        </form>
+        {/* Period Selector Client Component */}
+        <FinancePeriodFilter initialPeriod={period} />
       </div>
 
       {/* QUICK ACTIONS TOOLBAR */}

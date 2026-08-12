@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Navbar } from '@/components/layout/navbar'
-import { logout } from '../auth-actions'
 
 export default async function DashboardLayout({
   children,
@@ -35,11 +34,6 @@ export default async function DashboardLayout({
     redirect('/login?error=inactive')
   }
 
-  const handleLogoutAction = async () => {
-    'use server'
-    await logout()
-  }
-
   return (
     <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950">
       {/* Collapsible Sidebar (Hidden on mobile, desktop visible) */}
@@ -47,7 +41,6 @@ export default async function DashboardLayout({
         <Sidebar
           role={profile.role}
           fullName={profile.full_name}
-          onLogout={handleLogoutAction}
         />
       </div>
 
@@ -56,7 +49,6 @@ export default async function DashboardLayout({
         <Navbar
           role={profile.role}
           fullName={profile.full_name}
-          onLogout={handleLogoutAction}
         />
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
           {children}
