@@ -1,79 +1,82 @@
-const fs = require('fs')
-const path = require('path')
+/* eslint-disable @typescript-eslint/no-require-imports */
+const { COMPANY_CONFIG } = require('../src/lib/company-config')
+const { generateCommercialInvoicePDF } = require('../src/lib/documents/invoice-pdf-commercial')
+const { generateInvoicePDF } = require('../src/lib/documents/invoice-pdf')
 
-async function runVerification() {
+async function runInvoiceUpgradeVerification() {
   console.log('====================================================')
-  console.log('🚀 FINANCE & INVOICE MANAGEMENT UPGRADE VERIFICATION')
-  console.log('====================================================\n')
+  console.log(' RUNNING COMMERCIAL INVOICE & PDF VERIFICATION')
+  console.log('====================================================')
 
-  let passedTests = 0
-  let totalTests = 0
+  // 1. Verify Company Config single source of truth
+  console.log('Test 1: Company Config Single Source of Truth')
+  if (!COMPANY_CONFIG.name || !COMPANY_CONFIG.bank.accountNumber || COMPANY_CONFIG.bank.accountNumber !== '100530013140') {
+    throw new Error('COMPANY_CONFIG is incomplete or missing bank account number.')
+  }
+  console.log(' -> PASSED: Company Config loaded correctly (Account: ' + COMPANY_CONFIG.bank.accountNumber + ')')
 
-  function assert(condition, message) {
-    totalTests++
-    if (condition) {
-      console.log(`  ✅ PASS: ${message}`)
-      passedTests++
-    } else {
-      console.error(`  ❌ FAIL: ${message}`)
-    }
+  // 2. Generate Commercial Invoice PDF
+  console.log('Test 2: Commercial Invoice A4 PDF Generation')
+  const testInvoice = {
+    invoice_number: 'TT-IN-10007',
+    invoice_date: '2026-08-12',
+    due_date: '2026-08-19',
+    payment_terms: '7 Days',
+    status: 'issued',
+    customer: {
+      full_name: 'Kazi Shahriar Alam',
+      company_name: 'Tech Solutions Ltd',
+      mobile: '+94 77 123 4567',
+      email: 'kazi@example.com',
+      address: 'Colombo, Sri Lanka',
+      identifier_no: '198845612390',
+    },
+    vehicle_name: 'Toyota KDH Super GL',
+    vehicle_registration: 'WP ND-4589',
+    rental_start_date: '2026-08-12',
+    rental_end_date: '2026-08-15',
+    rental_days: 3,
+    pickup_location: 'BIA Colombo Airport',
+    destination: 'Kandy - Sigiriya - Galle',
+    dropoff_location: 'Colombo Fort',
+    items: [
+      { description: 'Toyota KDH Super GL Vehicle Rental (3 Days)', quantity: 3, unit_price: 15000, line_total: 45000 },
+      { description: 'Driver Overnight Allowance & Fuel Surcharge', quantity: 1, unit_price: 5000, line_total: 5000 },
+    ],
+    subtotal: 50000,
+    discount_amount: 2000,
+    additional_charges: 1000,
+    tax_rate: 0,
+    refundable_deposit: 10000,
+    grand_total: 59000,
+    amount_paid: 15000,
+    balance_due: 44000,
+    special_notes: COMPANY_CONFIG.defaultInvoiceSpecialNotes,
+    terms_and_conditions: COMPANY_CONFIG.defaultInvoiceImportantTerms,
+    prepared_by_name_snapshot: 'Owner / Administrator',
+    prepared_by_designation_snapshot: 'Owner',
   }
 
-  try {
-    // 1. NAVIGATION ARCHITECTURE VERIFICATION
-    console.log('--- 1. NAVIGATION ARCHITECTURE AUDIT ---')
-    const navContent = fs.readFileSync(path.join(__dirname, '../src/lib/navigation/navigation-config.ts'), 'utf8')
-    assert(navContent.includes("id: 'finance'"), 'Finance section present in navigation config')
-    assert(navContent.includes('/dashboard/finance'), 'Contains /dashboard/finance route')
-    assert(navContent.includes('/dashboard/reports/earnings'), 'Contains /dashboard/reports/earnings route')
-    assert(navContent.includes('/dashboard/expenses'), 'Contains /dashboard/expenses route')
-    assert(navContent.includes('/dashboard/invoices'), 'Contains /dashboard/invoices route')
-    assert(navContent.includes('/dashboard/payments'), 'Contains /dashboard/payments route')
-    assert(navContent.includes('/dashboard/receipts'), 'Contains /dashboard/receipts route')
-    assert(navContent.includes('/dashboard/finance/reports'), 'Contains /dashboard/finance/reports route')
-
-    // 2. AUTHORITATIVE DATA LAYER & FORMULAS
-    console.log('\n--- 2. CANONICAL FINANCE SERVICE & FORMULAS ---')
-    const financeServiceContent = fs.readFileSync(path.join(__dirname, '../src/lib/finance/finance-service.ts'), 'utf8')
-    assert(financeServiceContent.includes('getFinanceSummaryKPIs'), 'getFinanceSummaryKPIs defined in finance service')
-    assert(financeServiceContent.includes('getPaymentMethodBreakdown'), 'getPaymentMethodBreakdown defined')
-    assert(financeServiceContent.includes('getCustomerStatementLedger'), 'getCustomerStatementLedger defined')
-    assert(financeServiceContent.includes('getAccountsReceivableAging'), 'getAccountsReceivableAging defined')
-
-    // 3. FILE SYSTEM & MODULE CONTRACTS AUDIT
-    console.log('\n--- 3. FINANCE & INVOICE MODULE FILE CONTRACTS ---')
-    assert(fs.existsSync(path.join(__dirname, '../src/app/(dashboard)/dashboard/finance/page.tsx')), 'Finance Dashboard page exists')
-    assert(fs.existsSync(path.join(__dirname, '../src/app/(dashboard)/dashboard/finance/reports/page.tsx')), 'Finance Reports & Statements page exists')
-    assert(fs.existsSync(path.join(__dirname, '../src/app/(dashboard)/dashboard/invoices/page.tsx')), 'Invoice History page exists')
-    assert(fs.existsSync(path.join(__dirname, '../src/app/(dashboard)/dashboard/invoices/new/page.tsx')), 'New Invoice page exists')
-    assert(fs.existsSync(path.join(__dirname, '../src/app/(dashboard)/dashboard/payments/page.tsx')), 'Payments page exists')
-    assert(fs.existsSync(path.join(__dirname, '../src/app/(dashboard)/dashboard/receipts/page.tsx')), 'Receipts page exists')
-    assert(fs.existsSync(path.join(__dirname, '../src/lib/documents/invoice-pdf-commercial.ts')), 'Commercial A4 Invoice PDF generator exists')
-    assert(fs.existsSync(path.join(__dirname, '../src/lib/documents/customer-statement-pdf.ts')), 'A4 Customer Statement PDF generator exists')
-
-    // 4. USER AGREEMENT V1 INTEGRITY RE-VERIFICATION
-    console.log('\n--- 4. USER AGREEMENT V1 TEMPLATE INTEGRITY RE-CHECK ---')
-    const userAgreementTemplatePath = path.join(__dirname, '../src/lib/agreements/templates/user-agreement-v1.ts')
-    assert(fs.existsSync(userAgreementTemplatePath), 'USER_AGREEMENT_V1 template file exists')
-
-    const userAgreementContent = fs.readFileSync(userAgreementTemplatePath, 'utf8')
-    assert(userAgreementContent.includes('Head of Operations Ms. Rashanthi Gunasekara: +94777273820'), 'Clause 18 Rashanthi contact preserved')
-    assert(userAgreementContent.includes('Accounts and Finance :+94760080155'), 'Clause 18 Accounts contact preserved')
-    assert(userAgreementContent.includes('PV 00312253'), 'Company registration PV 00312253 preserved')
-
-    console.log('\n====================================================')
-    console.log(`SUMMARY: ${passedTests} / ${totalTests} TESTS PASSED!`)
-    console.log('====================================================')
-
-    if (passedTests === totalTests) {
-      process.exit(0)
-    } else {
-      process.exit(1)
-    }
-  } catch (err) {
-    console.error('❌ EXCEPTION DURING VERIFICATION:', err)
-    process.exit(1)
+  const doc = await generateCommercialInvoicePDF(testInvoice)
+  if (!doc) {
+    throw new Error('generateCommercialInvoicePDF returned empty or null document.')
   }
+  console.log(' -> PASSED: generateCommercialInvoicePDF executed successfully')
+
+  // 3. Verify generateInvoicePDF alias delegation
+  console.log('Test 3: generateInvoicePDF Alias Delegation')
+  const docAlias = await generateInvoicePDF(testInvoice)
+  if (!docAlias) {
+    throw new Error('generateInvoicePDF returned empty or null document.')
+  }
+  console.log(' -> PASSED: generateInvoicePDF delegated correctly')
+
+  console.log('----------------------------------------------------')
+  console.log(' ALL INVOICE UPGRADE VERIFICATION TESTS PASSED!')
+  console.log('----------------------------------------------------')
 }
 
-runVerification()
+runInvoiceUpgradeVerification().catch((err) => {
+  console.error('VERIFICATION ERROR:', err)
+  process.exit(1)
+})

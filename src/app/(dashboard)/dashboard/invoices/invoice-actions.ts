@@ -19,7 +19,7 @@ export async function createInvoice(values: InvoiceInput) {
     // Role check for manual editing authorization
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('full_name, role')
       .eq('id', user.id)
       .single()
 
@@ -80,7 +80,7 @@ export async function createInvoice(values: InvoiceInput) {
     )
 
     const sanitizedHeader = sanitizePayload(headerData)
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       ...sanitizedHeader,
       subtotal,
       tax_amount: taxAmount,
@@ -88,6 +88,8 @@ export async function createInvoice(values: InvoiceInput) {
       amount_paid: 0,
       balance_due: grandTotal,
       prepared_by: user.id,
+      prepared_by_name_snapshot: profile?.full_name || 'Staff Member',
+      prepared_by_designation_snapshot: profile?.role ? profile.role.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Finance Staff',
       created_by: user.id,
       updated_by: user.id,
     }
@@ -134,8 +136,9 @@ export async function createInvoice(values: InvoiceInput) {
     revalidatePath('/dashboard/invoices')
     revalidatePath('/dashboard')
     return { success: true, invoiceId: invoice.id, invoiceNumber: invoice.invoice_number }
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Failed to create invoice.' }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Failed to create invoice.'
+    return { success: false, error: msg }
   }
 }
 
@@ -171,12 +174,17 @@ export async function createInvoiceFromBooking(bookingId: string, customInvoiceN
     if (bError || !b) return { success: false, error: 'Booking not found.' }
 
     // Create invoice line items from booking vehicles
-    const items = (b.booking_vehicles || []).map((bv: any) => ({
-      description: `Vehicle Rental: ${bv.vehicle?.vehicle_name || 'Vehicle'} (${bv.vehicle?.registration_number || 'N/A'})`,
-      quantity: 1,
-      unit_price: Number(bv.vehicle_rate) + Number(bv.driver_charge),
-      vehicle_id: bv.vehicle_id,
-    }))
+    const items = (b.booking_vehicles || []).map((bv: Record<string, unknown>) => {
+      const vObj = bv.vehicle && typeof bv.vehicle === 'object' ? (bv.vehicle as Record<string, unknown>) : null
+      const vName = vObj && typeof vObj.vehicle_name === 'string' ? vObj.vehicle_name : 'Vehicle'
+      const vReg = vObj && typeof vObj.registration_number === 'string' ? vObj.registration_number : 'N/A'
+      return {
+        description: `Vehicle Rental: ${vName} (${vReg})`,
+        quantity: 1,
+        unit_price: Number(bv.vehicle_rate || 0) + Number(bv.driver_charge || 0),
+        vehicle_id: (bv.vehicle_id as string) || null,
+      }
+    })
 
     if (items.length === 0) {
       items.push({
@@ -201,8 +209,9 @@ export async function createInvoiceFromBooking(bookingId: string, customInvoiceN
       status: 'draft',
       items,
     })
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Invoice creation failed.' }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Invoice creation failed.'
+    return { success: false, error: msg }
   }
 }
 
@@ -223,8 +232,9 @@ export async function issueInvoice(id: string) {
     revalidatePath('/dashboard/invoices')
     revalidatePath(`/dashboard/invoices/${id}`)
     return { success: true }
-  } catch (err: any) {
-    return { success: false, error: err.message }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Action failed.'
+    return { success: false, error: msg }
   }
 }
 
@@ -255,11 +265,11 @@ export async function duplicateInvoiceAction(id: string) {
       total_deductions: orig.total_deductions || 0,
       notes: `Duplicated from ${orig.invoice_number}. ${orig.notes || ''}`,
       status: 'draft',
-      items: (orig.items || []).map((it: any, idx: number) => ({
-        description: it.description,
-        quantity: it.quantity,
-        unit_price: it.unit_price,
-        display_order: it.display_order ?? idx,
+      items: (orig.items || []).map((it: Record<string, unknown>, idx: number) => ({
+        description: String(it.description || ''),
+        quantity: Number(it.quantity || 1),
+        unit_price: Number(it.unit_price || 0),
+        display_order: Number(it.display_order ?? idx),
       })),
     })
 
@@ -274,8 +284,9 @@ export async function duplicateInvoiceAction(id: string) {
     }
 
     return res
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Duplication failed.' }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Duplication failed.'
+    return { success: false, error: msg }
   }
 }
 
@@ -310,7 +321,8 @@ export async function cancelOrVoidInvoiceAction(id: string, reason: string) {
     revalidatePath('/dashboard/invoices')
     revalidatePath(`/dashboard/invoices/${id}`)
     return { success: true }
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Operation failed.' }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Operation failed.'
+    return { success: false, error: msg }
   }
 }
