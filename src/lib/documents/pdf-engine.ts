@@ -45,6 +45,18 @@ export async function getLetterheadBase64(): Promise<string | null> {
         reader.onerror = () => resolve(null)
         reader.readAsDataURL(blob)
       })
+    } else {
+      try {
+        const fs = await import('fs')
+        const path = await import('path')
+        const letterheadPath = path.join(process.cwd(), 'public', 'documents', 'thennakoon-tours-letterhead.png')
+        if (fs.existsSync(letterheadPath)) {
+          const fileBuffer = fs.readFileSync(letterheadPath)
+          return `data:image/png;base64,${fileBuffer.toString('base64')}`
+        }
+      } catch {
+        return null
+      }
     }
     return null
   } catch (err) {
@@ -76,6 +88,7 @@ export function drawLetterheadOnLegalPage(doc: jsPDF, base64Img: string | null) 
 // Draw letterhead background image on all existing pages of an A4 jsPDF document
 export function drawLetterheadBackground(doc: jsPDF, base64Img: string | null) {
   if (!base64Img) return
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const totalPages = (doc as any).internal.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i)
@@ -86,6 +99,7 @@ export function drawLetterheadBackground(doc: jsPDF, base64Img: string | null) {
 // Draw letterhead background image on all existing pages of a US Legal jsPDF document
 export function drawLetterheadBackgroundLegal(doc: jsPDF, base64Img: string | null) {
   if (!base64Img) return
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const totalPages = (doc as any).internal.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i)
