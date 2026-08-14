@@ -14,10 +14,15 @@ import {
   Eye,
   Car,
   User,
+  Lock,
+  Unlock,
+  Info,
+  ShieldAlert,
 } from 'lucide-react'
-import { createInvoice } from '../invoice-actions'
+import { createInvoice, updateInvoiceAction } from '../invoice-actions'
 import { generateCommercialInvoicePDF } from '@/lib/documents/invoice-pdf-commercial'
 import { COMPANY_CONFIG } from '@/lib/company-config'
+import { calculateCommercialInvoiceFinancials } from '@/lib/utils/relation-utils'
 
 interface Customer {
   id: string
@@ -69,6 +74,7 @@ interface CreateInvoiceFormProps {
   quotations: Quotation[]
   defaultInvoiceNumber: string
   currentUser: CurrentUser
+  initialInvoice?: Record<string, unknown>
 }
 
 export function CreateInvoiceForm({
@@ -78,60 +84,145 @@ export function CreateInvoiceForm({
   quotations,
   defaultInvoiceNumber,
   currentUser,
+  initialInvoice,
 }: CreateInvoiceFormProps) {
   const router = useRouter()
+  const isEditing = Boolean(initialInvoice && initialInvoice.id)
+
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   // SECTION 1: INVOICE METADATA
-  const [invoiceNumber, setInvoiceNumber] = useState(defaultInvoiceNumber)
-  const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().split('T')[0])
-  const [dueDate, setDueDate] = useState(() => new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().split('T')[0])
-  const [paymentTerms, setPaymentTerms] = useState('7 Days')
-  const [invoiceStatus] = useState('draft')
-  const [quotationId, setQuotationId] = useState('')
+  const [invoiceNumber, setInvoiceNumber] = useState<string>(() => {
+    return String(initialInvoice?.invoice_number || defaultInvoiceNumber)
+  })
+  const [isEditingInvoiceNumber, setIsEditingInvoiceNumber] = useState(false)
+
+  const [invoiceDate, setInvoiceDate] = useState<string>(() => {
+    if (initialInvoice?.invoice_date) return String(initialInvoice.invoice_date)
+    return new Date().toISOString().split('T')[0]
+  })
+
+  const [paymentTerms, setPaymentTerms] = useState<string>(() => {
+    return String(initialInvoice?.payment_terms || '7 Days')
+  })
+
+  const [dueDate, setDueDate] = useState<string>(() => {
+    if (initialInvoice?.due_date) return String(initialInvoice.due_date)
+    return new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().split('T')[0]
+  })
+
+  const [invoiceStatus] = useState<string>(() => {
+    return String(initialInvoice?.status || 'draft')
+  })
+
+  const [quotationId, setQuotationId] = useState<string>(() => {
+    return String(initialInvoice?.quotation_id || '')
+  })
+
+  const [bookingId, setBookingId] = useState<string>(() => {
+    return String(initialInvoice?.booking_id || '')
+  })
 
   // SECTION 2: CUSTOMER DETAILS
-  const [customerId, setCustomerId] = useState(customers[0]?.id || '')
-  const [bookingId, setBookingId] = useState('')
-  const [customerName, setCustomerName] = useState(customers[0]?.full_name || '')
-  const [customerPhone, setCustomerPhone] = useState(customers[0]?.mobile || '')
-  const [customerEmail, setCustomerEmail] = useState(customers[0]?.email || '')
-  const [customerCompany, setCustomerCompany] = useState(customers[0]?.company_name || '')
-  const [customerRef, setCustomerRef] = useState(customers[0]?.identifier_no || '')
-  const [customerAddress, setCustomerAddress] = useState(customers[0]?.address_line_1 || '')
+  const initialCustomerObj = initialInvoice?.customer && typeof initialInvoice.customer === 'object'
+    ? (initialInvoice.customer as Record<string, unknown>)
+    : null
+  const initialCustomerSnap = initialInvoice?.customer_snapshot && typeof initialInvoice.customer_snapshot === 'object'
+    ? (initialInvoice.customer_snapshot as Record<string, unknown>)
+    : null
+
+  const [customerId, setCustomerId] = useState<string>(() => {
+    return String(initialInvoice?.customer_id || customers[0]?.id || '')
+  })
+  const [customerName, setCustomerName] = useState<string>(() => {
+    return String(initialCustomerSnap?.full_name || initialCustomerObj?.full_name || customers[0]?.full_name || '')
+  })
+  const [customerPhone, setCustomerPhone] = useState<string>(() => {
+    return String(initialCustomerSnap?.mobile || initialCustomerObj?.mobile || customers[0]?.mobile || '')
+  })
+  const [customerEmail, setCustomerEmail] = useState<string>(() => {
+    return String(initialCustomerSnap?.email || initialCustomerObj?.email || customers[0]?.email || '')
+  })
+  const [customerCompany, setCustomerCompany] = useState<string>(() => {
+    return String(initialCustomerSnap?.company_name || initialCustomerObj?.company_name || customers[0]?.company_name || '')
+  })
+  const [customerRef, setCustomerRef] = useState<string>(() => {
+    return String(initialCustomerSnap?.identifier_no || initialCustomerObj?.identifier_no || customers[0]?.identifier_no || '')
+  })
+  const [customerAddress, setCustomerAddress] = useState<string>(() => {
+    return String(initialCustomerSnap?.address || initialCustomerObj?.address_line_1 || customers[0]?.address_line_1 || '')
+  })
 
   // SECTION 3: RENTAL & VEHICLE INFO
-  const [selectedVehicleId, setSelectedVehicleId] = useState('')
-  const [vehicleName, setVehicleName] = useState('')
-  const [registrationNumber, setRegistrationNumber] = useState('')
-  const [rentalStartDate, setRentalStartDate] = useState('')
-  const [rentalEndDate, setRentalEndDate] = useState('')
-  const [pickupLocation, setPickupLocation] = useState('')
-  const [destination, setDestination] = useState('')
-  const [dropoffLocation, setDropoffLocation] = useState('')
+  const initialRentalSnap = initialInvoice?.rental_vehicle_snapshot && typeof initialInvoice.rental_vehicle_snapshot === 'object'
+    ? (initialInvoice.rental_vehicle_snapshot as Record<string, unknown>)
+    : null
+
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>(() => {
+    return String(initialRentalSnap?.vehicle_id || '')
+  })
+  const [vehicleName, setVehicleName] = useState<string>(() => {
+    return String(initialRentalSnap?.vehicle_name || '')
+  })
+  const [registrationNumber, setRegistrationNumber] = useState<string>(() => {
+    return String(initialRentalSnap?.registration_number || '')
+  })
+  const [rentalStartDate, setRentalStartDate] = useState<string>(() => {
+    return String(initialRentalSnap?.rental_start_date || '')
+  })
+  const [rentalEndDate, setRentalEndDate] = useState<string>(() => {
+    return String(initialRentalSnap?.rental_end_date || '')
+  })
+  const [manualRentalDays, setManualRentalDays] = useState<string>(() => {
+    return initialRentalSnap?.rental_days ? String(initialRentalSnap.rental_days) : ''
+  })
+  const [pickupLocation, setPickupLocation] = useState<string>(() => {
+    return String(initialRentalSnap?.pickup_location || '')
+  })
+  const [destination, setDestination] = useState<string>(() => {
+    return String(initialRentalSnap?.destination || '')
+  })
+  const [dropoffLocation, setDropoffLocation] = useState<string>(() => {
+    return String(initialRentalSnap?.dropoff_location || '')
+  })
 
   // SECTION 4: LINE ITEMS
   const [items, setItems] = useState<
     { description: string; quantity: number; unit_price: number; line_total: number }[]
-  >([
-    { description: 'Vehicle Rental Service', quantity: 1, unit_price: 15000, line_total: 15000 },
-  ])
+  >(() => {
+    if (initialInvoice?.items && Array.isArray(initialInvoice.items) && initialInvoice.items.length > 0) {
+      return initialInvoice.items.map((it: Record<string, unknown>) => ({
+        description: String(it.description || 'Service Line Item'),
+        quantity: Number(it.quantity || 1),
+        unit_price: Number(it.unit_price || 0),
+        line_total: Number(it.line_total || (Number(it.quantity || 1) * Number(it.unit_price || 0))),
+      }))
+    }
+    return [{ description: 'Vehicle Rental Service', quantity: 1, unit_price: 15000, line_total: 15000 }]
+  })
 
   // SECTION 5: FINANCIAL SUMMARY
-  const [discountAmount, setDiscountAmount] = useState(0)
-  const [additionalCharges, setAdditionalCharges] = useState(0)
-  const [taxRate, setTaxRate] = useState(0)
-  const [advancePayment, setAdvancePayment] = useState(0)
-  const [refundableDeposit, setRefundableDeposit] = useState(0)
+  const [discountAmount, setDiscountAmount] = useState<number>(() => Number(initialInvoice?.discount_amount || 0))
+  const [discountDescription, setDiscountDescription] = useState<string>(() => String(initialInvoice?.discount_description || ''))
+
+  const [totalDeductions, setTotalDeductions] = useState<number>(() => Number(initialInvoice?.total_deductions || 0))
+  const [deductionDescription, setDeductionDescription] = useState<string>(() => String(initialInvoice?.deduction_description || ''))
+
+  const [additionalCharges, setAdditionalCharges] = useState<number>(() => Number(initialInvoice?.additional_charges || 0))
+  const [additionalChargeDescription, setAdditionalChargeDescription] = useState<string>(() => String(initialInvoice?.additional_charge_description || ''))
+
+  const [taxRate, setTaxRate] = useState<number>(() => Number(initialInvoice?.tax_rate || 0))
+  const [refundableDeposit, setRefundableDeposit] = useState<number>(() => Number(initialInvoice?.refundable_deposit || 0))
+  const [advancePayment, setAdvancePayment] = useState<number>(() => Number(initialInvoice?.amount_paid || 0))
 
   // SECTION 6: NOTES
-  const [specialNotes, setSpecialNotes] = useState(COMPANY_CONFIG.defaultInvoiceSpecialNotes)
-  const [importantTerms, setImportantTerms] = useState(COMPANY_CONFIG.defaultInvoiceImportantTerms)
-  const [internalNotes, setInternalNotes] = useState('')
+  const [specialNotes, setSpecialNotes] = useState<string>(() => String(initialInvoice?.special_notes || COMPANY_CONFIG.defaultInvoiceSpecialNotes))
+  const [importantTerms, setImportantTerms] = useState<string>(() => String(initialInvoice?.important_message || COMPANY_CONFIG.defaultInvoiceImportantTerms))
+  const [internalNotes, setInternalNotes] = useState<string>(() => String(initialInvoice?.notes || ''))
 
-  // Calculate Rental Days
-  const rentalDays = useMemo(() => {
+  // Auto-calculate Rental Days with safe manual override
+  const computedRentalDays = useMemo(() => {
     if (!rentalStartDate || !rentalEndDate) return 0
     const start = new Date(rentalStartDate).getTime()
     const end = new Date(rentalEndDate).getTime()
@@ -140,7 +231,46 @@ export function CreateInvoiceForm({
     return Math.max(1, diff)
   }, [rentalStartDate, rentalEndDate])
 
-  // Handle Customer Selection Auto-fill
+  const rentalDaysToDisplay = manualRentalDays !== '' ? Number(manualRentalDays) : computedRentalDays
+
+  // Helper to calculate Due Date based on Payment Terms
+  const calculateDueDate = (terms: string, invDate: string): string => {
+    if (terms === 'Custom' || !invDate) return dueDate
+    try {
+      const baseDate = new Date(invDate)
+      if (isNaN(baseDate.getTime())) return dueDate
+
+      let addDays = 0
+      if (terms === 'Due on Receipt') addDays = 0
+      else if (terms === '2 Days') addDays = 2
+      else if (terms === '7 Days') addDays = 7
+      else if (terms === '14 Days') addDays = 14
+      else if (terms === '30 Days') addDays = 30
+
+      const computed = new Date(baseDate.getTime() + addDays * 24 * 3600 * 1000)
+      return computed.toISOString().split('T')[0]
+    } catch {
+      return dueDate
+    }
+  }
+
+  const handleInvoiceDateChange = (newDate: string) => {
+    setInvoiceDate(newDate)
+    if (paymentTerms !== 'Custom') {
+      const nextDue = calculateDueDate(paymentTerms, newDate)
+      setDueDate(nextDue)
+    }
+  }
+
+  const handlePaymentTermsChange = (newTerms: string) => {
+    setPaymentTerms(newTerms)
+    if (newTerms !== 'Custom') {
+      const nextDue = calculateDueDate(newTerms, invoiceDate)
+      setDueDate(nextDue)
+    }
+  }
+
+  // Handle Customer Selection Auto-fill (does NOT mutate master CRM)
   const handleCustomerSelect = (cId: string) => {
     setCustomerId(cId)
     const c = customers.find((cust) => cust.id === cId)
@@ -214,7 +344,7 @@ export function CreateInvoiceForm({
 
   // Item Modifications
   const handleAddItem = () => {
-    setItems([...items, { description: 'Additional Service / Repair Charge', quantity: 1, unit_price: 0, line_total: 0 }])
+    setItems([...items, { description: 'Additional Service / Charge', quantity: 1, unit_price: 0, line_total: 0 }])
   }
 
   const handleRemoveItem = (index: number) => {
@@ -224,47 +354,59 @@ export function CreateInvoiceForm({
 
   const handleItemChange = (index: number, field: string, value: unknown) => {
     const newItems = [...items]
-    const current = { ...newItems[index], [field]: value }
+    const current = { ...newItems[index] }
 
-    if (field === 'quantity' || field === 'unit_price') {
-      current.line_total = Number(current.quantity || 0) * Number(current.unit_price || 0)
+    if (field === 'description') {
+      current.description = String(value)
+    } else if (field === 'quantity') {
+      const q = Math.max(0, Number(value || 0))
+      current.quantity = isNaN(q) ? 0 : q
+      current.line_total = current.quantity * current.unit_price
+    } else if (field === 'unit_price') {
+      const u = Math.max(0, Number(value || 0))
+      current.unit_price = isNaN(u) ? 0 : u
+      current.line_total = current.quantity * current.unit_price
     }
 
     newItems[index] = current
     setItems(newItems)
   }
 
-  // Compute Live Canonical Totals
-  const subtotal = items.reduce((acc, it) => acc + (Number(it.quantity || 0) * Number(it.unit_price || 0)), 0)
-  const taxAmount = (subtotal * Number(taxRate || 0)) / 100
-  const netAmount = Math.max(0, subtotal - Number(discountAmount || 0) + Number(additionalCharges || 0) + taxAmount + Number(refundableDeposit || 0))
-  const balanceDue = Math.max(0, netAmount - Number(advancePayment || 0))
+  // Compute Live Canonical Totals via calculateCommercialInvoiceFinancials
+  const rawSubtotal = items.reduce((acc, it) => acc + (Number(it.quantity || 0) * Number(it.unit_price || 0)), 0)
+
+  const financials = calculateCommercialInvoiceFinancials({
+    subtotal: rawSubtotal,
+    discount_amount: discountAmount,
+    total_deductions: totalDeductions,
+    additional_charges: additionalCharges,
+    tax_rate: taxRate,
+    refundable_deposit: refundableDeposit,
+    amount_paid: advancePayment,
+  })
 
   // Prepare Snapshot Data Payload for PDF Generator
   const getInvoiceDataSnapshot = () => {
-    const selCust = customers.find((c) => c.id === customerId)
-    const selQuote = quotations.find((q) => q.id === quotationId)
-
     return {
       invoice_number: invoiceNumber.trim() || defaultInvoiceNumber,
       invoice_date: invoiceDate,
       due_date: dueDate,
       payment_terms: paymentTerms,
       status: invoiceStatus,
-      quotation_number: selQuote?.quotation_number || null,
+      quotation_number: quotationId ? quotations.find((q) => q.id === quotationId)?.quotation_number : null,
       customer: {
-        full_name: customerName.trim() || selCust?.full_name || 'Customer Name',
-        company_name: customerCompany.trim() || selCust?.company_name || null,
-        mobile: customerPhone.trim() || selCust?.mobile || 'N/A',
-        email: customerEmail.trim() || selCust?.email || 'N/A',
-        address: customerAddress.trim() || selCust?.address_line_1 || 'Sri Lanka',
-        identifier_no: customerRef.trim() || selCust?.identifier_no || 'N/A',
+        full_name: customerName.trim() || 'Valued Customer',
+        company_name: customerCompany.trim() || null,
+        mobile: customerPhone.trim() || 'N/A',
+        email: customerEmail.trim() || 'N/A',
+        address: customerAddress.trim() || 'Sri Lanka',
+        identifier_no: customerRef.trim() || 'N/A',
       },
       vehicle_name: vehicleName,
       vehicle_registration: registrationNumber,
       rental_start_date: rentalStartDate,
       rental_end_date: rentalEndDate,
-      rental_days: rentalDays,
+      rental_days: rentalDaysToDisplay,
       pickup_location: pickupLocation,
       destination: destination,
       dropoff_location: dropoffLocation,
@@ -274,19 +416,23 @@ export function CreateInvoiceForm({
         unit_price: Number(it.unit_price || 0),
         line_total: Number(it.line_total || 0),
       })),
-      subtotal,
-      discount_amount: Number(discountAmount || 0),
-      additional_charges: Number(additionalCharges || 0),
-      tax_rate: Number(taxRate || 0),
-      tax_amount: taxAmount,
-      refundable_deposit: Number(refundableDeposit || 0),
-      grand_total: netAmount,
-      amount_paid: Number(advancePayment || 0),
-      balance_due: balanceDue,
+      subtotal: financials.subtotal,
+      discount_amount: financials.discountAmount,
+      discount_description: discountDescription,
+      total_deductions: financials.deductions,
+      deduction_description: deductionDescription,
+      additional_charges: financials.additionalCharges,
+      additional_charge_description: additionalChargeDescription,
+      tax_rate: financials.taxRate,
+      tax_amount: financials.taxAmount,
+      refundable_deposit: financials.refundableDeposit,
+      grand_total: financials.netAmount,
+      amount_paid: financials.amountPaid,
+      balance_due: financials.balanceDue,
       special_notes: specialNotes,
       terms_and_conditions: importantTerms,
-      prepared_by_name_snapshot: currentUser.full_name,
-      prepared_by_designation_snapshot: currentUser.role ? currentUser.role.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Finance Staff',
+      prepared_by_name_snapshot: initialInvoice?.prepared_by_name_snapshot ? String(initialInvoice.prepared_by_name_snapshot) : currentUser.full_name,
+      prepared_by_designation_snapshot: initialInvoice?.prepared_by_designation_snapshot ? String(initialInvoice.prepared_by_designation_snapshot) : (currentUser.role ? currentUser.role.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Finance Staff'),
     }
   }
 
@@ -320,14 +466,41 @@ export function CreateInvoiceForm({
   const handleSubmit = async (isIssue: boolean = false) => {
     if (loading) return
     setErrorMsg(null)
+
     if (!customerId) {
       setErrorMsg('Please select a customer.')
       return
     }
 
+    if (items.length === 0) {
+      setErrorMsg('At least one line item is required.')
+      return
+    }
+
     setLoading(true)
     try {
-      const res = await createInvoice({
+      const customerSnap = {
+        full_name: customerName,
+        mobile: customerPhone,
+        email: customerEmail,
+        company_name: customerCompany,
+        identifier_no: customerRef,
+        address: customerAddress,
+      }
+
+      const rentalVehicleSnap = {
+        vehicle_id: selectedVehicleId,
+        vehicle_name: vehicleName,
+        registration_number: registrationNumber,
+        rental_start_date: rentalStartDate,
+        rental_end_date: rentalEndDate,
+        rental_days: rentalDaysToDisplay,
+        pickup_location: pickupLocation,
+        destination: destination,
+        dropoff_location: dropoffLocation,
+      }
+
+      const payload = {
         invoice_number: invoiceNumber.trim() || undefined,
         customer_id: customerId,
         booking_id: bookingId || undefined,
@@ -337,34 +510,51 @@ export function CreateInvoiceForm({
         payment_terms: paymentTerms,
         currency: 'LKR',
         discount_amount: Number(discountAmount),
+        discount_description: discountDescription || undefined,
+        total_deductions: Number(totalDeductions),
+        deduction_description: deductionDescription || undefined,
+        additional_charges: Number(additionalCharges),
+        additional_charge_description: additionalChargeDescription || undefined,
         tax_rate: Number(taxRate),
         refundable_deposit: Number(refundableDeposit),
-        total_deductions: Number(advancePayment),
         notes: internalNotes ? `Internal: ${internalNotes}\n\n${specialNotes}` : specialNotes,
         special_notes: specialNotes,
         important_message: importantTerms,
-        status: isIssue ? 'issued' : 'draft',
+        status: (isEditing ? (invoiceStatus as 'draft' | 'issued' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled') : (isIssue ? 'issued' : 'draft')),
+        customer_snapshot: customerSnap,
+        rental_vehicle_snapshot: rentalVehicleSnap,
+        prepared_by_name_snapshot: initialInvoice?.prepared_by_name_snapshot ? String(initialInvoice.prepared_by_name_snapshot) : currentUser.full_name,
+        prepared_by_designation_snapshot: initialInvoice?.prepared_by_designation_snapshot ? String(initialInvoice.prepared_by_designation_snapshot) : (currentUser.role ? currentUser.role.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Finance Staff'),
         items: items.map((it, idx) => ({
           description: it.description,
           quantity: Number(it.quantity),
           unit_price: Number(it.unit_price),
           display_order: idx,
         })),
-      })
+      }
+
+      let res
+      if (isEditing && initialInvoice?.id) {
+        res = await updateInvoiceAction(String(initialInvoice.id), payload)
+      } else {
+        res = await createInvoice(payload)
+      }
 
       if (!res.success) {
-        setErrorMsg(res.error || 'Failed to create invoice.')
+        setErrorMsg(res.error || 'Failed to save invoice.')
         setLoading(false)
         return
       }
 
       router.push(`/dashboard/invoices/${res.invoiceId}`)
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'An error occurred while creating invoice.'
+      const msg = err instanceof Error ? err.message : 'An error occurred while saving invoice.'
       setErrorMsg(msg)
       setLoading(false)
     }
   }
+
+  const isReadOnlyStatus = isEditing && ['cancelled', 'void'].includes(invoiceStatus)
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
@@ -372,16 +562,18 @@ export function CreateInvoiceForm({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="flex items-center gap-3">
           <Link
-            href="/dashboard/invoices"
+            href={isEditing && initialInvoice?.id ? `/dashboard/invoices/${initialInvoice.id}` : '/dashboard/invoices'}
             className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
           >
             <ArrowLeft size={18} />
           </Link>
           <div>
             <h1 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-              <span>Create New Commercial Invoice</span>
+              <span>{isEditing ? `Edit Commercial Invoice #${invoiceNumber}` : 'Create Commercial Invoice'}</span>
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">Build and issue commercial billing invoices for rentals, tours, repairs, and services.</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {isEditing ? 'Update invoice metadata, line items, deductions, and terms.' : 'Build and issue commercial billing invoices for rentals, tours, repairs, and services.'}
+            </p>
           </div>
         </div>
 
@@ -405,26 +597,39 @@ export function CreateInvoiceForm({
             <span>Download</span>
           </button>
 
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => handleSubmit(false)}
-            className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer shadow-xs"
-          >
-            {loading ? 'Saving...' : 'Save Draft'}
-          </button>
+          {!isReadOnlyStatus && (
+            <>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handleSubmit(false)}
+                className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer shadow-xs"
+              >
+                {loading ? 'Saving...' : (isEditing ? 'Save Changes' : 'Save Draft')}
+              </button>
 
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => handleSubmit(true)}
-            className="px-4 py-2 rounded-xl bg-amber-400 text-slate-950 font-bold text-xs hover:bg-amber-300 shadow-xs cursor-pointer flex items-center gap-1.5"
-          >
-            <CheckCircle2 size={15} />
-            <span>{loading ? 'Issuing...' : 'Save & Issue'}</span>
-          </button>
+              {!isEditing && (
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleSubmit(true)}
+                  className="px-4 py-2 rounded-xl bg-amber-400 text-slate-950 font-bold text-xs hover:bg-amber-300 shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <CheckCircle2 size={15} />
+                  <span>{loading ? 'Issuing...' : 'Save & Issue'}</span>
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
+
+      {isReadOnlyStatus && (
+        <div className="p-4 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 font-bold rounded-2xl text-xs flex items-center gap-2">
+          <ShieldAlert size={16} />
+          <span>This invoice is currently in {invoiceStatus.toUpperCase()} status and cannot be modified.</span>
+        </div>
+      )}
 
       {errorMsg && (
         <div className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-500 font-bold rounded-2xl text-xs flex items-center gap-2">
@@ -433,7 +638,7 @@ export function CreateInvoiceForm({
         </div>
       )}
 
-      {/* SECTION 01 — INVOICE METADATA & ASSOCIATIONS */}
+      {/* SECTION 01 — INVOICE METADATA */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-4 shadow-xs">
         <h2 className="text-xs font-bold text-amber-500 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-1.5">
           <FileText size={15} />
@@ -441,14 +646,35 @@ export function CreateInvoiceForm({
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+          {/* INVOICE NUMBER WITH MANUAL EDIT TOGGLE */}
           <div>
-            <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Invoice Number *</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="font-bold text-slate-700 dark:text-slate-300">Invoice Number *</label>
+              <button
+                type="button"
+                onClick={() => setIsEditingInvoiceNumber(!isEditingInvoiceNumber)}
+                className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                {isEditingInvoiceNumber ? (
+                  <>
+                    <Lock size={12} />
+                    <span>Done</span>
+                  </>
+                ) : (
+                  <>
+                    <Unlock size={12} />
+                    <span>Edit</span>
+                  </>
+                )}
+              </button>
+            </div>
             <input
               type="text"
               value={invoiceNumber}
+              disabled={!isEditingInvoiceNumber}
               onChange={(e) => setInvoiceNumber(e.target.value.toUpperCase())}
               placeholder="TT-IN-10001"
-              className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:outline-none"
+              className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:outline-none disabled:opacity-75 disabled:bg-slate-100 dark:disabled:bg-slate-800"
               required
             />
           </div>
@@ -458,17 +684,7 @@ export function CreateInvoiceForm({
             <input
               type="date"
               value={invoiceDate}
-              onChange={(e) => setInvoiceDate(e.target.value)}
-              className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-slate-900 dark:text-white"
-            />
-          </div>
-
-          <div>
-            <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Payment Due Date</label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
+              onChange={(e) => handleInvoiceDateChange(e.target.value)}
               className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-slate-900 dark:text-white"
             />
           </div>
@@ -477,7 +693,7 @@ export function CreateInvoiceForm({
             <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Payment Terms</label>
             <select
               value={paymentTerms}
-              onChange={(e) => setPaymentTerms(e.target.value)}
+              onChange={(e) => handlePaymentTermsChange(e.target.value)}
               className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-slate-900 dark:text-white"
             >
               <option value="Due on Receipt">Due on Receipt</option>
@@ -487,6 +703,17 @@ export function CreateInvoiceForm({
               <option value="30 Days">30 Days</option>
               <option value="Custom">Custom</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Payment Due Date</label>
+            <input
+              type="date"
+              value={dueDate}
+              disabled={paymentTerms !== 'Custom'}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-slate-900 dark:text-white disabled:opacity-70 disabled:bg-slate-100 dark:disabled:bg-slate-800"
+            />
           </div>
 
           <div>
@@ -537,7 +764,7 @@ export function CreateInvoiceForm({
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-4 shadow-xs">
         <h2 className="text-xs font-bold text-amber-500 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-1.5">
           <User size={15} />
-          <span>Section 02 — Customer Details</span>
+          <span>Section 02 — Customer Details (Snapshot Saved)</span>
         </h2>
 
         <div className="space-y-3 text-xs">
@@ -629,7 +856,7 @@ export function CreateInvoiceForm({
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-4 shadow-xs">
         <h2 className="text-xs font-bold text-amber-500 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-1.5">
           <Car size={15} />
-          <span>Section 03 — Rental & Vehicle Information (Optional)</span>
+          <span>Section 03 — Rental & Vehicle Information (Snapshot Saved)</span>
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
@@ -676,9 +903,10 @@ export function CreateInvoiceForm({
             <input
               type="number"
               min="0"
-              value={rentalDays}
-              readOnly
-              className="w-full p-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono font-bold text-slate-700 dark:text-slate-300"
+              value={manualRentalDays !== '' ? manualRentalDays : computedRentalDays}
+              onChange={(e) => setManualRentalDays(e.target.value)}
+              placeholder={`Auto: ${computedRentalDays}`}
+              className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-mono font-bold text-slate-900 dark:text-white"
             />
           </div>
 
@@ -776,19 +1004,19 @@ export function CreateInvoiceForm({
                   min="0.01"
                   step="0.01"
                   value={it.quantity}
-                  onChange={(e) => handleItemChange(idx, 'quantity', Number(e.target.value))}
+                  onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
                   className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg font-mono font-bold text-slate-900 dark:text-white"
                   required
                 />
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-[10px] font-bold text-slate-400 mb-1">Unit Price (LKR)</label>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1">Unit Rate (LKR)</label>
                 <input
                   type="number"
                   step="0.01"
                   value={it.unit_price}
-                  onChange={(e) => handleItemChange(idx, 'unit_price', Number(e.target.value))}
+                  onChange={(e) => handleItemChange(idx, 'unit_price', e.target.value)}
                   className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg font-mono font-bold text-slate-900 dark:text-white"
                   required
                 />
@@ -816,9 +1044,9 @@ export function CreateInvoiceForm({
         </div>
       </div>
 
-      {/* SECTION 05 — FINANCIAL SUMMARY */}
+      {/* SECTION 05 — PAYMENT & FINANCIAL SUMMARY */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Adjustments */}
+        {/* Adjustments & Deductions */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-4 shadow-xs">
           <h2 className="text-xs font-bold text-amber-500 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2">
             Section 05 — Financial Deductions & Charges
@@ -831,20 +1059,71 @@ export function CreateInvoiceForm({
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
                   value={discountAmount}
-                  onChange={(e) => setDiscountAmount(Number(e.target.value))}
+                  onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value)))}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-slate-900 dark:text-white"
                 />
               </div>
 
               <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Discount Reason / Description</label>
+                <input
+                  type="text"
+                  value={discountDescription}
+                  onChange={(e) => setDiscountDescription(e.target.value)}
+                  placeholder="e.g. Seasonal Promotion, Early Booking"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Deductions (LKR)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={totalDeductions}
+                  onChange={(e) => setTotalDeductions(Math.max(0, Number(e.target.value)))}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Deduction Reason / Description</label>
+                <input
+                  type="text"
+                  value={deductionDescription}
+                  onChange={(e) => setDeductionDescription(e.target.value)}
+                  placeholder="e.g. Fuel Adjustment, Unused Days Credit"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Additional Charges (LKR)</label>
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
                   value={additionalCharges}
-                  onChange={(e) => setAdditionalCharges(Number(e.target.value))}
+                  onChange={(e) => setAdditionalCharges(Math.max(0, Number(e.target.value)))}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Additional Charge Description</label>
+                <input
+                  type="text"
+                  value={additionalChargeDescription}
+                  onChange={(e) => setAdditionalChargeDescription(e.target.value)}
+                  placeholder="e.g. Airport Parking Fee, Toll Charges"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white"
                 />
               </div>
             </div>
@@ -855,8 +1134,10 @@ export function CreateInvoiceForm({
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
+                  max="100"
                   value={taxRate}
-                  onChange={(e) => setTaxRate(Number(e.target.value))}
+                  onChange={(e) => setTaxRate(Math.max(0, Number(e.target.value)))}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-slate-900 dark:text-white"
                 />
               </div>
@@ -866,9 +1147,11 @@ export function CreateInvoiceForm({
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
                   value={advancePayment}
-                  onChange={(e) => setAdvancePayment(Number(e.target.value))}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-slate-900 dark:text-white"
+                  disabled={isEditing}
+                  onChange={(e) => setAdvancePayment(Math.max(0, Number(e.target.value)))}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-slate-900 dark:text-white disabled:opacity-75"
                 />
               </div>
             </div>
@@ -878,8 +1161,9 @@ export function CreateInvoiceForm({
               <input
                 type="number"
                 step="0.01"
+                min="0"
                 value={refundableDeposit}
-                onChange={(e) => setRefundableDeposit(Number(e.target.value))}
+                onChange={(e) => setRefundableDeposit(Math.max(0, Number(e.target.value)))}
                 placeholder="Separate security deposit"
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-slate-900 dark:text-white"
               />
@@ -887,65 +1171,73 @@ export function CreateInvoiceForm({
           </div>
         </div>
 
-        {/* Calculation Summary Breakdown */}
+        {/* Calculation Summary Breakdown (Highlighted Card) */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-4 shadow-xs flex flex-col justify-between">
-          <h2 className="text-xs font-bold text-amber-500 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2">
-            Financial Breakdown Summary
+          <h2 className="text-xs font-bold text-amber-500 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-1.5">
+            <Info size={15} />
+            <span>Financial Breakdown Summary</span>
           </h2>
 
           <div className="space-y-3 text-xs">
             <div className="flex justify-between items-center">
               <span className="text-slate-500">Subtotal:</span>
               <span className="font-mono font-bold text-slate-900 dark:text-white text-sm">
-                LKR {subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                LKR {financials.subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </span>
             </div>
 
-            {discountAmount > 0 && (
+            {financials.discountAmount > 0 && (
               <div className="flex justify-between items-center text-rose-500">
-                <span>Discount:</span>
-                <span className="font-mono font-bold">- LKR {discountAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                <span>Discount {discountDescription ? `(${discountDescription})` : ''}:</span>
+                <span className="font-mono font-bold">- LKR {financials.discountAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               </div>
             )}
 
-            {additionalCharges > 0 && (
+            {financials.deductions > 0 && (
+              <div className="flex justify-between items-center text-rose-500">
+                <span>Deductions {deductionDescription ? `(${deductionDescription})` : ''}:</span>
+                <span className="font-mono font-bold">- LKR {financials.deductions.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+
+            {financials.additionalCharges > 0 && (
+              <div className="flex justify-between items-center text-emerald-500">
+                <span>Additional Charges {additionalChargeDescription ? `(${additionalChargeDescription})` : ''}:</span>
+                <span className="font-mono font-bold">+ LKR {financials.additionalCharges.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+
+            {financials.taxAmount > 0 && (
               <div className="flex justify-between items-center text-slate-500">
-                <span>Additional Charges:</span>
-                <span className="font-mono font-bold">LKR {additionalCharges.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                <span>Tax ({financials.taxRate}%):</span>
+                <span className="font-mono font-bold">LKR {financials.taxAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               </div>
             )}
 
-            {taxAmount > 0 && (
-              <div className="flex justify-between items-center text-slate-500">
-                <span>Tax ({taxRate}%):</span>
-                <span className="font-mono font-bold">LKR {taxAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-              </div>
-            )}
-
-            {refundableDeposit > 0 && (
+            {financials.refundableDeposit > 0 && (
               <div className="flex justify-between items-center text-amber-500">
                 <span>Refundable Deposit (Separate):</span>
-                <span className="font-mono font-bold">LKR {refundableDeposit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono font-bold">LKR {financials.refundableDeposit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               </div>
             )}
 
             <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
               <span className="font-bold text-slate-900 dark:text-white text-sm">Net Amount:</span>
               <span className="font-mono font-bold text-slate-900 dark:text-white text-base">
-                LKR {netAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                LKR {financials.netAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </span>
             </div>
 
             <div className="flex justify-between items-center text-emerald-500">
               <span>Amount Paid / Advance:</span>
-              <span className="font-mono font-bold">LKR {advancePayment.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              <span className="font-mono font-bold">LKR {financials.amountPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
             </div>
 
-            {/* BALANCE DUE Highlight Bar (Black background with Yellow text matching PDF & Brand) */}
+            {/* BALANCE DUE Highlight Bar */}
             <div className="p-3 bg-slate-950 rounded-xl flex justify-between items-center shadow-xs border border-amber-400/30">
               <span className="font-black text-amber-400 uppercase text-xs">BALANCE DUE:</span>
               <span className="font-mono font-black text-amber-400 text-xl">
-                LKR {balanceDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                LKR {financials.balanceDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </span>
             </div>
           </div>
@@ -980,7 +1272,7 @@ export function CreateInvoiceForm({
           </div>
 
           <div className="md:col-span-2">
-            <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Internal Notes (Private — Excluded from Customer PDF)</label>
+            <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Internal Notes (Private — EXCLUDED from Customer PDF)</label>
             <input
               type="text"
               value={internalNotes}
@@ -995,16 +1287,18 @@ export function CreateInvoiceForm({
       {/* SECTION 07 — PREPARED BY */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-2 shadow-xs">
         <h2 className="text-xs font-bold text-amber-500 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2">
-          Section 07 — Prepared By Information
+          Section 07 — Prepared By Information (Snapshot Saved)
         </h2>
         <div className="flex items-center gap-3 pt-1 text-xs">
           <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-sm">
-            {currentUser.full_name ? currentUser.full_name.charAt(0).toUpperCase() : 'S'}
+            {initialInvoice?.prepared_by_name_snapshot ? String(initialInvoice.prepared_by_name_snapshot).charAt(0).toUpperCase() : (currentUser.full_name ? currentUser.full_name.charAt(0).toUpperCase() : 'S')}
           </div>
           <div>
-            <p className="font-bold text-slate-900 dark:text-white">{currentUser.full_name || 'Authenticated Staff Member'}</p>
+            <p className="font-bold text-slate-900 dark:text-white">
+              {initialInvoice?.prepared_by_name_snapshot ? String(initialInvoice.prepared_by_name_snapshot) : (currentUser.full_name || 'Authenticated Staff Member')}
+            </p>
             <p className="text-[11px] text-slate-500 font-semibold">
-              {currentUser.role ? currentUser.role.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Finance Staff'} — {COMPANY_CONFIG.name}
+              {initialInvoice?.prepared_by_designation_snapshot ? String(initialInvoice.prepared_by_designation_snapshot) : (currentUser.role ? currentUser.role.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Finance Staff')} — {COMPANY_CONFIG.name}
             </p>
           </div>
         </div>

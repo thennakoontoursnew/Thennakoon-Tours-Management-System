@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { invoiceSchema, sanitizePayload } from '@/lib/validations/sales-documents'
 import { z } from 'zod'
+import { calculateCommercialInvoiceFinancials } from '@/lib/utils/relation-utils'
 
 type InvoiceInput = z.infer<typeof invoiceSchema> & {
   invoice_number?: string | null
@@ -24,7 +25,7 @@ export async function createInvoice(values: InvoiceInput) {
       .single()
 
     const userRole = profile?.role || 'viewer'
-    const isAuthorizedToEdit = ['owner', 'admin', 'finance', 'manager'].includes(userRole)
+    const isAuthorizedToEdit = ['owner', 'admin', 'manager', 'finance_staff', 'booking_staff'].includes(userRole)
 
     const parsed = invoiceSchema.safeParse(values)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
@@ -73,20 +74,29 @@ export async function createInvoice(values: InvoiceInput) {
       }
     })
 
-    const taxAmount = (subtotal * Number(headerData.tax_rate)) / 100
-    const grandTotal = Math.max(
-      0,
-      subtotal - Number(headerData.discount_amount) + taxAmount + Number(headerData.refundable_deposit) - Number(headerData.total_deductions)
-    )
+    const financials = calculateCommercialInvoiceFinancials({
+      subtotal,
+      discount_amount: Number(headerData.discount_amount),
+      total_deductions: Number(headerData.total_deductions),
+      additional_charges: Number(headerData.additional_charges),
+      tax_rate: Number(headerData.tax_rate),
+      refundable_deposit: Number(headerData.refundable_deposit),
+      amount_paid: 0,
+    })
 
     const sanitizedHeader = sanitizePayload(headerData)
     const payload: Record<string, unknown> = {
       ...sanitizedHeader,
-      subtotal,
-      tax_amount: taxAmount,
-      grand_total: grandTotal,
+      subtotal: financials.subtotal,
+      discount_amount: financials.discountAmount,
+      total_deductions: financials.deductions,
+      additional_charges: financials.additionalCharges,
+      tax_rate: financials.taxRate,
+      tax_amount: financials.taxAmount,
+      grand_total: financials.netAmount,
+      refundable_deposit: financials.refundableDeposit,
       amount_paid: 0,
-      balance_due: grandTotal,
+      balance_due: financials.netAmount,
       prepared_by: user.id,
       prepared_by_name_snapshot: profile?.full_name || 'Staff Member',
       prepared_by_designation_snapshot: profile?.role ? profile.role.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Finance Staff',
@@ -138,6 +148,159 @@ export async function createInvoice(values: InvoiceInput) {
     return { success: true, invoiceId: invoice.id, invoiceNumber: invoice.invoice_number }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Failed to create invoice.'
+    return { success: false, error: msg }
+  }
+}
+
+export async function updateInvoiceAction(invoiceId: string, values: InvoiceInput) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated.' }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, role')
+      .eq('id', user.id)
+      .single()
+
+    const userRole = profile?.role || 'viewer'
+    const isAuthorizedToEdit = ['owner', 'admin', 'manager', 'finance_staff', 'booking_staff'].includes(userRole)
+    if (!isAuthorizedToEdit) {
+      return { success: false, error: 'Permission denied. You do not have permission to edit invoices.' }
+    }
+
+    const { data: existingInv, error: existError } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('id', invoiceId)
+      .single()
+
+    if (existError || !existingInv) {
+      return { success: false, error: 'Invoice not found.' }
+    }
+
+    if (['cancelled', 'void'].includes(existingInv.status)) {
+      return { success: false, error: `Cannot edit an invoice in '${existingInv.status}' status.` }
+    }
+
+    const parsed = invoiceSchema.safeParse(values)
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
+
+    const { items, ...headerData } = parsed.data
+
+    // Handle Manual Invoice Number Edit / Lock
+    let targetInvoiceNo = existingInv.invoice_number
+    const rawCustomNo = (values.invoice_number || '').trim().toUpperCase()
+
+    if (rawCustomNo && rawCustomNo !== existingInv.invoice_number) {
+      if (!rawCustomNo.startsWith('TT-IN-')) {
+        return { success: false, error: 'Invoice number must start with TT-IN-.' }
+      }
+      if (!/^TT-IN-[A-Z0-9-]+$/.test(rawCustomNo)) {
+        return { success: false, error: 'Invalid invoice number format. Allowed characters: A–Z, 0–9, hyphens.' }
+      }
+
+      const { data: dupCheck } = await supabase
+        .from('invoices')
+        .select('id')
+        .eq('invoice_number', rawCustomNo)
+        .neq('id', invoiceId)
+        .maybeSingle()
+
+      if (dupCheck) {
+        return { success: false, error: `Invoice number ${rawCustomNo} already exists.` }
+      }
+
+      targetInvoiceNo = rawCustomNo
+
+      await supabase.rpc('sync_invoice_counter', { p_invoice_number: targetInvoiceNo })
+      await supabase.rpc('log_audit_action_internal', {
+        p_action: 'INVOICE_NUMBER_OVERRIDE',
+        p_entity_type: 'invoice',
+        p_entity_id: invoiceId,
+        p_description: `Invoice number changed from ${existingInv.invoice_number} to ${targetInvoiceNo}`,
+      })
+    }
+
+    let subtotal = 0
+    const processedItems = items.map((it, idx) => {
+      const lineTotal = Number(it.quantity) * Number(it.unit_price)
+      subtotal += lineTotal
+      return {
+        ...it,
+        line_total: lineTotal,
+        display_order: idx,
+      }
+    })
+
+    const financials = calculateCommercialInvoiceFinancials({
+      subtotal,
+      discount_amount: Number(headerData.discount_amount),
+      total_deductions: Number(headerData.total_deductions),
+      additional_charges: Number(headerData.additional_charges),
+      tax_rate: Number(headerData.tax_rate),
+      refundable_deposit: Number(headerData.refundable_deposit),
+      amount_paid: Number(existingInv.amount_paid || 0),
+    })
+
+    // Paid / partially paid sanity check
+    if (financials.netAmount < Number(existingInv.amount_paid || 0)) {
+      return {
+        success: false,
+        error: `Net amount (LKR ${financials.netAmount.toLocaleString()}) cannot be less than already paid amount (LKR ${Number(existingInv.amount_paid).toLocaleString()}).`,
+      }
+    }
+
+    const sanitizedHeader = sanitizePayload(headerData)
+    const payload: Record<string, unknown> = {
+      ...sanitizedHeader,
+      invoice_number: targetInvoiceNo,
+      subtotal: financials.subtotal,
+      discount_amount: financials.discountAmount,
+      total_deductions: financials.deductions,
+      additional_charges: financials.additionalCharges,
+      tax_rate: financials.taxRate,
+      tax_amount: financials.taxAmount,
+      grand_total: financials.netAmount,
+      refundable_deposit: financials.refundableDeposit,
+      amount_paid: Number(existingInv.amount_paid || 0),
+      balance_due: financials.balanceDue,
+      updated_by: user.id,
+      updated_at: new Date().toISOString(),
+    }
+
+    const { error: updateErr } = await supabase
+      .from('invoices')
+      .update(payload)
+      .eq('id', invoiceId)
+
+    if (updateErr) return { success: false, error: updateErr.message }
+
+    // Atomic update of line items
+    await supabase.from('invoice_items').delete().eq('invoice_id', invoiceId)
+
+    const itemRows = processedItems.map((it) => ({
+      invoice_id: invoiceId,
+      ...sanitizePayload(it),
+    }))
+
+    await supabase.from('invoice_items').insert(itemRows)
+
+    await supabase.rpc('log_audit_action_internal', {
+      p_action: 'UPDATE_INVOICE',
+      p_entity_type: 'invoice',
+      p_entity_id: invoiceId,
+      p_description: `Updated invoice ${targetInvoiceNo}`,
+    })
+
+    revalidatePath('/dashboard/invoices')
+    revalidatePath(`/dashboard/invoices/${invoiceId}`)
+    revalidatePath(`/dashboard/invoices/${invoiceId}/edit`)
+
+    return { success: true, invoiceId, invoiceNumber: targetInvoiceNo }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Failed to update invoice.'
     return { success: false, error: msg }
   }
 }
@@ -203,6 +366,7 @@ export async function createInvoiceFromBooking(bookingId: string, customInvoiceN
       invoice_date: new Date().toISOString().split('T')[0],
       currency: 'LKR',
       discount_amount: b.discount_amount,
+      additional_charges: 0,
       tax_rate: 0,
       refundable_deposit: b.refundable_deposit,
       total_deductions: b.advance_paid,
@@ -260,6 +424,7 @@ export async function duplicateInvoiceAction(id: string) {
       due_date: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().split('T')[0],
       currency: orig.currency || 'LKR',
       discount_amount: orig.discount_amount || 0,
+      additional_charges: orig.additional_charges || 0,
       tax_rate: orig.tax_rate || 0,
       refundable_deposit: orig.refundable_deposit || 0,
       total_deductions: orig.total_deductions || 0,

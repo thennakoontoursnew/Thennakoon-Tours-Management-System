@@ -94,6 +94,12 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
             </form>
           )}
           <Link
+            href={`/dashboard/invoices/${invoice.id}/edit`}
+            className="px-4 py-2 bg-slate-800 text-white dark:bg-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold hover:bg-slate-700 flex items-center gap-1.5 shadow-sm"
+          >
+            <span>Edit Invoice</span>
+          </Link>
+          <Link
             href={`/dashboard/invoices/${invoice.id}/preview`}
             className="px-4 py-2 bg-amber-400 text-slate-950 rounded-xl text-xs font-bold hover:bg-amber-300 flex items-center gap-1.5 shadow-sm"
           >

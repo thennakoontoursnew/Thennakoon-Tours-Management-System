@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import { COMPANY_CONFIG } from '../company-config'
+import { calculateCommercialInvoiceFinancials } from '../utils/relation-utils'
 
 function formatNumberSafe(val: unknown, decimals: number = 2): string {
   const num = Number(val ?? 0)
@@ -209,25 +210,50 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   doc.setFontSize(8)
   doc.setTextColor(71, 85, 105)
 
+  const financials = calculateCommercialInvoiceFinancials({
+    subtotal: Number(invoice.subtotal),
+    discount_amount: Number(invoice.discount_amount),
+    total_deductions: Number(invoice.total_deductions),
+    additional_charges: Number(invoice.additional_charges),
+    tax_rate: Number(invoice.tax_rate),
+    refundable_deposit: Number(invoice.refundable_deposit),
+    amount_paid: Number(invoice.amount_paid),
+  })
+
   doc.text('Subtotal:', rightX, sumY)
-  doc.text(`LKR ${formatNumberSafe(invoice.subtotal)}`, 192, sumY, { align: 'right' })
+  doc.text(`LKR ${formatNumberSafe(financials.subtotal)}`, 192, sumY, { align: 'right' })
   sumY += 4.5
 
-  if (Number(invoice.discount_amount) > 0) {
-    doc.text('Discount:', rightX, sumY)
-    doc.text(`- LKR ${formatNumberSafe(invoice.discount_amount)}`, 192, sumY, { align: 'right' })
+  if (financials.discountAmount > 0) {
+    const discLabel = invoice.discount_description ? `Discount (${invoice.discount_description}):` : 'Discount:'
+    doc.text(discLabel, rightX, sumY)
+    doc.text(`- LKR ${formatNumberSafe(financials.discountAmount)}`, 192, sumY, { align: 'right' })
     sumY += 4.5
   }
 
-  if (Number(invoice.tax_amount) > 0) {
-    doc.text(`Tax (${invoice.tax_rate || 0}%):`, rightX, sumY)
-    doc.text(`LKR ${formatNumberSafe(invoice.tax_amount)}`, 192, sumY, { align: 'right' })
+  if (financials.deductions > 0) {
+    const dedLabel = invoice.deduction_description ? `Deductions (${invoice.deduction_description}):` : 'Deductions:'
+    doc.text(dedLabel, rightX, sumY)
+    doc.text(`- LKR ${formatNumberSafe(financials.deductions)}`, 192, sumY, { align: 'right' })
     sumY += 4.5
   }
 
-  if (Number(invoice.refundable_deposit) > 0) {
-    doc.text('Refundable Deposit:', rightX, sumY)
-    doc.text(`LKR ${formatNumberSafe(invoice.refundable_deposit)}`, 192, sumY, { align: 'right' })
+  if (financials.additionalCharges > 0) {
+    const addLabel = invoice.additional_charge_description ? `Add. Charges (${invoice.additional_charge_description}):` : 'Additional Charges:'
+    doc.text(addLabel, rightX, sumY)
+    doc.text(`+ LKR ${formatNumberSafe(financials.additionalCharges)}`, 192, sumY, { align: 'right' })
+    sumY += 4.5
+  }
+
+  if (financials.taxAmount > 0) {
+    doc.text(`Tax (${financials.taxRate}%):`, rightX, sumY)
+    doc.text(`LKR ${formatNumberSafe(financials.taxAmount)}`, 192, sumY, { align: 'right' })
+    sumY += 4.5
+  }
+
+  if (financials.refundableDeposit > 0) {
+    doc.text('Refundable Deposit (Separate):', rightX, sumY)
+    doc.text(`LKR ${formatNumberSafe(financials.refundableDeposit)}`, 192, sumY, { align: 'right' })
     sumY += 4.5
   }
 
@@ -236,19 +262,18 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   doc.line(rightX, sumY, 195, sumY)
   sumY += 4
 
-  const netAmount = Number(invoice.grand_total || (Number(invoice.subtotal) - Number(invoice.discount_amount || 0) + Number(invoice.tax_amount || 0) + Number(invoice.refundable_deposit || 0)))
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.5)
   doc.setTextColor(15, 23, 42)
   doc.text('Net Amount:', rightX, sumY)
-  doc.text(`LKR ${formatNumberSafe(netAmount)}`, 192, sumY, { align: 'right' })
+  doc.text(`LKR ${formatNumberSafe(financials.netAmount)}`, 192, sumY, { align: 'right' })
   sumY += 4.5
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(71, 85, 105)
   doc.text('Amount Paid:', rightX, sumY)
-  doc.text(`LKR ${formatNumberSafe(invoice.amount_paid)}`, 192, sumY, { align: 'right' })
+  doc.text(`LKR ${formatNumberSafe(financials.amountPaid)}`, 192, sumY, { align: 'right' })
   sumY += 5.5
 
   // BALANCE DUE Highlight Bar
@@ -258,7 +283,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   doc.setFontSize(9)
   doc.setTextColor(245, 158, 11) // Yellow/Gold Text
   doc.text('BALANCE DUE:', rightX + 3, sumY + 1.5)
-  doc.text(`LKR ${formatNumberSafe(invoice.balance_due)}`, 192, sumY + 1.5, { align: 'right' })
+  doc.text(`LKR ${formatNumberSafe(financials.balanceDue)}`, 192, sumY + 1.5, { align: 'right' })
 
   currentY = Math.max(bankY + 38, sumY + 10)
 

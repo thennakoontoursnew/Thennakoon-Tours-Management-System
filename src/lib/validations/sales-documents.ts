@@ -109,6 +109,7 @@ export const invoiceItemSchema = z.object({
 
 // 6. Invoice Schema
 export const invoiceSchema = z.object({
+  invoice_number: z.string().optional().nullable(),
   booking_id: z.string().uuid().optional().nullable(),
   quotation_id: z.string().uuid().optional().nullable(),
   customer_id: z.string().uuid('Please select a customer'),
@@ -119,13 +120,21 @@ export const invoiceSchema = z.object({
   delivery_date: z.string().optional().nullable(),
   currency: z.string().default('LKR'),
   discount_amount: z.number().min(0).default(0),
+  discount_description: z.string().optional().nullable(),
+  total_deductions: z.number().min(0).default(0),
+  deduction_description: z.string().optional().nullable(),
+  additional_charges: z.number().min(0).default(0),
+  additional_charge_description: z.string().optional().nullable(),
   tax_rate: z.number().min(0).max(100).default(0),
   refundable_deposit: z.number().min(0).default(0),
-  total_deductions: z.number().min(0).default(0),
   notes: z.string().optional().nullable(),
   special_notes: z.string().optional().nullable(),
   important_message: z.string().optional().nullable(),
   status: z.enum(['draft', 'issued', 'partially_paid', 'paid', 'overdue', 'cancelled']).default('draft'),
+  customer_snapshot: z.record(z.string(), z.unknown()).optional().nullable(),
+  rental_vehicle_snapshot: z.record(z.string(), z.unknown()).optional().nullable(),
+  prepared_by_name_snapshot: z.string().optional().nullable(),
+  prepared_by_designation_snapshot: z.string().optional().nullable(),
   items: z.array(invoiceItemSchema).min(1, 'At least one invoice line item is required'),
 })
 

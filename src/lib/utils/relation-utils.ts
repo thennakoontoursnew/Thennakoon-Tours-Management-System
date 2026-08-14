@@ -89,3 +89,59 @@ export function getReceiptId(receipt: unknown): string | null {
   }
   return null
 }
+
+export interface CommercialInvoiceFinancialsInput {
+  subtotal: number
+  discount_amount?: number
+  total_deductions?: number
+  additional_charges?: number
+  tax_rate?: number
+  refundable_deposit?: number
+  amount_paid?: number
+}
+
+export interface CommercialInvoiceFinancialsOutput {
+  subtotal: number
+  discountAmount: number
+  deductions: number
+  additionalCharges: number
+  adjustedSubtotal: number
+  taxRate: number
+  taxAmount: number
+  netAmount: number
+  refundableDeposit: number
+  amountPaid: number
+  balanceDue: number
+}
+
+export function calculateCommercialInvoiceFinancials(
+  input: CommercialInvoiceFinancialsInput
+): CommercialInvoiceFinancialsOutput {
+  const subtotal = Math.max(0, toSafeNumber(input.subtotal))
+  const discountAmount = Math.max(0, toSafeNumber(input.discount_amount))
+  const deductions = Math.max(0, toSafeNumber(input.total_deductions))
+  const additionalCharges = Math.max(0, toSafeNumber(input.additional_charges))
+  const taxRate = Math.max(0, toSafeNumber(input.tax_rate))
+  const refundableDeposit = Math.max(0, toSafeNumber(input.refundable_deposit))
+  const amountPaid = Math.max(0, toSafeNumber(input.amount_paid))
+
+  const adjustedSubtotal = subtotal - discountAmount - deductions + additionalCharges
+  const taxBase = Math.max(0, adjustedSubtotal)
+  const taxAmount = (taxBase * taxRate) / 100
+  const netAmount = Math.max(0, adjustedSubtotal + taxAmount)
+  const balanceDue = Math.max(0, netAmount - amountPaid)
+
+  return {
+    subtotal,
+    discountAmount,
+    deductions,
+    additionalCharges,
+    adjustedSubtotal,
+    taxRate,
+    taxAmount,
+    netAmount,
+    refundableDeposit,
+    amountPaid,
+    balanceDue,
+  }
+}
