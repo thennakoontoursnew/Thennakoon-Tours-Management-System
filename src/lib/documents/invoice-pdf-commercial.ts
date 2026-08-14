@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf'
 import { COMPANY_CONFIG } from '../company-config'
-import { calculateCommercialInvoiceFinancials } from '../utils/relation-utils'
+import { calculateCommercialInvoiceFinancials, unwrapDeductionsRelation } from '../utils/relation-utils'
 
 function formatNumberSafe(val: unknown, decimals: number = 2): string {
   const num = Number(val ?? 0)
@@ -231,7 +231,29 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
     sumY += 4.5
   }
 
-  if (financials.deductions > 0) {
+  const deductionList = unwrapDeductionsRelation(
+    invoice.deductions || invoice.deduction_items,
+    Number(invoice.total_deductions),
+    invoice.deduction_description
+  )
+
+  if (deductionList.length > 1) {
+    doc.setFont('helvetica', 'bold')
+    doc.text('Deductions:', rightX, sumY)
+    sumY += 4
+    doc.setFont('helvetica', 'normal')
+    for (const d of deductionList) {
+      const label = d.description.length > 22 ? `${d.description.slice(0, 21)}...` : d.description
+      doc.text(`  ${label}:`, rightX, sumY)
+      doc.text(`- LKR ${formatNumberSafe(d.amount)}`, 192, sumY, { align: 'right' })
+      sumY += 4
+    }
+    doc.setFont('helvetica', 'bold')
+    doc.text('Total Deductions:', rightX, sumY)
+    doc.text(`- LKR ${formatNumberSafe(financials.deductions)}`, 192, sumY, { align: 'right' })
+    doc.setFont('helvetica', 'normal')
+    sumY += 4.5
+  } else if (financials.deductions > 0) {
     const dedLabel = invoice.deduction_description ? `Deductions (${invoice.deduction_description}):` : 'Deductions:'
     doc.text(dedLabel, rightX, sumY)
     doc.text(`- LKR ${formatNumberSafe(financials.deductions)}`, 192, sumY, { align: 'right' })

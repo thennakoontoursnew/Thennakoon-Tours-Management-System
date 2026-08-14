@@ -11,6 +11,7 @@ import {
   getCustomerMobile,
   getReceiptId,
   getReceiptNumber,
+  unwrapDeductionsRelation,
 } from '@/lib/utils/relation-utils'
 
 interface PageProps {
@@ -23,13 +24,15 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
 
   const { data: invoice } = await supabase
     .from('invoices')
-    .select('*, customer:customers(*), items:invoice_items(*)')
+    .select('*, customer:customers(*), items:invoice_items(*), deductions:invoice_deductions(*)')
     .eq('id', id)
     .single()
 
   if (!invoice) {
     notFound()
   }
+
+  const deductionList = unwrapDeductionsRelation(invoice.deductions, Number(invoice.total_deductions), invoice.deduction_description)
 
   const { data: payments } = await supabase
     .from('payments')
@@ -132,6 +135,27 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
           </div>
         </div>
       </div>
+
+      {/* Deductions Breakdown */}
+      {deductionList.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-3">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-rose-500 border-b border-slate-100 dark:border-slate-800 pb-2">
+            Deductions Breakdown
+          </h2>
+          <div className="space-y-2 text-xs">
+            {deductionList.map((d, i) => (
+              <div key={i} className="flex justify-between items-center text-slate-700 dark:text-slate-300">
+                <span>{d.description}</span>
+                <span className="font-mono font-bold text-rose-500">- LKR {d.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              </div>
+            ))}
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center font-bold">
+              <span className="text-slate-900 dark:text-white">Total Deductions:</span>
+              <span className="font-mono text-rose-500">LKR {toSafeNumber(invoice.total_deductions).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Record Payment Form */}
       {toSafeNumber(invoice.balance_due) > 0 && (

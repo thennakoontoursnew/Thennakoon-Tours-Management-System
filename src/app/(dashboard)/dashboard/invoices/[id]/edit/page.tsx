@@ -39,10 +39,10 @@ export default async function EditInvoicePage({ params }: PageProps) {
     redirect('/unauthorized')
   }
 
-  // Fetch Existing Invoice with Customer and Items
+  // Fetch Existing Invoice with Customer, Items, and Deductions
   const { data: existingInvoice } = await supabase
     .from('invoices')
-    .select('*, customer:customers(*), items:invoice_items(*)')
+    .select('*, customer:customers(*), items:invoice_items(*), deductions:invoice_deductions(*)')
     .eq('id', id)
     .single()
 

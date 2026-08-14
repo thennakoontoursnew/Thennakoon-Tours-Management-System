@@ -107,6 +107,14 @@ export const invoiceItemSchema = z.object({
   display_order: z.number().int().default(0),
 })
 
+// 5b. Invoice Deduction Schema
+export const invoiceDeductionSchema = z.object({
+  id: z.string().optional(),
+  description: z.string().min(1, 'Deduction description is required'),
+  amount: z.number().min(0, 'Deduction amount must be zero or positive').default(0),
+  sort_order: z.number().int().default(0),
+})
+
 // 6. Invoice Schema
 export const invoiceSchema = z.object({
   invoice_number: z.string().optional().nullable(),
@@ -136,6 +144,7 @@ export const invoiceSchema = z.object({
   prepared_by_name_snapshot: z.string().optional().nullable(),
   prepared_by_designation_snapshot: z.string().optional().nullable(),
   items: z.array(invoiceItemSchema).min(1, 'At least one invoice line item is required'),
+  deduction_items: z.array(invoiceDeductionSchema).optional().default([]),
 })
 
 // 7. Payment Schema

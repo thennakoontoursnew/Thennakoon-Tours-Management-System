@@ -90,10 +90,47 @@ export function getReceiptId(receipt: unknown): string | null {
   return null
 }
 
+export interface InvoiceDeductionItem {
+  id?: string
+  description: string
+  amount: number
+  sort_order?: number
+}
+
+export function unwrapDeductionsRelation(
+  deductions: unknown,
+  legacyTotalDeductions: number = 0,
+  legacyDescription?: string | null
+): InvoiceDeductionItem[] {
+  const list = unwrapArrayRelation<InvoiceDeductionItem>(deductions)
+  if (list.length > 0) {
+    return list.map((item, idx) => ({
+      id: item.id,
+      description: toSafeString(item.description, 'Deduction'),
+      amount: Math.max(0, toSafeNumber(item.amount)),
+      sort_order: typeof item.sort_order === 'number' ? item.sort_order : idx,
+    }))
+  }
+
+  const safeLegacyAmount = Math.max(0, toSafeNumber(legacyTotalDeductions))
+  if (safeLegacyAmount > 0) {
+    return [
+      {
+        description: toSafeString(legacyDescription, 'Deduction'),
+        amount: safeLegacyAmount,
+        sort_order: 0,
+      },
+    ]
+  }
+
+  return []
+}
+
 export interface CommercialInvoiceFinancialsInput {
   subtotal: number
   discount_amount?: number
   total_deductions?: number
+  deduction_items?: InvoiceDeductionItem[]
   additional_charges?: number
   tax_rate?: number
   refundable_deposit?: number
@@ -119,7 +156,14 @@ export function calculateCommercialInvoiceFinancials(
 ): CommercialInvoiceFinancialsOutput {
   const subtotal = Math.max(0, toSafeNumber(input.subtotal))
   const discountAmount = Math.max(0, toSafeNumber(input.discount_amount))
-  const deductions = Math.max(0, toSafeNumber(input.total_deductions))
+
+  let deductions = 0
+  if (input.deduction_items && input.deduction_items.length > 0) {
+    deductions = input.deduction_items.reduce((sum, item) => sum + Math.max(0, toSafeNumber(item.amount)), 0)
+  } else {
+    deductions = Math.max(0, toSafeNumber(input.total_deductions))
+  }
+
   const additionalCharges = Math.max(0, toSafeNumber(input.additional_charges))
   const taxRate = Math.max(0, toSafeNumber(input.tax_rate))
   const refundableDeposit = Math.max(0, toSafeNumber(input.refundable_deposit))

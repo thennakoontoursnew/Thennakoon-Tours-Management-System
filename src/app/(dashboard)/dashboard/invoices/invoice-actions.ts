@@ -30,7 +30,7 @@ export async function createInvoice(values: InvoiceInput) {
     const parsed = invoiceSchema.safeParse(values)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
-    const { items, ...headerData } = parsed.data
+    const { items, deduction_items, ...headerData } = parsed.data
 
     // Handle Invoice Numbering logic
     let customInvoiceNo: string | null = null
@@ -74,10 +74,12 @@ export async function createInvoice(values: InvoiceInput) {
       }
     })
 
+    const deductionRows = (deduction_items || []).filter((d) => d.description.trim() && Number(d.amount) >= 0)
+
     const financials = calculateCommercialInvoiceFinancials({
       subtotal,
       discount_amount: Number(headerData.discount_amount),
-      total_deductions: Number(headerData.total_deductions),
+      deduction_items: deductionRows,
       additional_charges: Number(headerData.additional_charges),
       tax_rate: Number(headerData.tax_rate),
       refundable_deposit: Number(headerData.refundable_deposit),
@@ -122,6 +124,16 @@ export async function createInvoice(values: InvoiceInput) {
     }))
 
     await supabase.from('invoice_items').insert(itemRows)
+
+    if (deductionRows.length > 0) {
+      const dRows = deductionRows.map((d, idx) => ({
+        invoice_id: invoice.id,
+        description: d.description.trim(),
+        amount: Number(d.amount),
+        sort_order: idx,
+      }))
+      await supabase.from('invoice_deductions').insert(dRows)
+    }
 
     // Synchronize number_counters if manual high invoice number was specified
     if (customInvoiceNo) {
@@ -187,7 +199,7 @@ export async function updateInvoiceAction(invoiceId: string, values: InvoiceInpu
     const parsed = invoiceSchema.safeParse(values)
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
-    const { items, ...headerData } = parsed.data
+    const { items, deduction_items, ...headerData } = parsed.data
 
     // Handle Manual Invoice Number Edit / Lock
     let targetInvoiceNo = existingInv.invoice_number
@@ -234,10 +246,12 @@ export async function updateInvoiceAction(invoiceId: string, values: InvoiceInpu
       }
     })
 
+    const deductionRows = (deduction_items || []).filter((d) => d.description.trim() && Number(d.amount) >= 0)
+
     const financials = calculateCommercialInvoiceFinancials({
       subtotal,
       discount_amount: Number(headerData.discount_amount),
-      total_deductions: Number(headerData.total_deductions),
+      deduction_items: deductionRows,
       additional_charges: Number(headerData.additional_charges),
       tax_rate: Number(headerData.tax_rate),
       refundable_deposit: Number(headerData.refundable_deposit),
@@ -286,6 +300,19 @@ export async function updateInvoiceAction(invoiceId: string, values: InvoiceInpu
     }))
 
     await supabase.from('invoice_items').insert(itemRows)
+
+    // Atomic update of deduction items
+    await supabase.from('invoice_deductions').delete().eq('invoice_id', invoiceId)
+
+    if (deductionRows.length > 0) {
+      const dRows = deductionRows.map((d, idx) => ({
+        invoice_id: invoiceId,
+        description: d.description.trim(),
+        amount: Number(d.amount),
+        sort_order: idx,
+      }))
+      await supabase.from('invoice_deductions').insert(dRows)
+    }
 
     await supabase.rpc('log_audit_action_internal', {
       p_action: 'UPDATE_INVOICE',
@@ -370,6 +397,7 @@ export async function createInvoiceFromBooking(bookingId: string, customInvoiceN
       tax_rate: 0,
       refundable_deposit: b.refundable_deposit,
       total_deductions: b.advance_paid,
+      deduction_items: b.advance_paid > 0 ? [{ description: 'Advance Payment Credit', amount: Number(b.advance_paid), sort_order: 0 }] : [],
       status: 'draft',
       items,
     })
@@ -410,11 +438,19 @@ export async function duplicateInvoiceAction(id: string) {
 
     const { data: orig, error: origErr } = await supabase
       .from('invoices')
-      .select('*, items:invoice_items(*)')
+      .select('*, items:invoice_items(*), deductions:invoice_deductions(*)')
       .eq('id', id)
       .single()
 
     if (origErr || !orig) return { success: false, error: 'Original invoice not found.' }
+
+    const origDeductions = Array.isArray(orig.deductions)
+      ? orig.deductions.map((d: Record<string, unknown>, idx: number) => ({
+          description: String(d.description || 'Deduction'),
+          amount: Number(d.amount || 0),
+          sort_order: typeof d.sort_order === 'number' ? Number(d.sort_order) : idx,
+        }))
+      : []
 
     const res = await createInvoice({
       customer_id: orig.customer_id,
@@ -428,6 +464,7 @@ export async function duplicateInvoiceAction(id: string) {
       tax_rate: orig.tax_rate || 0,
       refundable_deposit: orig.refundable_deposit || 0,
       total_deductions: orig.total_deductions || 0,
+      deduction_items: origDeductions,
       notes: `Duplicated from ${orig.invoice_number}. ${orig.notes || ''}`,
       status: 'draft',
       items: (orig.items || []).map((it: Record<string, unknown>, idx: number) => ({

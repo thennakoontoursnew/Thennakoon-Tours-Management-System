@@ -22,7 +22,7 @@ import {
 import { createInvoice, updateInvoiceAction } from '../invoice-actions'
 import { generateCommercialInvoicePDF } from '@/lib/documents/invoice-pdf-commercial'
 import { COMPANY_CONFIG } from '@/lib/company-config'
-import { calculateCommercialInvoiceFinancials } from '@/lib/utils/relation-utils'
+import { calculateCommercialInvoiceFinancials, unwrapDeductionsRelation } from '@/lib/utils/relation-utils'
 
 interface Customer {
   id: string
@@ -206,8 +206,43 @@ export function CreateInvoiceForm({
   const [discountAmount, setDiscountAmount] = useState<number>(() => Number(initialInvoice?.discount_amount || 0))
   const [discountDescription, setDiscountDescription] = useState<string>(() => String(initialInvoice?.discount_description || ''))
 
-  const [totalDeductions, setTotalDeductions] = useState<number>(() => Number(initialInvoice?.total_deductions || 0))
-  const [deductionDescription, setDeductionDescription] = useState<string>(() => String(initialInvoice?.deduction_description || ''))
+  const [deductions, setDeductions] = useState<
+    { id?: string; description: string; amount: number }[]
+  >(() => {
+    if (initialInvoice) {
+      return unwrapDeductionsRelation(
+        initialInvoice.deductions,
+        Number(initialInvoice.total_deductions),
+        initialInvoice.deduction_description ? String(initialInvoice.deduction_description) : null
+      )
+    }
+    return []
+  })
+
+  const computedTotalDeductions = useMemo(() => {
+    return deductions.reduce((sum, d) => sum + Math.max(0, Number(d.amount || 0)), 0)
+  }, [deductions])
+
+  const handleAddDeduction = () => {
+    setDeductions([...deductions, { description: '', amount: 0 }])
+  }
+
+  const handleRemoveDeduction = (index: number) => {
+    setDeductions(deductions.filter((_, i) => i !== index))
+  }
+
+  const handleDeductionChange = (index: number, field: 'description' | 'amount', value: unknown) => {
+    const newDeductions = [...deductions]
+    const current = { ...newDeductions[index] }
+    if (field === 'description') {
+      current.description = String(value)
+    } else if (field === 'amount') {
+      const a = Math.max(0, Number(value || 0))
+      current.amount = isNaN(a) ? 0 : a
+    }
+    newDeductions[index] = current
+    setDeductions(newDeductions)
+  }
 
   const [additionalCharges, setAdditionalCharges] = useState<number>(() => Number(initialInvoice?.additional_charges || 0))
   const [additionalChargeDescription, setAdditionalChargeDescription] = useState<string>(() => String(initialInvoice?.additional_charge_description || ''))
@@ -378,7 +413,7 @@ export function CreateInvoiceForm({
   const financials = calculateCommercialInvoiceFinancials({
     subtotal: rawSubtotal,
     discount_amount: discountAmount,
-    total_deductions: totalDeductions,
+    deduction_items: deductions,
     additional_charges: additionalCharges,
     tax_rate: taxRate,
     refundable_deposit: refundableDeposit,
@@ -416,11 +451,16 @@ export function CreateInvoiceForm({
         unit_price: Number(it.unit_price || 0),
         line_total: Number(it.line_total || 0),
       })),
+      deductions: deductions.map((d, idx) => ({
+        description: d.description,
+        amount: Number(d.amount),
+        sort_order: idx,
+      })),
       subtotal: financials.subtotal,
       discount_amount: financials.discountAmount,
       discount_description: discountDescription,
       total_deductions: financials.deductions,
-      deduction_description: deductionDescription,
+      deduction_description: deductions.map((d) => d.description).join(', '),
       additional_charges: financials.additionalCharges,
       additional_charge_description: additionalChargeDescription,
       tax_rate: financials.taxRate,
@@ -477,6 +517,13 @@ export function CreateInvoiceForm({
       return
     }
 
+    for (let i = 0; i < deductions.length; i++) {
+      if (Number(deductions[i].amount) > 0 && !deductions[i].description.trim()) {
+        setErrorMsg(`Please provide a description for Deduction #${i + 1}.`)
+        return
+      }
+    }
+
     setLoading(true)
     try {
       const customerSnap = {
@@ -511,8 +558,8 @@ export function CreateInvoiceForm({
         currency: 'LKR',
         discount_amount: Number(discountAmount),
         discount_description: discountDescription || undefined,
-        total_deductions: Number(totalDeductions),
-        deduction_description: deductionDescription || undefined,
+        total_deductions: Number(financials.deductions),
+        deduction_description: deductions.map((d) => d.description.trim()).filter(Boolean).join(', ') || undefined,
         additional_charges: Number(additionalCharges),
         additional_charge_description: additionalChargeDescription || undefined,
         tax_rate: Number(taxRate),
@@ -531,6 +578,14 @@ export function CreateInvoiceForm({
           unit_price: Number(it.unit_price),
           display_order: idx,
         })),
+        deduction_items: deductions
+          .filter((d) => d.description.trim() && Number(d.amount) >= 0)
+          .map((d, idx) => ({
+            id: d.id,
+            description: d.description.trim(),
+            amount: Number(d.amount),
+            sort_order: idx,
+          })),
       }
 
       let res
@@ -1078,29 +1133,74 @@ export function CreateInvoiceForm({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Deductions (LKR)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={totalDeductions}
-                  onChange={(e) => setTotalDeductions(Math.max(0, Number(e.target.value)))}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-slate-900 dark:text-white"
-                />
+            {/* MULTIPLE DEDUCTIONS (OPTIONAL) */}
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300">DEDUCTIONS (OPTIONAL)</label>
+                  <p className="text-[11px] text-slate-400">Damage, fuel, or late fee deductions</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddDeduction}
+                  className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-xs rounded-xl cursor-pointer transition-colors flex items-center gap-1.5"
+                >
+                  <Plus size={14} />
+                  <span>Add Deduction</span>
+                </button>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Deduction Reason / Description</label>
-                <input
-                  type="text"
-                  value={deductionDescription}
-                  onChange={(e) => setDeductionDescription(e.target.value)}
-                  placeholder="e.g. Fuel Adjustment, Unused Days Credit"
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white"
-                />
-              </div>
+              {deductions.length === 0 ? (
+                <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-slate-400 text-xs text-center">
+                  No deductions added. Click “Add Deduction” to specify damage, fuel, or late fee deductions.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {deductions.map((d, dIdx) => (
+                    <div key={dIdx} className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-200/60 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center text-xs">
+                      <div className="sm:col-span-7">
+                        <label className="block text-[10px] font-bold text-slate-400 mb-1">Deduction #{dIdx + 1} Description</label>
+                        <input
+                          type="text"
+                          value={d.description}
+                          onChange={(e) => handleDeductionChange(dIdx, 'description', e.target.value)}
+                          placeholder="e.g. Fuel Shortage, Vehicle Damage, Late Return Fee"
+                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
+                          required
+                        />
+                      </div>
+                      <div className="sm:col-span-3">
+                        <label className="block text-[10px] font-bold text-slate-400 mb-1">Amount (LKR)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={d.amount}
+                          onChange={(e) => handleDeductionChange(dIdx, 'amount', e.target.value)}
+                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg font-mono font-bold text-slate-900 dark:text-white"
+                          required
+                        />
+                      </div>
+                      <div className="sm:col-span-2 flex items-center justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDeduction(dIdx)}
+                          className="px-2.5 py-1 text-rose-500 hover:bg-rose-500/10 rounded-lg text-xs font-bold cursor-pointer transition-colors flex items-center gap-1"
+                        >
+                          <Trash2 size={14} />
+                          <span>Remove</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center px-1 text-xs font-bold text-slate-700 dark:text-slate-300">
+                    <span>Total Deductions</span>
+                    <span className="font-mono text-rose-500">
+                      LKR {computedTotalDeductions.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -1194,9 +1294,17 @@ export function CreateInvoiceForm({
             )}
 
             {financials.deductions > 0 && (
-              <div className="flex justify-between items-center text-rose-500">
-                <span>Deductions {deductionDescription ? `(${deductionDescription})` : ''}:</span>
-                <span className="font-mono font-bold">- LKR {financials.deductions.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              <div className="space-y-1">
+                <div className="flex justify-between items-center text-rose-500 font-bold">
+                  <span>Deductions ({deductions.length} item{deductions.length > 1 ? 's' : ''}):</span>
+                  <span className="font-mono">- LKR {financials.deductions.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                </div>
+                {deductions.map((d, dIdx) => (
+                  <div key={dIdx} className="flex justify-between items-center text-[10px] text-rose-400/80 pl-2">
+                    <span>• {d.description || 'Deduction'}</span>
+                    <span className="font-mono">- LKR {Number(d.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                ))}
               </div>
             )}
 
