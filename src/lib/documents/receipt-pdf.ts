@@ -1,12 +1,18 @@
-import { jsPDF, getLetterheadBase64, drawLetterheadBackground, A4_MARGINS } from './pdf-engine'
+import { jsPDF, getLetterheadBase64, drawLetterheadOnPage, A4_MARGINS } from './pdf-engine'
 
-export async function generateReceiptPDF(receipt: any, companySettings: any) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+export async function generateReceiptPDF(receipt: any, companySettings?: any) {
   const doc = new jsPDF('p', 'mm', 'a4')
   const base64Letterhead = await getLetterheadBase64()
 
+  // Draw Letterhead Background FIRST on Page 1 (Layer 0)
+  if (base64Letterhead) {
+    drawLetterheadOnPage(doc, base64Letterhead)
+  }
+
   let currentY = A4_MARGINS.top
 
-  // Header Title & Document Number
+  // Header Title & Document Number (Semantic Emerald Header for Payment Receipt)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(18)
   doc.setTextColor(16, 185, 129) // Emerald header
@@ -52,7 +58,7 @@ export async function generateReceiptPDF(receipt: any, companySettings: any) {
 
   currentY += 42
 
-  // Amount Received Highlight Box
+  // Amount Received Highlight Box (Semantic Emerald Payment Success Box)
   doc.setFillColor(236, 253, 245) // Emerald light background
   doc.setDrawColor(167, 243, 208)
   doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, 24, 2, 2, 'FD')
@@ -64,9 +70,6 @@ export async function generateReceiptPDF(receipt: any, companySettings: any) {
 
   doc.setFontSize(16)
   doc.text(`LKR ${Number(receipt.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right - 6, currentY + 15, { align: 'right' })
-
-  // Draw Full-Page A4 Letterhead Background Image
-  drawLetterheadBackground(doc, base64Letterhead)
 
   return doc
 }

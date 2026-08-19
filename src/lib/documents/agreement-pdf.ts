@@ -1,10 +1,11 @@
 import { jsPDF, LEGAL_MARGINS } from './pdf-engine'
 import { USER_AGREEMENT_COMPANY_REG_NO } from '@/lib/agreements/templates/user-agreement-v1'
+import { setPdfBrandGoldText } from './pdf-theme'
 
-function formatDateSafe(val: any): string {
+function formatDateSafe(val: unknown): string {
   if (!val) return 'N/A'
   try {
-    const d = new Date(val)
+    const d = new Date(String(val))
     if (isNaN(d.getTime())) return 'N/A'
     return d.toLocaleString('en-GB', {
       day: '2-digit',
@@ -19,13 +20,14 @@ function formatDateSafe(val: any): string {
   }
 }
 
-function formatNumberSafe(val: any, decimals: number = 2): string {
+function formatNumberSafe(val: unknown, decimals: number = 2): string {
   const num = Number(val ?? 0)
   if (isNaN(num)) return '0.00'
   return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
 }
 
-export async function generateAgreementPDF(agreement: any, companySettings: any) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+export async function generateAgreementPDF(agreement: any, companySettings?: any) {
   console.log('AgreementDocument mounted (Clean White US Legal Paper — NO APPLICATION UI — NO LETTERHEAD)')
 
   if (!agreement) {
@@ -57,7 +59,7 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
   doc.text('VEHICLE RENTAL AGREEMENT', LEGAL_MARGINS.right, currentY, { align: 'right' })
 
   doc.setFontSize(9)
-  doc.setTextColor(180, 83, 9)
+  setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
   doc.text(`Ref: ${agreement.agreement_number || 'N/A'}`, LEGAL_MARGINS.right, currentY + 4.5, { align: 'right' })
 
   currentY += 12
@@ -101,76 +103,66 @@ export async function generateAgreementPDF(agreement: any, companySettings: any)
   const endStr = formatDateSafe(agreement.rental_end_at || booking.rental_end_at)
   doc.text(`${startStr} to ${endStr}`, LEGAL_MARGINS.left + 35, boxY)
 
-  // STEP 3: Vehicle Details Section
-  boxY += 6
-  const vInfo = vehicleObj.make_model ? `${vehicleObj.make_model} (${vehicleObj.registration_number || 'N/A'})` : 'Allocated Vehicle'
+  boxY += 5
   doc.setFont('helvetica', 'bold')
-  doc.text(`VEHICLE: ${vInfo}`, LEGAL_MARGINS.left + 4, boxY)
+  doc.setTextColor(15, 23, 42)
+  doc.text(`VEHICLE: ${vehicleObj.registration_number || 'N/A'} (${vehicleObj.make || ''} ${vehicleObj.model || ''})`, LEGAL_MARGINS.left + 4, boxY)
+
+  boxY += 5
   doc.setFont('helvetica', 'normal')
-  doc.text(`Fuel: ${vehicleObj.fuel_type || 'Petrol'} | Color: ${vehicleObj.color || 'White'}`, LEGAL_MARGINS.left + 100, boxY)
+  doc.setTextColor(71, 85, 105)
+  doc.text(`Daily Rate: LKR ${formatNumberSafe(rentalObj.daily_rate)} | Total Charges: LKR ${formatNumberSafe(rentalObj.total_amount)}`, LEGAL_MARGINS.left + 4, boxY)
+  doc.text(`Deposit: LKR ${formatNumberSafe(rentalObj.refundable_deposit)}`, LEGAL_MARGINS.left + 100, boxY)
 
   currentY += 42
 
-  // Financial Summary Box
+  // STEP 3: Legal Terms & Conditions Clauses
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
+  doc.setFontSize(10)
   doc.setTextColor(15, 23, 42)
-  doc.text(`DAILY TARIFF: LKR ${formatNumberSafe(rentalObj.daily_rental_rate || 7500)}`, LEGAL_MARGINS.left, currentY)
-  doc.text(`SECURITY DEPOSIT: LKR ${formatNumberSafe(rentalObj.security_deposit || 50000)}`, LEGAL_MARGINS.left + 65, currentY)
-  doc.text(`EXTRA KM RATE: LKR ${rentalObj.extra_km_rate || 75}/KM`, LEGAL_MARGINS.left + 130, currentY)
-  currentY += 8
+  doc.text('TERMS AND CONDITIONS', LEGAL_MARGINS.left, currentY)
+  currentY += 5
 
-  // STEP 4: Terms & Conditions Section Header
+  const terms = [
+    '1. The Hirer agrees to return the vehicle in the same condition as received, ordinary wear and tear excepted.',
+    '2. The Hirer shall be fully responsible for any loss, damage, or legal liabilities arising from reckless driving or breach of Sri Lankan traffic laws.',
+    '3. The vehicle shall not be sub-rented, driven by unauthorized third parties, or used for illegal activities.',
+    '4. The refundable deposit will be returned upon vehicle inspection and clearance of any outstanding tolls, fines, or fuel shortages.',
+    '5. In case of mechanical breakdown, the Owner must be immediately notified before undertaking any third-party repairs.',
+  ]
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(51, 65, 85)
+
+  for (const clause of terms) {
+    const splitClause = doc.splitTextToSize(clause, LEGAL_MARGINS.width)
+    doc.text(splitClause, LEGAL_MARGINS.left, currentY)
+    currentY += splitClause.length * 4 + 2
+  }
+
+  currentY += 10
+
+  // STEP 4: Signatures Block
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
+  doc.setFontSize(9)
   doc.setTextColor(15, 23, 42)
-  doc.text('TERMS AND CONDITIONS (USER_AGREEMENT_V1):', LEGAL_MARGINS.left, currentY)
+
+  doc.text('HIRER SIGNATURE', LEGAL_MARGINS.left + 10, currentY)
+  doc.text('AUTHORIZED SIGNATURE', LEGAL_MARGINS.right - 50, currentY)
+
+  currentY += 15
+  doc.setLineWidth(0.3)
+  doc.setDrawColor(148, 163, 184)
+  doc.line(LEGAL_MARGINS.left + 5, currentY, LEGAL_MARGINS.left + 65, currentY)
+  doc.line(LEGAL_MARGINS.right - 55, currentY, LEGAL_MARGINS.right - 5, currentY)
 
   currentY += 4
-
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
-  doc.setTextColor(71, 85, 105)
-  const terms = agreement.terms_snapshot || companySettings?.default_agreement_terms || 'Standard User Agreement V1 official legal terms apply.'
-  const splitTerms = doc.splitTextToSize(terms, LEGAL_MARGINS.width)
-  doc.text(splitTerms, LEGAL_MARGINS.left, currentY)
-
-  currentY += Math.min(splitTerms.length * 3.5, 120) + 15
-
-  // STEP 5: Footer / Signature Section
-  const sigY = Math.max(currentY, 290)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(15, 23, 42)
-
-  // Customer Signature
-  doc.line(LEGAL_MARGINS.left, sigY, LEGAL_MARGINS.left + 65, sigY)
-  doc.text('Signature of Hirer', LEGAL_MARGINS.left, sigY + 4)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.text(`Date: ${agreement.agreement_date || ''}`, LEGAL_MARGINS.left, sigY + 8)
-
-  // Company Signature
-  const compX = LEGAL_MARGINS.right - 65
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.line(compX, sigY, LEGAL_MARGINS.right, sigY)
-  doc.text('For Thennakoon Tours (Pvt) Ltd', compX, sigY + 4)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.text('Authorized Signature & Stamp', compX, sigY + 8)
-
-  // Add Dynamic Page X of Y Footer
-  const totalPages = (doc as any).internal.getNumberOfPages()
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(100, 116, 139)
-    doc.text(`Agreement Ref: ${agreement.agreement_number || 'N/A'}`, LEGAL_MARGINS.left, 348)
-    doc.text(`Page ${i} of ${totalPages}`, LEGAL_MARGINS.right, 348, { align: 'right' })
-  }
+  doc.setTextColor(100, 116, 139)
+  doc.text(`Date: ____________________`, LEGAL_MARGINS.left + 5, currentY)
+  doc.text(`Date: ____________________`, LEGAL_MARGINS.right - 55, currentY)
 
   return doc
 }

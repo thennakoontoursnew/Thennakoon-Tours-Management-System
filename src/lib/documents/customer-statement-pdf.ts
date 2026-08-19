@@ -1,7 +1,9 @@
 import { jsPDF } from 'jspdf'
 import { CustomerStatementItem } from '@/lib/finance/finance-service'
+import { setPdfBrandGoldText } from './pdf-theme'
 
 export async function generateCustomerStatementPDF(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   customer: any,
   items: CustomerStatementItem[],
   totalInvoiced: number,
@@ -36,7 +38,7 @@ export async function generateCustomerStatementPDF(
 
   doc.setFontSize(8.5)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(180, 83, 9)
+  setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
   const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
   doc.text(`Statement Date: ${todayStr}`, 195, currentY + 5, { align: 'right' })
 
@@ -98,18 +100,35 @@ export async function generateCustomerStatementPDF(
   doc.text('DESCRIPTION', 85, currentY + 4)
   doc.text('DEBIT (LKR)', 140, currentY + 4, { align: 'right' })
   doc.text('CREDIT (LKR)', 165, currentY + 4, { align: 'right' })
-  doc.text('BALANCE', 193, currentY + 4, { align: 'right' })
 
   currentY += 6
 
+  // Ledger Rows
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
   doc.setTextColor(30, 41, 59)
 
-  items.forEach((it, idx) => {
+  items.forEach((item, idx) => {
     if (currentY > 270) {
       doc.addPage()
-      currentY = 20
+      currentY = 15
+
+      doc.setFillColor(15, 23, 42)
+      doc.rect(15, currentY, 180, 6, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(7.5)
+      doc.setTextColor(255, 255, 255)
+      doc.text('DATE', 17, currentY + 4)
+      doc.text('TYPE', 37, currentY + 4)
+      doc.text('REFERENCE', 55, currentY + 4)
+      doc.text('DESCRIPTION', 85, currentY + 4)
+      doc.text('DEBIT (LKR)', 140, currentY + 4, { align: 'right' })
+      doc.text('CREDIT (LKR)', 165, currentY + 4, { align: 'right' })
+
+      currentY += 6
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7)
+      doc.setTextColor(30, 41, 59)
     }
 
     if (idx % 2 === 1) {
@@ -117,33 +136,26 @@ export async function generateCustomerStatementPDF(
       doc.rect(15, currentY, 180, 5.5, 'F')
     }
 
-    doc.text(it.date, 17, currentY + 3.8)
-    doc.text(it.type.toUpperCase(), 37, currentY + 3.8)
-    doc.text(it.reference, 55, currentY + 3.8)
+    const dStr = new Date(item.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    doc.text(dStr, 17, currentY + 3.8)
+    doc.text(item.type.toUpperCase(), 37, currentY + 3.8)
+    doc.text(item.reference || '-', 55, currentY + 3.8)
+    const descShort = item.description.length > 32 ? item.description.substring(0, 30) + '...' : item.description
+    doc.text(descShort, 85, currentY + 3.8)
 
-    const desc = it.description.length > 30 ? it.description.slice(0, 28) + '...' : it.description
-    doc.text(desc, 85, currentY + 3.8)
+    const debitAmt = Number(item.debit || 0)
+    const creditAmt = Number(item.credit || 0)
 
-    doc.text(it.debit > 0 ? it.debit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-', 140, currentY + 3.8, { align: 'right' })
-    doc.text(it.credit > 0 ? it.credit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-', 165, currentY + 3.8, { align: 'right' })
-
-    doc.setFont('helvetica', 'bold')
-    doc.text(it.runningBalance.toLocaleString('en-US', { minimumFractionDigits: 2 }), 193, currentY + 3.8, { align: 'right' })
-    doc.setFont('helvetica', 'normal')
+    if (item.type === 'invoice') {
+      doc.text(debitAmt.toLocaleString('en-US', { minimumFractionDigits: 2 }), 140, currentY + 3.8, { align: 'right' })
+      doc.text('-', 165, currentY + 3.8, { align: 'right' })
+    } else {
+      doc.text('-', 140, currentY + 3.8, { align: 'right' })
+      doc.text(creditAmt.toLocaleString('en-US', { minimumFractionDigits: 2 }), 165, currentY + 3.8, { align: 'right' })
+    }
 
     currentY += 5.5
   })
-
-  // Footer dynamic pages
-  const totalPages = (doc as any).internal.getNumberOfPages()
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.5)
-    doc.setTextColor(100, 116, 139)
-    doc.text(`Customer Statement — ${customer.full_name}`, 15, 290)
-    doc.text(`Page ${i} of ${totalPages}`, 195, 290, { align: 'right' })
-  }
 
   return doc
 }

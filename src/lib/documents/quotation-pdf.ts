@@ -1,6 +1,8 @@
 import { jsPDF, autoTable, getLetterheadBase64, drawLetterheadOnPage, A4_MARGINS } from './pdf-engine'
 import { normalizeNewlines } from '@/lib/utils/formatters'
+import { setPdfBrandGoldText } from './pdf-theme'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateQuotationPDF(quotation: any, companySettings?: any) {
   const doc = new jsPDF('p', 'mm', 'a4')
   const base64Letterhead = await getLetterheadBase64()
@@ -125,6 +127,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
 
   // 3. Vehicle Table (9.5pt Header & Body, Centered Numeric Values)
   const tableHead = [['#', 'Description', 'Days', 'Rate (LKR)', 'Amount (LKR)']]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tableRows = (quotation.items || []).map((item: any, idx: number) => [
     idx + 1,
     `${item.description}${item.vehicle_name_snapshot ? ` (${item.vehicle_name_snapshot})` : ''}`,
@@ -155,6 +158,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
     },
   })
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   currentY = (doc as any).lastAutoTable.finalY + 5
 
   // 4. Structured Totals Block (Right Aligned Card with 14pt Bold Amber Grand Total)
@@ -187,7 +191,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14) // Prominent 14pt Bold
-  doc.setTextColor(217, 119, 6) // Amber #D97706
+  setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
   doc.text('GRAND TOTAL:', totalsX, currentY)
   doc.text(`LKR ${Number(quotation.grand_total).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
 
