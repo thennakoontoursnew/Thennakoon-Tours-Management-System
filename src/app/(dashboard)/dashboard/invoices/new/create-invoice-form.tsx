@@ -402,13 +402,13 @@ export function CreateInvoiceForm({
       setVehicleName(String(displayName || ''))
       setRegistrationNumber(String(reg || ''))
 
-      // Auto fill daily rate & line item description if single default item is present
+      // Auto fill daily rate if single default item is present (preserving line item description)
       const rate = Number(v.daily_rate || 0)
       if (rate > 0 && items.length === 1 && (items[0].unit_price === 15000 || items[0].unit_price === 0)) {
         const days = rentalDaysToDisplay || 1
         setItems([
           {
-            description: `${displayName} Rental (${reg || 'N/A'})`,
+            description: items[0].description || 'Vehicle Rental Service',
             quantity: days,
             unit_price: rate,
             line_total: days * rate,
