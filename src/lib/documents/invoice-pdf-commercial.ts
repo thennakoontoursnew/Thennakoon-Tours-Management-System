@@ -1,4 +1,4 @@
-import { jsPDF, getLetterheadBase64, drawLetterheadOnPage } from './pdf-engine'
+import { jsPDF, getLetterheadBase64, drawLetterheadOnPage, drawTextWithOrdinalSuperscript } from './pdf-engine'
 import { COMPANY_CONFIG } from '../company-config'
 import { calculateCommercialInvoiceFinancials, unwrapDeductionsRelation } from '../utils/relation-utils'
 import { formatDateOrdinal, formatRentalPeriodOrdinal } from '../utils/formatters'
@@ -69,7 +69,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   setPdfMutedText(doc)
   const formattedInvoiceDate = formatDateSafe(invoice.invoice_date)
   if (formattedInvoiceDate) {
-    doc.text(`Invoice Date: ${formattedInvoiceDate}`, CONTENT_LEFT, CONTENT_TOP + 6.2)
+    drawTextWithOrdinalSuperscript(doc, `Invoice Date: ${formattedInvoiceDate}`, CONTENT_LEFT, CONTENT_TOP + 6.2)
   }
 
   // RIGHT SIDE: INVOICE NO Label & Number
@@ -189,7 +189,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
 
   const formattedDueDate = formatDateSafe(invoice.due_date || invoice.invoice_date)
   if (formattedDueDate) {
-    doc.text(`Due Date       : ${formattedDueDate}`, rightX, rightY)
+    drawTextWithOrdinalSuperscript(doc, `Due Date       : ${formattedDueDate}`, rightX, rightY)
     rightY += 4.0
   }
 
@@ -204,7 +204,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   }
 
   if (rentalStart && rentalEnd) {
-    doc.text(`Rental Period : ${formatRentalPeriodOrdinal(rentalStart, rentalEnd, rentalDays)}`, rightX, rightY)
+    drawTextWithOrdinalSuperscript(doc, `Rental Period : ${formatRentalPeriodOrdinal(rentalStart, rentalEnd, rentalDays)}`, rightX, rightY)
     rightY += 4.0
   }
 

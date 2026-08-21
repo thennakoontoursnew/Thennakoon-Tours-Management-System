@@ -1,4 +1,4 @@
-import { jsPDF, LEGAL_MARGINS } from './pdf-engine'
+import { jsPDF, drawTextWithOrdinalSuperscript, LEGAL_MARGINS } from './pdf-engine'
 import { USER_AGREEMENT_COMPANY_REG_NO } from '@/lib/agreements/templates/user-agreement-v1'
 import { formatDateOrdinal } from '@/lib/utils/formatters'
 import { setPdfBrandGoldText } from './pdf-theme'
@@ -89,7 +89,7 @@ export async function generateAgreementPDF(agreement: any, companySettings?: any
   doc.setFont('helvetica', 'normal')
   const startStr = formatDateSafe(agreement.rental_start_at || booking.rental_start_at)
   const endStr = formatDateSafe(agreement.rental_end_at || booking.rental_end_at)
-  doc.text(`${startStr} to ${endStr}`, LEGAL_MARGINS.left + 35, boxY)
+  drawTextWithOrdinalSuperscript(doc, `${startStr} to ${endStr}`, LEGAL_MARGINS.left + 35, boxY)
 
   boxY += 5
   doc.setFont('helvetica', 'bold')

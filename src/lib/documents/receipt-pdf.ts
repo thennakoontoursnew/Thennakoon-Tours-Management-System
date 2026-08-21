@@ -1,4 +1,4 @@
-import { jsPDF, getLetterheadBase64, drawLetterheadOnPage, A4_MARGINS } from './pdf-engine'
+import { jsPDF, getLetterheadBase64, drawLetterheadOnPage, drawTextWithOrdinalSuperscript, A4_MARGINS } from './pdf-engine'
 import { formatDateOrdinal } from '@/lib/utils/formatters'
 import { setPdfBrandGoldText } from './pdf-theme'
 
@@ -28,7 +28,7 @@ export async function generateReceiptPDF(receipt: any, companySettings?: any) {
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
-  doc.text(`Date: ${formatDateOrdinal(receipt.receipt_date || receipt.created_at)}`, A4_MARGINS.left, currentY)
+  drawTextWithOrdinalSuperscript(doc, `Date: ${formatDateOrdinal(receipt.receipt_date || receipt.created_at)}`, A4_MARGINS.left, currentY)
 
   currentY += 10
 

@@ -1,4 +1,4 @@
-import { jsPDF, autoTable, getLetterheadBase64, drawLetterheadOnPage, A4_MARGINS } from './pdf-engine'
+import { jsPDF, autoTable, getLetterheadBase64, drawLetterheadOnPage, drawTextWithOrdinalSuperscript, A4_MARGINS } from './pdf-engine'
 import { normalizeNewlines, formatDateOrdinal, formatRentalPeriodOrdinal } from '@/lib/utils/formatters'
 import { setPdfBrandGoldText, PDF_COLORS } from './pdf-theme'
 
@@ -80,7 +80,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9.5)
   doc.setTextColor(34, 34, 34)
-  doc.text(formatDateOrdinal(quotation.quotation_date) || 'N/A', rightValueX, rowY)
+  drawTextWithOrdinalSuperscript(doc, formatDateOrdinal(quotation.quotation_date) || 'N/A', rightValueX, rowY)
 
   // Row 2
   rowY += 6.5
@@ -100,7 +100,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9.5)
   doc.setTextColor(34, 34, 34)
-  doc.text(formatRentalPeriodOrdinal(quotation.rental_start_date, quotation.rental_end_date), rightValueX, rowY)
+  drawTextWithOrdinalSuperscript(doc, formatRentalPeriodOrdinal(quotation.rental_start_date, quotation.rental_end_date), rightValueX, rowY)
 
   // Row 3
   rowY += 6.5

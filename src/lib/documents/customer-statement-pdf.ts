@@ -1,4 +1,4 @@
-import { jsPDF } from 'jspdf'
+import { jsPDF, drawTextWithOrdinalSuperscript } from './pdf-engine'
 import { CustomerStatementItem } from '@/lib/finance/finance-service'
 import { formatDateOrdinal } from '@/lib/utils/formatters'
 import { setPdfBrandGoldText } from './pdf-theme'
@@ -41,7 +41,7 @@ export async function generateCustomerStatementPDF(
   doc.setFont('helvetica', 'normal')
   setPdfBrandGoldText(doc) // Brand Gold #997711
   const todayStr = formatDateOrdinal(new Date())
-  doc.text(`Statement Date: ${todayStr}`, 195, currentY + 5, { align: 'right' })
+  drawTextWithOrdinalSuperscript(doc, `Statement Date: ${todayStr}`, 195, currentY + 5, { align: 'right' })
 
   currentY += 16
   doc.setLineWidth(0.4)
@@ -119,7 +119,7 @@ export async function generateCustomerStatementPDF(
     }
 
     doc.setTextColor(51, 65, 85)
-    doc.text(formatDateOrdinal(item.date), 17, currentY + 4)
+    drawTextWithOrdinalSuperscript(doc, formatDateOrdinal(item.date), 17, currentY + 4)
     doc.text(String(item.type).toUpperCase(), 37, currentY + 4)
     doc.text(item.reference || 'N/A', 55, currentY + 4)
 

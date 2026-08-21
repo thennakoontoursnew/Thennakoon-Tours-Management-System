@@ -5,7 +5,7 @@
 const MONTH_NAMES_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /**
- * Returns ordinal suffix for a given day number (1..31).
+ * Returns standard ASCII ordinal suffix for a given day number (1..31).
  * Examples: 1 -> "st", 2 -> "nd", 3 -> "rd", 4 -> "th", 21 -> "st", 22 -> "nd", 23 -> "rd", 31 -> "st"
  */
 export function getOrdinalSuffix(day: number): string {
@@ -25,6 +25,26 @@ export function getOrdinalSuffix(day: number): string {
 }
 
 /**
+ * Returns Unicode superscript ordinal suffix for a given day number (1..31).
+ * Examples: 1 -> "ˢᵗ", 2 -> "ⁿᵈ", 3 -> "ʳᵈ", 4 -> "ᵗʰ", 21 -> "ˢᵗ", 22 -> "ⁿᵈ", 23 -> "ʳᵈ", 31 -> "ˢᵗ"
+ */
+export function getOrdinalSuperscriptSuffix(day: number): string {
+  if (isNaN(day) || day < 1 || day > 31) return 'ᵗʰ'
+  const j = day % 10
+  const k = day % 100
+  if (j === 1 && k !== 11) {
+    return 'ˢᵗ'
+  }
+  if (j === 2 && k !== 12) {
+    return 'ⁿᵈ'
+  }
+  if (j === 3 && k !== 13) {
+    return 'ʳᵈ'
+  }
+  return 'ᵗʰ'
+}
+
+/**
  * Formats a day number with its ordinal suffix.
  * Example: 26 -> "26th", 1 -> "1st", 2 -> "2nd", 3 -> "3rd"
  */
@@ -33,11 +53,19 @@ export function formatDayOrdinal(day: number): string {
 }
 
 /**
- * Standardized System-Wide Ordinal Date Formatter
- * Output format: [D][st/nd/rd/th] [Mon] [YYYY]
- * Examples: "26th Aug 2026", "1st Jan 2026", "2nd Sep 2026", "3rd Oct 2026"
+ * Formats a day number with its Unicode superscript ordinal suffix.
+ * Example: 26 -> "26ᵗʰ", 1 -> "1ˢᵗ", 2 -> "2ⁿᵈ", 3 -> "3ʳᵈ"
  */
-export function formatDateOrdinal(val: unknown): string {
+export function formatDayOrdinalUnicode(day: number): string {
+  return `${day}${getOrdinalSuperscriptSuffix(day)}`
+}
+
+/**
+ * Standardized System-Wide Ordinal Date Formatter (with Unicode Superscript)
+ * Output format: [D][ˢᵗ/ⁿᵈ/ʳᵈ/ᵗʰ] [Mon] [YYYY]
+ * Examples: "26ᵗʰ Aug 2026", "1ˢᵗ Sep 2026", "2ⁿᵈ Oct 2026", "3ʳᵈ Nov 2026"
+ */
+export function formatDateOrdinalUnicode(val: unknown): string {
   if (val === null || val === undefined || val === '') return ''
   try {
     const str = String(val).trim()
@@ -47,7 +75,7 @@ export function formatDateOrdinal(val: unknown): string {
     if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
       const [y, m, d] = str.split('-').map(Number)
       if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
-        return `${d}${getOrdinalSuffix(d)} ${MONTH_NAMES_SHORT[m - 1]} ${y}`
+        return `${d}${getOrdinalSuperscriptSuffix(d)} ${MONTH_NAMES_SHORT[m - 1]} ${y}`
       }
     }
 
@@ -58,23 +86,31 @@ export function formatDateOrdinal(val: unknown): string {
     const month = MONTH_NAMES_SHORT[dateObj.getMonth()]
     const year = dateObj.getFullYear()
 
-    return `${day}${getOrdinalSuffix(day)} ${month} ${year}`
+    return `${day}${getOrdinalSuperscriptSuffix(day)} ${month} ${year}`
   } catch {
     return ''
   }
 }
 
 /**
- * Formats a rental period with ordinal dates and inclusive day count.
- * Example: "28th Aug 2026 to 27th Sep 2026 (30 Days)"
+ * Standardized System-Wide Ordinal Date Formatter
+ * Consumes formatDateOrdinalUnicode by default for real superscript rendering.
  */
-export function formatRentalPeriodOrdinal(
+export function formatDateOrdinal(val: unknown): string {
+  return formatDateOrdinalUnicode(val)
+}
+
+/**
+ * Formats a rental period with Unicode superscript ordinal dates and inclusive day count.
+ * Example: "28ᵗʰ Aug 2026 to 27ᵗʰ Sep 2026 (30 Days)"
+ */
+export function formatRentalPeriodOrdinalUnicode(
   startDateStr: unknown,
   endDateStr: unknown,
   days?: number | null
 ): string {
-  const startFmt = formatDateOrdinal(startDateStr)
-  const endFmt = formatDateOrdinal(endDateStr)
+  const startFmt = formatDateOrdinalUnicode(startDateStr)
+  const endFmt = formatDateOrdinalUnicode(endDateStr)
 
   if (!startFmt && !endFmt) return ''
   if (startFmt && !endFmt) return startFmt
@@ -82,6 +118,17 @@ export function formatRentalPeriodOrdinal(
 
   const totalDays = days && days > 0 ? days : calculateRentalDays(String(startDateStr), String(endDateStr))
   return `${startFmt} to ${endFmt} (${totalDays} Days)`
+}
+
+/**
+ * Formats a rental period with ordinal dates and inclusive day count.
+ */
+export function formatRentalPeriodOrdinal(
+  startDateStr: unknown,
+  endDateStr: unknown,
+  days?: number | null
+): string {
+  return formatRentalPeriodOrdinalUnicode(startDateStr, endDateStr, days)
 }
 
 /**
@@ -123,11 +170,6 @@ export function calculateRentalDays(startDateStr: string | null | undefined, end
 
 /**
  * Normalizes Sri Lankan phone numbers into international country code format (94XXXXXXXXX).
- * Examples:
- * 0777273820 -> 94777273820
- * +94777273820 -> 94777273820
- * 0771234567 -> 94771234567
- * 94771234567 -> 94771234567
  */
 export function normalizeSriLankanPhone(phone: string | null | undefined): string {
   if (!phone) return ''
@@ -156,8 +198,8 @@ export function buildWhatsAppQuotationMessage(quotation: any, companyName: strin
   const customerName = quotation?.customer?.full_name || 'Valued Customer'
   const quotationNumber = quotation?.quotation_number || 'N/A'
   const grandTotal = Number(quotation?.grand_total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })
-  const rentalStart = formatDateOrdinal(quotation?.rental_start_date) || 'N/A'
-  const rentalEnd = formatDateOrdinal(quotation?.rental_end_date) || 'N/A'
+  const rentalStart = formatDateOrdinalUnicode(quotation?.rental_start_date) || 'N/A'
+  const rentalEnd = formatDateOrdinalUnicode(quotation?.rental_end_date) || 'N/A'
 
   return `Hello ${customerName},\n\nPlease find your Quotation (${quotationNumber}) details:\n\nAmount: LKR ${grandTotal}\n\nRental Dates:\n${rentalStart} to ${rentalEnd}\n\nThank you,\n${companyName}`
 }
@@ -166,7 +208,6 @@ export function buildWhatsAppQuotationUrl(quotation: any, companyName: string = 
   const messageText = buildWhatsAppQuotationMessage(quotation, companyName)
   const cust = quotation?.customer || {}
   
-  // Priority: 1. customers.whatsapp -> 2. quotations.whatsapp_snapshot -> 3. customers.mobile_phone / mobile -> 4. quotations.customer_phone
   const rawPhone =
     cust.whatsapp ||
     quotation?.whatsapp_snapshot ||
