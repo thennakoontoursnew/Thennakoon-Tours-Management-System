@@ -243,8 +243,12 @@ export function CompanySettingsForm({ initialValues, invoiceCounter }: CompanySe
             <textarea
               name="default_invoice_terms"
               rows={3}
-              defaultValue={initialValues?.default_invoice_terms ?? COMPANY_CONFIG.defaultInvoiceImportantTerms}
-              placeholder="Payment should be made on or before the due date..."
+              defaultValue={
+                initialValues?.default_invoice_terms && !initialValues.default_invoice_terms.includes('Payment due upon receipt')
+                  ? initialValues.default_invoice_terms
+                  : COMPANY_CONFIG.defaultInvoiceImportantTerms
+              }
+              placeholder="Please find the account details below. Kindly ensure..."
               className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-amber-400 transition-colors"
             />
           </div>

@@ -481,12 +481,18 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>,
   }
 
   // STEP 8: SECTION 3: IMPORTANT TERMS & CONDITIONS
-  const rawTerms =
-    invoice.terms_and_conditions ||
-    invoice.important_message ||
-    companySettings?.default_invoice_terms ||
-    COMPANY_CONFIG.defaultInvoiceImportantTerms
-  const termsText = normalizeNewlines(String(rawTerms || ''))
+  const invTerms = String(invoice.terms_and_conditions || invoice.important_message || '')
+  const csTerms = String(companySettings?.default_invoice_terms || '')
+
+  let rawTerms = ''
+  if (invTerms.trim() && !invTerms.includes('Payment due upon receipt')) {
+    rawTerms = invTerms
+  } else if (csTerms.trim() && !csTerms.includes('Payment due upon receipt')) {
+    rawTerms = csTerms
+  } else {
+    rawTerms = COMPANY_CONFIG.defaultInvoiceImportantTerms
+  }
+  const termsText = normalizeNewlines(rawTerms)
 
   if (hasMeaningfulValue(termsText)) {
     doc.setFont('helvetica', 'bold')

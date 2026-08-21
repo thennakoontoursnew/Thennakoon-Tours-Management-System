@@ -255,10 +255,18 @@ export function CreateInvoiceForm({
 
   // SECTION 6: NOTES
   const defaultSpecialNotes = String(companySettings?.default_special_notes || COMPANY_CONFIG.defaultInvoiceSpecialNotes)
-  const defaultInvoiceTerms = String(companySettings?.default_invoice_terms || COMPANY_CONFIG.defaultInvoiceImportantTerms)
+  const csTerms = String(companySettings?.default_invoice_terms || '')
+  const defaultInvoiceTerms = csTerms && !csTerms.includes('Payment due upon receipt')
+    ? csTerms
+    : COMPANY_CONFIG.defaultInvoiceImportantTerms
+
+  const invTerms = String(initialInvoice?.terms_and_conditions || initialInvoice?.important_message || '')
+  const initialTermsVal = invTerms && !invTerms.includes('Payment due upon receipt')
+    ? invTerms
+    : defaultInvoiceTerms
 
   const [specialNotes, setSpecialNotes] = useState<string>(() => String(initialInvoice?.special_notes || defaultSpecialNotes))
-  const [importantTerms, setImportantTerms] = useState<string>(() => String(initialInvoice?.terms_and_conditions || initialInvoice?.important_message || defaultInvoiceTerms))
+  const [importantTerms, setImportantTerms] = useState<string>(() => initialTermsVal)
   const [internalNotes, setInternalNotes] = useState<string>(() => String(initialInvoice?.notes || ''))
 
   // Auto-calculate Rental Days with safe manual override
