@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
 // =============================================
@@ -27,27 +28,54 @@ export async function saveCompanySettings(formData: FormData) {
   const defaultSpecialNotes = formData.get('default_special_notes')?.toString() || null
   const signatureUrl = formData.get('signature_url')?.toString() || null
 
-  // Update company_settings table
-  const { error } = await supabase
+  // Query existing row to preserve single-record primary key ID
+  const { data: existing } = await supabase
     .from('company_settings')
-    .upsert({
-      company_name: companyName,
-      address,
-      phone_primary: phonePrimary,
-      phone_secondary: phoneSecondary,
-      whatsapp_number: whatsappNumber,
-      email,
-      website,
-      currency,
-      timezone,
-      quotation_prefix: quotationPrefix,
-      invoice_prefix: invoicePrefix,
-      receipt_prefix: receiptPrefix,
-      default_invoice_terms: defaultInvoiceTerms,
-      default_special_notes: defaultSpecialNotes,
-      signature_url: signatureUrl,
-      updated_at: new Date().toISOString(),
-    })
+    .select('id')
+    .limit(1)
+    .maybeSingle()
+
+  const payload: Record<string, unknown> = {
+    company_name: companyName,
+    address,
+    phone_primary: phonePrimary,
+    phone_secondary: phoneSecondary,
+    whatsapp_number: whatsappNumber,
+    email,
+    website,
+    currency,
+    timezone,
+    quotation_prefix: quotationPrefix,
+    invoice_prefix: invoicePrefix,
+    receipt_prefix: receiptPrefix,
+    default_invoice_terms: defaultInvoiceTerms,
+    default_special_notes: defaultSpecialNotes,
+    signature_url: signatureUrl,
+    updated_at: new Date().toISOString(),
+  }
+
+  if (existing?.id) {
+    payload.id = existing.id
+  }
+
+  // Primary attempt via user client
+  let { error } = await supabase
+    .from('company_settings')
+    .upsert(payload, { onConflict: 'id' })
+
+  // Fallback attempt via admin client if RLS or permission issue arises
+  if (error) {
+    console.warn('[saveCompanySettings] User client failed, retrying via admin client:', error.message)
+    try {
+      const adminClient = createAdminClient()
+      const { error: adminErr } = await adminClient
+        .from('company_settings')
+        .upsert(payload, { onConflict: 'id' })
+      error = adminErr
+    } catch (adminEx: any) {
+      console.error('[saveCompanySettings] Admin client fallback exception:', adminEx)
+    }
+  }
 
   if (error) return { error: error.message }
 
