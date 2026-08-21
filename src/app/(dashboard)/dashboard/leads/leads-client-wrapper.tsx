@@ -50,20 +50,20 @@ export function LeadsClientWrapper({ leads }: LeadsClientWrapperProps) {
         </button>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
         {leads && leads.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full text-left text-xs border-collapse min-w-[1000px]">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-850 text-slate-500 font-bold border-b border-slate-200 dark:border-slate-800 uppercase tracking-wider">
-                  <th className="py-3 px-4">Lead Number</th>
-                  <th className="py-3 px-4">Prospect Name</th>
-                  <th className="py-3 px-4">Contact Info</th>
-                  <th className="py-3 px-4">Source</th>
-                  <th className="py-3 px-4">Interested Vehicle</th>
-                  <th className="py-3 px-4">Priority</th>
-                  <th className="py-3 px-4">Pipeline Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th className="py-3.5 px-4 w-[130px]">Lead Number</th>
+                  <th className="py-3.5 px-4 w-[160px]">Prospect Name</th>
+                  <th className="py-3.5 px-4 w-[160px]">Contact Info</th>
+                  <th className="py-3.5 px-4 w-[110px]">Source</th>
+                  <th className="py-3.5 px-4 w-[150px]">Interested Vehicle</th>
+                  <th className="py-3.5 px-4 w-[100px]">Priority</th>
+                  <th className="py-3.5 px-4 w-[140px]">Pipeline Status</th>
+                  <th className="py-3.5 px-4 text-right min-w-[240px]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-slate-700 dark:text-slate-300">
@@ -73,25 +73,29 @@ export function LeadsClientWrapper({ leads }: LeadsClientWrapperProps) {
 
                   return (
                     <tr key={l.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-amber-600 dark:text-amber-400">{l.lead_number}</td>
-                      <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
-                        {l.prospect_name}
-                        {l.customer_id && (
-                          <span className="ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">
-                            Linked
-                          </span>
-                        )}
+                      <td className="py-3.5 px-4 font-mono font-bold text-amber-600 dark:text-amber-400 whitespace-nowrap">
+                        {l.lead_number}
                       </td>
-                      <td className="py-3 px-4 space-y-0.5 font-mono">
-                        <div className="flex items-center gap-1.5">
-                          <Phone size={12} className="text-slate-400" />
+                      <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{l.prospect_name}</span>
+                          {l.customer_id && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                              Linked
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 font-mono">
+                        <div className="flex items-center gap-1.5 whitespace-nowrap">
+                          <Phone size={12} className="text-slate-400 shrink-0" />
                           <span>{l.mobile}</span>
                           {waUrl && (
                             <a
                               href={waUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-emerald-500 hover:text-emerald-600 p-0.5"
+                              className="text-emerald-500 hover:text-emerald-600 p-0.5 shrink-0"
                               title="Open WhatsApp Chat"
                             >
                               <MessageSquare size={13} />
@@ -99,26 +103,37 @@ export function LeadsClientWrapper({ leads }: LeadsClientWrapperProps) {
                           )}
                         </div>
                       </td>
-                      <td className="py-3 px-4 capitalize font-medium">{l.source.replace('_', ' ')}</td>
-                      <td className="py-3 px-4 font-medium text-slate-800 dark:text-slate-200">{l.interested_vehicle_name || 'General Inquiry'}</td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          l.priority === 'urgent' ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' :
-                          l.priority === 'high' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
-                          'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                        }`}>
-                          {l.priority}
+                      <td className="py-3.5 px-4 capitalize font-medium whitespace-nowrap">
+                        {l.source ? String(l.source).replace('_', ' ') : 'N/A'}
+                      </td>
+                      <td className="py-3.5 px-4 font-medium text-slate-800 dark:text-slate-200">
+                        {l.interested_vehicle_name || 'General Inquiry'}
+                      </td>
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                            l.priority === 'urgent'
+                              ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
+                              : l.priority === 'high'
+                              ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700'
+                          }`}
+                        >
+                          {l.priority || 'medium'}
                         </span>
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3.5 px-4 whitespace-nowrap">
                         <select
                           value={l.status}
                           onChange={(e) => handleStatusChange(l.id, e.target.value)}
-                          className={`py-1 px-2.5 rounded-lg text-xs font-bold border uppercase ${
-                            l.status === 'won' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
-                            l.status === 'lost' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
-                            l.status === 'quotation_sent' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
-                            'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                          className={`py-1 px-2.5 rounded-lg text-xs font-bold border uppercase cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-400 transition-colors ${
+                            l.status === 'won'
+                              ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                              : l.status === 'lost'
+                              ? 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                              : l.status === 'quotation_sent'
+                              ? 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                              : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
                           }`}
                         >
                           <option value="new">New</option>
@@ -130,22 +145,27 @@ export function LeadsClientWrapper({ leads }: LeadsClientWrapperProps) {
                           <option value="lost">Lost</option>
                         </select>
                       </td>
-                      <td className="py-3 px-4 text-right space-x-2">
-                        {!l.customer_id && (
-                          <button
-                            onClick={() => handleConvert(l.id)}
-                            className="px-2.5 py-1 bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 rounded-lg text-xs font-bold hover:bg-purple-500/20 cursor-pointer"
-                            title="Convert Prospect into Customer record"
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                          {!l.customer_id && (
+                            <button
+                              type="button"
+                              onClick={() => handleConvert(l.id)}
+                              className="h-8 px-2.5 text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 rounded-lg transition-colors inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                              title="Convert Prospect into Customer record"
+                            >
+                              <UserPlus size={13} />
+                              <span>Convert to Customer</span>
+                            </button>
+                          )}
+                          <Link
+                            href={`/dashboard/quotations/new?lead_id=${l.id}&customer_id=${l.customer_id || ''}`}
+                            className="h-8 px-2.5 text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-400/30 hover:bg-amber-500/20 rounded-lg transition-colors inline-flex items-center gap-1.5 whitespace-nowrap"
                           >
-                            Convert to Customer
-                          </button>
-                        )}
-                        <Link
-                          href={`/dashboard/quotations/new?lead_id=${l.id}&customer_id=${l.customer_id || ''}`}
-                          className="px-2.5 py-1 bg-amber-400/10 text-amber-600 dark:text-amber-400 border border-amber-400/30 rounded-lg text-xs font-bold hover:bg-amber-400/20"
-                        >
-                          Create Quotation
-                        </Link>
+                            <FileText size={13} />
+                            <span>Create Quotation</span>
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   )
