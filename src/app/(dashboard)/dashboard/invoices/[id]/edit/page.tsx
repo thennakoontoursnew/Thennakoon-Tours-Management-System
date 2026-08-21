@@ -65,14 +65,24 @@ export default async function EditInvoicePage({ params }: PageProps) {
     .limit(50)
 
   // Fetch Vehicles (All active registered fleet vehicles)
-  const { data: vehicles, error: vehicleErr } = await supabase
-    .from('vehicles')
-    .select('id, vehicle_code, vehicle_name, brand, make, model, category, registration_number, license_plate, daily_rate, monthly_rate, refundable_deposit, status, is_archived')
-    .or('is_archived.eq.false,is_archived.is.null')
-    .order('registration_number', { ascending: true })
+  let vehicles: any[] = []
+  try {
+    const { data: rawVehicles, error: vehicleErr } = await supabase
+      .from('vehicles')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (vehicleErr) {
+      console.error('[DEBUG VEHICLES FETCH EDIT ERROR]:', vehicleErr)
+    } else if (rawVehicles) {
+      vehicles = rawVehicles.filter((v: any) => !v.is_archived)
+    }
+  } catch (err) {
+    console.error('[DEBUG VEHICLES FETCH EDIT CATCH]:', err)
+  }
 
   if (process.env.NODE_ENV !== 'production') {
-    console.log(`[Invoice Edit] Fetched ${vehicles?.length || 0} fleet vehicles. Error:`, vehicleErr)
+    console.log(`[DEBUG VEHICLES FETCH EDIT]: ${vehicles?.length || 0} active fleet vehicles loaded`)
   }
 
   // Fetch Recent Quotations

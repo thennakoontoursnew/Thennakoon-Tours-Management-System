@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -163,6 +164,26 @@ export function CreateInvoiceForm({
   })
 
   // SECTION 3: RENTAL & VEHICLE INFO
+  const [vehicleList, setVehicleList] = useState<Vehicle[]>(() => vehicles || [])
+
+  useEffect(() => {
+    if (vehicles && vehicles.length > 0) {
+      setVehicleList(vehicles)
+    } else {
+      const supabase = createClient()
+      supabase
+        .from('vehicles')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .then(({ data, error }) => {
+          if (!error && data && data.length > 0) {
+            const active = data.filter((v: any) => !v.is_archived)
+            setVehicleList(active.length > 0 ? active : data)
+          }
+        })
+    }
+  }, [vehicles])
+
   const initialRentalSnap = initialInvoice?.rental_vehicle_snapshot && typeof initialInvoice.rental_vehicle_snapshot === 'object'
     ? (initialInvoice.rental_vehicle_snapshot as Record<string, unknown>)
     : null
@@ -343,14 +364,15 @@ export function CreateInvoiceForm({
     setSelectedVehicleId(vId)
     if (!vId) return
 
-    const v = vehicles.find((vh) => vh.id === vId)
+    const v = (vehicleList || []).find((vh: any) => vh.id === vId)
     if (v) {
-      const reg = v.registration_number || v.license_plate || ''
+      const reg = v.registration_number || v.license_plate || v.reg_no || v.vehicle_code || ''
       const makeModel = [v.make || v.brand, v.model].filter(Boolean).join(' ')
-      const displayName = v.vehicle_name ? (makeModel ? `${v.vehicle_name} (${makeModel})` : v.vehicle_name) : (makeModel || 'Vehicle')
+      const vName = v.vehicle_name || v.name || ''
+      const displayName = vName ? (makeModel ? `${vName} (${makeModel})` : vName) : (makeModel || 'Vehicle')
 
-      setVehicleName(displayName)
-      setRegistrationNumber(reg)
+      setVehicleName(String(displayName || ''))
+      setRegistrationNumber(String(reg || ''))
 
       // Auto fill daily rate & line item description if single default item is present
       const rate = Number(v.daily_rate || 0)
@@ -962,10 +984,11 @@ export function CreateInvoiceForm({
               className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-semibold"
             >
               <option value="">-- Custom / No Vehicle --</option>
-              {vehicles.map((v) => {
-                const reg = v.registration_number || v.license_plate || 'No Plate'
+              {vehicleList && vehicleList.length > 0 && vehicleList.map((v: any) => {
+                const reg = v.registration_number || v.license_plate || v.reg_no || v.vehicle_code || 'No Plate'
                 const makeModel = [v.make || v.brand, v.model].filter(Boolean).join(' ')
-                const nameStr = v.vehicle_name ? (makeModel ? `${v.vehicle_name} (${makeModel})` : v.vehicle_name) : (makeModel || 'Vehicle')
+                const vName = v.vehicle_name || v.name || ''
+                const nameStr = vName ? (makeModel ? `${vName} (${makeModel})` : vName) : (makeModel || 'Vehicle')
                 return (
                   <option key={v.id} value={v.id}>
                     {reg} - {nameStr}
