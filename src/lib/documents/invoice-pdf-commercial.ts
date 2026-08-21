@@ -1,4 +1,4 @@
-import { jsPDF, getLetterheadBase64, drawLetterheadOnPage, drawTextWithOrdinalSuperscript, drawAlignedKeyValueRow } from './pdf-engine'
+import { jsPDF, getLetterheadBase64, drawLetterheadOnPage, drawTextWithOrdinalSuperscript, drawAlignedKeyValueRow, drawPreparedBySection } from './pdf-engine'
 import { COMPANY_CONFIG } from '../company-config'
 import { calculateCommercialInvoiceFinancials, unwrapDeductionsRelation } from '../utils/relation-utils'
 import { formatDateOrdinal, formatRentalPeriodOrdinal, normalizeNewlines } from '../utils/formatters'
@@ -501,27 +501,20 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>,
   }
 
   // STEP 9: SECTION 4: PREPARED BY (Bottom Left)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
-  setPdfBrandGoldText(doc) // Brand Gold #997711
-  doc.text('PREPARED BY:', CONTENT_LEFT, currentY)
-  currentY += 4.4
+  const staffName = invoice.prepared_by_name_snapshot || invoice.prepared_by_profile?.full_name || 'Rashanthi Gunasekara'
+  const staffDesignation = invoice.prepared_by_designation_snapshot || 'Director'
+  const signatureUrl = invoice.prepared_by_profile?.signature_url || companySettings?.signature_url
 
-  const staffName = invoice.prepared_by_name_snapshot || invoice.prepared_by_profile?.full_name || 'S Madushani'
-  const staffDesignation = invoice.prepared_by_designation_snapshot || 'HR & Account Executive'
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(PDF_TYPOGRAPHY.preparedByName)
-  setPdfDarkText(doc)
-  doc.text(staffName, CONTENT_LEFT, currentY)
-  currentY += 4.0
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(PDF_TYPOGRAPHY.preparedByDetails)
-  setPdfMutedText(doc)
-  doc.text(staffDesignation, CONTENT_LEFT, currentY)
-  currentY += 3.8
-  doc.text(COMPANY_CONFIG.name, CONTENT_LEFT, currentY)
+  drawPreparedBySection(
+    doc,
+    'PREPARED BY:',
+    staffName,
+    staffDesignation,
+    COMPANY_CONFIG.name,
+    CONTENT_LEFT,
+    currentY,
+    signatureUrl
+  )
 
   // STEP 10: Footer
   // Do NOT render footer text, icons, contacts, or slogans in code.

@@ -20,6 +20,7 @@ interface CompanySettings {
   receipt_prefix: string | null
   default_invoice_terms: string | null
   default_special_notes: string | null
+  signature_url: string | null
 }
 
 interface NumberCounter {
@@ -75,6 +76,18 @@ export function CompanySettingsForm({ initialValues, invoiceCounter }: CompanySe
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [signatureUrl, setSignatureUrl] = useState<string | null>(initialValues?.signature_url || null)
+
+  const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setSignatureUrl(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
 
   const invPrefix = invoiceCounter?.prefix || initialValues?.invoice_prefix || 'TT-IN-'
   const invLastVal = invoiceCounter?.last_value ?? 10000
@@ -251,6 +264,73 @@ export function CompanySettingsForm({ initialValues, invoiceCounter }: CompanySe
               placeholder="Please find the account details below. Kindly ensure..."
               className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-amber-400 transition-colors"
             />
+          </div>
+        </div>
+      </div>
+
+      {/* Digital Signature (E-Signature) */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-800 overflow-hidden shadow-xs">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-5 bg-amber-400 rounded-full"></div>
+            <div>
+              <h2 className="font-bold text-slate-900 dark:text-white text-sm">Digital Signature (E-Signature)</h2>
+              <p className="text-[11px] text-slate-500">Official company stamp or authorized digital signature embedded on PDFs.</p>
+            </div>
+          </div>
+          {signatureUrl && (
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+              Active Signature Loaded
+            </span>
+          )}
+        </div>
+        <div className="p-6 space-y-4">
+          <input type="hidden" name="signature_url" value={signatureUrl || ''} />
+
+          <div className="flex flex-col sm:flex-row items-start gap-6">
+            {/* Signature Preview Box */}
+            <div className="w-full sm:w-64 h-32 bg-slate-50 dark:bg-slate-950 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-center p-3 relative overflow-hidden group">
+              {signatureUrl ? (
+                <img
+                  src={signatureUrl}
+                  alt="Digital Signature"
+                  className="max-h-full max-w-full object-contain filter dark:invert-0"
+                />
+              ) : (
+                <div className="text-center text-slate-400">
+                  <p className="text-xs font-bold">No Signature Image</p>
+                  <p className="text-[10px]">PNG with transparent background recommended</p>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3 flex-1">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                  Upload Signature Image (PNG / JPG)
+                </label>
+                <input
+                  type="file"
+                  accept="image/png, image/jpeg, image/jpg, image/webp"
+                  onChange={handleSignatureUpload}
+                  className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-400 file:text-slate-950 hover:file:bg-amber-500 cursor-pointer"
+                />
+              </div>
+
+              {signatureUrl && (
+                <button
+                  type="button"
+                  onClick={() => setSignatureUrl(null)}
+                  className="text-xs font-bold text-rose-500 hover:text-rose-600 transition-colors"
+                >
+                  Remove Signature
+                </button>
+              )}
+
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                This signature will be embedded above the <strong>PREPARED BY:</strong> section on all generated invoices, receipts, quotations, and agreements.
+              </p>
+            </div>
           </div>
         </div>
       </div>

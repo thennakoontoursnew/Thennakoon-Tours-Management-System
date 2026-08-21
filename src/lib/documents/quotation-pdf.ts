@@ -1,4 +1,4 @@
-import { jsPDF, autoTable, getLetterheadBase64, drawLetterheadOnPage, drawTextWithOrdinalSuperscript, drawAlignedKeyValueRow, A4_MARGINS } from './pdf-engine'
+import { jsPDF, autoTable, getLetterheadBase64, drawLetterheadOnPage, drawTextWithOrdinalSuperscript, drawAlignedKeyValueRow, drawPreparedBySection, A4_MARGINS } from './pdf-engine'
 import { normalizeNewlines, formatDateOrdinal, formatRentalPeriodOrdinal } from '@/lib/utils/formatters'
 import { setPdfBrandGoldText, PDF_COLORS } from './pdf-theme'
 import { COMPANY_CONFIG } from '../company-config'
@@ -245,30 +245,21 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   currentY = bankBoxStartY + bankBoxHeight + 6 // Bank Details -> Prepared By: 6 mm
 
   // 8. PREPARED BY BLOCK
-  const prepName = quotation.prepared_by_name_snapshot || 'Anuba Kudaligama'
-  const prepDesignation = quotation.prepared_by_designation_snapshot || 'Admin & Marketing Assistant'
-  const companyName = quotation.company_name_snapshot || 'Thennakoon Tours (Pvt) Ltd'
+  const prepName = quotation.prepared_by_name_snapshot || quotation.prepared_by_profile?.full_name || 'Rashanthi Gunasekara'
+  const prepDesignation = quotation.prepared_by_designation_snapshot || 'Director'
+  const companyName = quotation.company_name_snapshot || COMPANY_CONFIG.name
+  const signatureUrl = quotation.prepared_by_profile?.signature_url || companySettings?.signature_url
 
-  const prepX = A4_MARGINS.left
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9.5)
-  setPdfBrandGoldText(doc) // Brand Gold #997711
-  doc.text('PREPARED BY:', prepX, currentY)
-  currentY += 4.5
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.setTextColor(17, 17, 17)
-  doc.text(prepName, prepX, currentY)
-
-  currentY += 4
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.setTextColor(17, 17, 17)
-  doc.text(prepDesignation, prepX, currentY)
-
-  currentY += 4
-  doc.text(companyName, prepX, currentY)
+  drawPreparedBySection(
+    doc,
+    'PREPARED BY:',
+    prepName,
+    prepDesignation,
+    companyName,
+    A4_MARGINS.left,
+    currentY,
+    signatureUrl
+  )
 
   return doc
 }

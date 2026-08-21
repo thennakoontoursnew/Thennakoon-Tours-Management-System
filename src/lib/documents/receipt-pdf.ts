@@ -5,6 +5,7 @@ import {
   drawLetterheadOnPage,
   drawTextWithOrdinalSuperscript,
   drawAlignedKeyValueRow,
+  drawPreparedBySection,
   A4_MARGINS,
 } from './pdf-engine'
 import { formatDateOrdinal } from '@/lib/utils/formatters'
@@ -238,23 +239,23 @@ export async function generateReceiptPDF(receiptData: any, companySettings?: any
     doc.text('This is an official receipt issued by Thennakoon Tours (Pvt) Ltd.', A4_MARGINS.left, currentY + 4.5)
     doc.text('Received with thanks and subject to realization of cheque / bank transfer.', A4_MARGINS.left, currentY + 8.5)
 
-    // Signature Block (Bottom Right)
-    const sigX = A4_MARGINS.right - 55
-    const sigY = currentY + 12
+    const staffName = receipt.prepared_by_name_snapshot || receipt.prepared_by_profile?.full_name || 'Rashanthi Gunasekara'
+    const staffDesignation = receipt.prepared_by_designation_snapshot || 'Director'
+    const companyName = 'THENNAKOON TOURS (PVT) LTD'
+    const signatureUrl = receipt.prepared_by_profile?.signature_url || companySettings?.signature_url
 
-    doc.setLineWidth(0.3)
-    doc.setDrawColor(148, 163, 184)
-    doc.line(sigX, sigY, A4_MARGINS.right, sigY)
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(15, 23, 42)
-    doc.text('Authorized Signatory', sigX + 10, sigY + 4)
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.5)
-    doc.setTextColor(100, 116, 139)
-    doc.text('Thennakoon Tours (Pvt) Ltd', sigX + 10, sigY + 8)
+    // Standardized PREPARED BY Section
+    const prepY = currentY + 14
+    drawPreparedBySection(
+      doc,
+      'PREPARED BY:',
+      staffName,
+      staffDesignation,
+      companyName,
+      A4_MARGINS.left,
+      prepY,
+      signatureUrl
+    )
 
     return doc
   } catch (err: any) {

@@ -211,4 +211,60 @@ export function drawAlignedKeyValueRow(
   return y + (numLines * lineHeight)
 }
 
+/**
+ * Helper to render the standardized PREPARED BY block with optional e-signature image.
+ */
+export function drawPreparedBySection(
+  doc: jsPDF,
+  title: string = 'PREPARED BY:',
+  preparerName: string = 'Rashanthi Gunasekara',
+  preparerDesignation: string = 'Director',
+  companyName: string = 'THENNAKOON TOURS (PVT) LTD',
+  x: number,
+  y: number,
+  signatureBase64OrUrl?: string | null
+): number {
+  let currentY = y
+
+  // 1. Heading
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(153, 119, 17) // Brand Gold #997711
+  doc.text(title, x, currentY)
+  currentY += 4.5
+
+  // 2. E-Signature Image (if available)
+  if (signatureBase64OrUrl && typeof signatureBase64OrUrl === 'string' && signatureBase64OrUrl.trim()) {
+    try {
+      const imgWidth = 32
+      const imgHeight = 12
+      const isJpg = signatureBase64OrUrl.includes('image/jpeg') || signatureBase64OrUrl.includes('image/jpg')
+      doc.addImage(signatureBase64OrUrl, isJpg ? 'JPEG' : 'PNG', x, currentY, imgWidth, imgHeight)
+      currentY += imgHeight + 2
+    } catch (err) {
+      console.warn('[PDF Engine] Could not embed signature image:', err)
+    }
+  }
+
+  // 3. Preparer Name
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9.5)
+  doc.setTextColor(15, 23, 42)
+  doc.text(preparerName, x, currentY)
+  currentY += 4.0
+
+  // 4. Designation & Company
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(100, 116, 139)
+  if (preparerDesignation) {
+    doc.text(preparerDesignation, x, currentY)
+    currentY += 3.6
+  }
+  doc.text(companyName, x, currentY)
+  currentY += 4.0
+
+  return currentY
+}
+
 export { autoTable }

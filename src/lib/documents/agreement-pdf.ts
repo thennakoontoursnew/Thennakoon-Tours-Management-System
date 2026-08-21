@@ -114,7 +114,17 @@ export async function generateAgreementPDF(agreement: any, companySettings?: any
   doc.setTextColor(15, 23, 42)
 
   doc.text('HIRER SIGNATURE', LEGAL_MARGINS.left + 10, currentY)
-  doc.text('AUTHORIZED SIGNATURE', LEGAL_MARGINS.right - 50, currentY)
+  doc.text('AUTHORIZED SIGNATURE', LEGAL_MARGINS.right - 55, currentY)
+
+  const signatureUrl = agreement.prepared_by_profile?.signature_url || companySettings?.signature_url
+  if (signatureUrl && typeof signatureUrl === 'string') {
+    try {
+      const isJpg = signatureUrl.includes('image/jpeg') || signatureUrl.includes('image/jpg')
+      doc.addImage(signatureUrl, isJpg ? 'JPEG' : 'PNG', LEGAL_MARGINS.right - 55, currentY + 2, 32, 12)
+    } catch (e) {
+      console.warn('[Agreement PDF] Could not embed signature:', e)
+    }
+  }
 
   currentY += 15
   doc.setLineWidth(0.3)
