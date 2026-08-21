@@ -9,6 +9,7 @@ import {
   setPdfDarkFill,
   setPdfBodyText,
   setPdfMutedText,
+  setPdfLightMutedText,
   setPdfWhiteText,
 } from './pdf-theme'
 
@@ -38,7 +39,7 @@ function formatDateSafe(val: unknown): string {
 }
 
 // SAFE CONTENT BOUNDARIES WITHIN OFFICIAL LETTERHEAD
-const CONTENT_TOP = 36
+const CONTENT_TOP = 38
 const CONTENT_BOTTOM = 245
 const CONTENT_LEFT = 18
 const CONTENT_RIGHT = 192
@@ -61,39 +62,39 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
     drawLetterheadOnPage(doc, base64Letterhead)
   }
 
-  // STEP 1: Top Right Header Block (Right-aligned; Top Left is reserved for pre-printed letterhead logo)
-  let currentY = CONTENT_TOP
+  // STEP 1: SPLIT HEADER (Left: INVOICE Title & Date | Right: INVOICE NO Label & Number)
 
-  // Title: INVOICE (Bold, prominent)
+  // LEFT SIDE: INVOICE Title & Date
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(22)
+  doc.setFontSize(19)
   setPdfDarkText(doc)
-  doc.text('INVOICE', CONTENT_RIGHT, currentY, { align: 'right' })
+  doc.text('INVOICE', CONTENT_LEFT, CONTENT_TOP)
 
-  // Invoice Date
-  currentY += 6.5
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
+  doc.setFontSize(9.5)
   setPdfMutedText(doc)
   const formattedInvoiceDate = formatDateSafe(invoice.invoice_date)
   if (formattedInvoiceDate) {
-    doc.text(`Invoice Date: ${formattedInvoiceDate}`, CONTENT_RIGHT, currentY, { align: 'right' })
-    currentY += 5
+    doc.text(`Invoice Date: ${formattedInvoiceDate}`, CONTENT_LEFT, CONTENT_TOP + 6.2)
   }
 
-  // INVOICE NO
+  // RIGHT SIDE: INVOICE NO Label & Number
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
+  doc.setFontSize(9)
+  setPdfLightMutedText(doc)
+  doc.text('INVOICE NO:', CONTENT_RIGHT, CONTENT_TOP, { align: 'right' })
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13.5)
   setPdfDarkText(doc)
-  doc.text(`INVOICE NO: ${invoice.invoice_number || 'TT-IN-10001'}`, CONTENT_RIGHT, currentY, { align: 'right' })
+  doc.text(invoice.invoice_number || 'TT-IN-10001', CONTENT_RIGHT, CONTENT_TOP + 6.2, { align: 'right' })
 
   // Divider Line below Header
-  currentY += 4.5
   doc.setLineWidth(0.25)
   doc.setDrawColor(PDF_COLORS.border.rgb[0], PDF_COLORS.border.rgb[1], PDF_COLORS.border.rgb[2])
-  doc.line(CONTENT_LEFT, currentY, CONTENT_RIGHT, currentY)
+  doc.line(CONTENT_LEFT, CONTENT_TOP + 11.5, CONTENT_RIGHT, CONTENT_TOP + 11.5)
 
-  currentY += 5.5
+  let currentY = CONTENT_TOP + 17.0
 
   // STEP 2: 2-Column Details Block
   const customer = invoice.customer || invoice.lessee_snapshot || {}
