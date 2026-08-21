@@ -40,6 +40,7 @@ export default function EditVehicleForm({ vehicle, categories }: Props) {
     revenue_license_expiry: vehicle.revenue_license_expiry || '',
     emission_test_expiry: vehicle.emission_test_expiry || '',
     gps_installed: vehicle.gps_installed || false,
+    tracker_id: vehicle.tracker_id || '',
     status: vehicle.status || 'available',
     description: vehicle.description || '',
     notes: vehicle.notes || '',
@@ -230,6 +231,43 @@ export default function EditVehicleForm({ vehicle, categories }: Props) {
                 onChange={handleChange}
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Section 4: GPS Telematics & Tracking */}
+        <div className="space-y-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-purple-500 border-b border-slate-100 dark:border-slate-800 pb-2">
+            4. GPS Telematics & Telemetry Configuration
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                GPS Tracker ID / Device IMEI
+              </label>
+              <input
+                type="text"
+                name="tracker_id"
+                value={formData.tracker_id}
+                onChange={handleChange}
+                placeholder="e.g. TRK-PRIUS-01 or 864500000000000"
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-mono"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                Unique identifier connecting device to OwnTracks mobile app or SinoTrack/Traccar 4G GPS tracker.
+              </p>
+            </div>
+            <div className="flex items-center pt-6">
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="gps_installed"
+                  checked={formData.gps_installed}
+                  onChange={handleChange}
+                  className="rounded text-amber-500 focus:ring-amber-400"
+                />
+                <span>Hardware GPS Tracking Device Installed</span>
+              </label>
             </div>
           </div>
         </div>

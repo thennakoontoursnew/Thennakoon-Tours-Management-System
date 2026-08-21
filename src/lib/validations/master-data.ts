@@ -101,6 +101,7 @@ export const vehicleSchema = z.object({
   revenue_license_expiry: z.string().optional().nullable(),
   emission_test_expiry: z.string().optional().nullable(),
   gps_installed: z.boolean().default(false),
+  tracker_id: z.string().optional().nullable(),
   status: z.enum(['available', 'reserved', 'on_trip', 'maintenance', 'inactive']).default('available'),
   description: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),

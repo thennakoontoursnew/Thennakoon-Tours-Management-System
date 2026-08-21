@@ -106,6 +106,7 @@ export async function createVehicle(values: VehicleInput) {
       colour: values.colour?.trim() || null,
       description: values.description?.trim() || null,
       notes: values.notes?.trim() || null,
+      tracker_id: values.tracker_id?.trim() || null,
       created_by: user.id,
       updated_by: user.id,
     }
@@ -157,6 +158,7 @@ export async function updateVehicle(id: string, values: VehicleInput) {
       colour: values.colour?.trim() || null,
       description: values.description?.trim() || null,
       notes: values.notes?.trim() || null,
+      tracker_id: values.tracker_id?.trim() || null,
       updated_by: user.id,
     }
 
