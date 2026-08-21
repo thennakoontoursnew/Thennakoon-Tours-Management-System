@@ -38,15 +38,14 @@ export async function generateAgreementPDF(agreement: any, companySettings?: any
   doc.setTextColor(15, 23, 42)
   doc.text(`Agreement No: #${agreement.agreement_number}`, LEGAL_MARGINS.right, currentY, { align: 'right' })
 
-  currentY += 5
+  currentY += 5.5
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
+  doc.setFontSize(8.5)
   doc.setTextColor(71, 85, 105)
-  doc.text('THENNAKOON TOURS (PVT) LTD | Reg No. PV 00312253', LEGAL_MARGINS.left, currentY)
-  drawTextWithOrdinalSuperscript(doc, `Date: ${formatDateSafe(agreement.agreement_date || agreement.created_at)}`, LEGAL_MARGINS.right, currentY, { align: 'right' })
+  drawTextWithOrdinalSuperscript(doc, `Date: ${formatDateSafe(agreement.agreement_date || agreement.created_at)}`, LEGAL_MARGINS.left, currentY)
 
-  currentY += 8
+  currentY += 7.0
 
   // STEP 2: Customer Details Section
   const customer = agreement.lessee_snapshot || agreement.customer || {}

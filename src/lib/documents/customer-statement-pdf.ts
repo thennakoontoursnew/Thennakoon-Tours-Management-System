@@ -32,23 +32,7 @@ export async function generateCustomerStatementPDF(
   const todayStr = formatDateOrdinal(new Date())
   drawTextWithOrdinalSuperscript(doc, `Statement Date: ${todayStr}`, 195, currentY, { align: 'right' })
 
-  currentY += 5.5
-
-  // Company Name
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9.5)
-  doc.setTextColor(15, 23, 42)
-  doc.text(COMPANY_CONFIG.name, 15, currentY)
-
-  currentY += 4.0
-
-  // Company Reg No.
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  doc.setTextColor(71, 85, 105)
-  doc.text(`Reg No. ${COMPANY_CONFIG.registrationNumber}`, 15, currentY)
-
-  currentY += 6.0
+  currentY += 7.0
   doc.setLineWidth(0.3)
   doc.setDrawColor(226, 232, 240)
   doc.line(15, currentY, 195, currentY)

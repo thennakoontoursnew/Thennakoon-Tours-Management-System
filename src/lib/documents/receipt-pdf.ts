@@ -128,18 +128,11 @@ export async function generateReceiptPDF(receiptData: any, companySettings?: any
 
     currentY += 5.5
 
-    // Company Name
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9.5)
-    doc.setTextColor(15, 23, 42)
-    doc.text(COMPANY_CONFIG.name, leftX, currentY)
-
-    currentY += 4.0
     // Document Date
     const receiptDateStr = formatDateOrdinal(receipt.receipt_date || receipt.created_at || new Date())
     drawTextWithOrdinalSuperscript(doc, `Date: ${receiptDateStr || 'N/A'}`, leftX, currentY)
 
-    currentY += 7.5
+    currentY += 7.0
 
     // 2. Customer, Payment & Vehicle Key-Value Grid Box
     const gridCardHeight = 44
