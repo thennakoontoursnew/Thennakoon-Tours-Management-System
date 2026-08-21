@@ -134,6 +134,26 @@ export function CreateInvoiceForm({
   })
 
   // SECTION 2: CUSTOMER DETAILS
+  const [customerList, setCustomerList] = useState<Customer[]>(() => customers || [])
+
+  useEffect(() => {
+    if (customers && customers.length > 0) {
+      setCustomerList(customers)
+    } else {
+      const supabase = createClient()
+      supabase
+        .from('customers')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .then(({ data, error }) => {
+          if (!error && data && data.length > 0) {
+            const active = data.filter((c: any) => !c.is_archived)
+            setCustomerList(active.length > 0 ? active : data)
+          }
+        })
+    }
+  }, [customers])
+
   const initialCustomerObj = initialInvoice?.customer && typeof initialInvoice.customer === 'object'
     ? (initialInvoice.customer as Record<string, unknown>)
     : null
@@ -142,7 +162,7 @@ export function CreateInvoiceForm({
     : null
 
   const [customerId, setCustomerId] = useState<string>(() => {
-    return String(initialInvoice?.customer_id || customers[0]?.id || '')
+    return String(initialInvoice?.customer_id || (customers && customers.length > 0 ? customers[0].id : ''))
   })
   const [customerName, setCustomerName] = useState<string>(() => {
     return String(initialCustomerSnap?.full_name || initialCustomerObj?.full_name || customers[0]?.full_name || '')
@@ -348,14 +368,22 @@ export function CreateInvoiceForm({
   // Handle Customer Selection Auto-fill (does NOT mutate master CRM)
   const handleCustomerSelect = (cId: string) => {
     setCustomerId(cId)
-    const c = customers.find((cust) => cust.id === cId)
+    if (!cId) return
+    const c = (customerList || []).find((cust: any) => cust.id === cId) as any
     if (c) {
-      setCustomerName(c.full_name || '')
-      setCustomerPhone(c.mobile || '')
-      setCustomerEmail(c.email || '')
-      setCustomerCompany(c.company_name || '')
-      setCustomerRef(c.identifier_no || '')
-      setCustomerAddress(c.address_line_1 || '')
+      const name = c.full_name || c.name || [c.first_name, c.last_name].filter(Boolean).join(' ') || ''
+      const phone = c.mobile || c.phone || c.phone_number || ''
+      const email = c.email || ''
+      const company = c.company_name || c.company || ''
+      const ref = c.identifier_no || c.nic || c.passport_number || c.customer_code || c.id_number || ''
+      const address = c.address_line_1 || c.billing_address || c.address || c.street_address || ''
+
+      setCustomerName(String(name || ''))
+      setCustomerPhone(String(phone || ''))
+      setCustomerEmail(String(email || ''))
+      setCustomerCompany(String(company || ''))
+      setCustomerRef(String(ref || ''))
+      setCustomerAddress(String(address || ''))
     }
   }
 
@@ -890,13 +918,19 @@ export function CreateInvoiceForm({
               value={customerId}
               onChange={(e) => handleCustomerSelect(e.target.value)}
               className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white"
-              required
             >
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.full_name} {c.company_name ? `(${c.company_name})` : ''} {c.mobile ? `— ${c.mobile}` : ''}
-                </option>
-              ))}
+              <option value="">-- Select Existing CRM Customer or Enter Custom --</option>
+              {customerList && customerList.length > 0 && customerList.map((c: any) => {
+                const name = c.full_name || c.name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Unnamed Customer'
+                const phone = c.mobile || c.phone || c.phone_number || ''
+                const company = c.company_name || c.company || ''
+                const label = company ? `${name} (${company})` : phone ? `${name} — ${phone}` : name
+                return (
+                  <option key={c.id} value={c.id}>
+                    {label}
+                  </option>
+                )
+              })}
             </select>
           </div>
 

@@ -28,12 +28,26 @@ export default async function NewInvoicePage() {
     }
   }
 
-  // Fetch Customers
-  const { data: customers } = await supabase
-    .from('customers')
-    .select('id, full_name, company_name, mobile, email, address_line_1, identifier_no')
-    .eq('is_archived', false)
-    .order('full_name', { ascending: true })
+  // Fetch Customers (All active CRM customers)
+  let customers: any[] = []
+  try {
+    const { data: rawCustomers, error: custErr } = await supabase
+      .from('customers')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (custErr) {
+      console.error('[DEBUG CUSTOMERS FETCH ERROR]:', custErr)
+    } else if (rawCustomers) {
+      customers = rawCustomers.filter((c: any) => !c.is_archived)
+    }
+  } catch (err) {
+    console.error('[DEBUG CUSTOMERS FETCH CATCH]:', err)
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[DEBUG CUSTOMERS FETCH]: ${customers?.length || 0} active customers loaded`)
+  }
 
   // Fetch Active Bookings
   const { data: bookings } = await supabase
