@@ -258,170 +258,235 @@ export async function getFleetSummaryKPIs(supabase: any): Promise<FleetKPIs> {
 }
 
 export async function getVehicleProfileData(supabase: any, vehicleId: string) {
-  // 1. Fetch Vehicle Record
-  const { data: vehicle, error } = await supabase
-    .from('vehicles')
-    .select('*, vehicle_categories(name)')
-    .eq('id', vehicleId)
-    .maybeSingle()
-
-  if (error || !vehicle) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('[getVehicleProfileData] Error fetching vehicle:', error)
-    }
-    return null
-  }
-
-  vehicle.category = vehicle.vehicle_categories ? { category_name: vehicle.vehicle_categories.name } : null
-
-  if (vehicle.vehicle_owner_id) {
-    const { data: ownerData } = await supabase
-      .from('vehicle_owners')
-      .select('id, full_name, company_name, owner_number, revenue_share_pct, flat_rate_per_day, mobile')
-      .eq('id', vehicle.vehicle_owner_id)
+  try {
+    // 1. Fetch Vehicle Record
+    const { data: vehicle, error } = await supabase
+      .from('vehicles')
+      .select('*, vehicle_categories(name)')
+      .eq('id', vehicleId)
       .maybeSingle()
-    vehicle.owner = ownerData
-  }
 
-  // 2. Fetch Booking Allocations for this vehicle
-  const { data: bVehicles } = await supabase
-    .from('booking_vehicles')
-    .select('id, booking_id, driver_id, booking:bookings!inner(id, booking_number, rental_start_at, rental_end_at, status, grand_total, is_archived, customer:customers(full_name)), driver:drivers(full_name, mobile)')
-    .eq('vehicle_id', vehicleId)
-    .order('created_at', { ascending: false })
-
-  const allocations = (bVehicles || []).filter((bv: any) => !bv.booking.is_archived)
-
-  // Determine Current and Next Booking
-  const todayStr = getColomboTodayString()
-  const todayBounds = getColomboDayBounds(todayStr)
-
-  let currentBooking: any = null
-  let nextBooking: any = null
-
-  const activeOrUpcomingBookings = allocations
-    .filter((bv: any) => !['cancelled', 'no_show', 'closed'].includes(bv.booking.status))
-    .sort((a: any, b: any) => new Date(a.booking.rental_start_at).getTime() - new Date(b.booking.rental_start_at).getTime())
-
-  activeOrUpcomingBookings.forEach((bv: any) => {
-    const startIso = bv.booking.rental_start_at
-    const endIso = bv.booking.rental_end_at
-
-    if (startIso <= todayBounds.endIso && endIso >= todayBounds.startIso) {
-      if (!currentBooking) currentBooking = bv
-    } else if (startIso > todayBounds.endIso) {
-      if (!nextBooking) nextBooking = bv
+    if (error || !vehicle) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('[getVehicleProfileData] Error fetching vehicle:', error)
+      }
+      return null
     }
-  })
 
-  // 3. Fetch Vehicle Odometer Logs
-  const { data: odoLogs } = await supabase
-    .from('vehicle_odometer_logs')
-    .select('id, odometer, source_type, notes, recorded_at, recorder:profiles(full_name)')
-    .eq('vehicle_id', vehicleId)
-    .order('recorded_at', { ascending: false })
+    vehicle.category = vehicle.vehicle_categories ? { category_name: vehicle.vehicle_categories.name } : null
 
-  // 4. Fetch Vehicle Documents
-  const { data: documents } = await supabase
-    .from('vehicle_documents')
-    .select('*')
-    .eq('vehicle_id', vehicleId)
-    .order('expiry_date', { ascending: true })
-
-  // 5. Fetch Vehicle Photos
-  const { data: photos } = await supabase
-    .from('vehicle_photos')
-    .select('*')
-    .eq('vehicle_id', vehicleId)
-    .order('uploaded_at', { ascending: false })
-
-  // 6. Fetch Maintenance Records
-  const { data: maintenance } = await supabase
-    .from('maintenance_records')
-    .select('*')
-    .eq('vehicle_id', vehicleId)
-    .order('service_date', { ascending: false })
-
-  // 7. Fetch Fuel Logs
-  const { data: fuelLogs } = await supabase
-    .from('fuel_logs')
-    .select('*, driver:drivers(full_name)')
-    .eq('vehicle_id', vehicleId)
-    .order('log_date', { ascending: false })
-
-  // 8. Fetch Status History
-  const { data: statusHistory } = await supabase
-    .from('vehicle_status_history')
-    .select('*, changed_by_profile:profiles(full_name)')
-    .eq('vehicle_id', vehicleId)
-    .order('changed_at', { ascending: false })
-
-  // 9. Fetch Owner Payouts
-  const { data: ownerPayouts } = await supabase
-    .from('owner_payouts')
-    .select('*')
-    .eq('vehicle_id', vehicleId)
-    .order('period_start', { ascending: false })
-
-  // 10. Financial Contribution Calculation
-  const bookingIds = Array.from(new Set(allocations.map((bv: any) => bv.booking_id)))
-  let collectedRevenue = 0
-  let invoicedRevenue = 0
-
-  if (bookingIds.length > 0) {
-    const [paymentsRes, invoicesRes] = await Promise.all([
-      supabase.from('payments').select('amount').in('booking_id', bookingIds).eq('status', 'completed'),
-      supabase.from('invoices').select('grand_total').in('booking_id', bookingIds).neq('status', 'cancelled'),
-    ])
-
-    collectedRevenue = (paymentsRes.data || []).reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0)
-    invoicedRevenue = (invoicesRes.data || []).reduce((acc: number, inv: any) => acc + Number(inv.grand_total || 0), 0)
-  }
-
-  const totalMaintenanceCost = (maintenance || []).reduce((acc: number, m: any) => acc + Number(m.cost || 0), 0)
-  const totalFuelCost = (fuelLogs || []).reduce((acc: number, f: any) => acc + Number(f.total_cost || 0), 0)
-  const totalFuelLiters = (fuelLogs || []).reduce((acc: number, f: any) => acc + Number(f.liters || 0), 0)
-  const totalOwnerPayoutCost = (ownerPayouts || []).filter((p: any) => p.status === 'paid' || p.status === 'approved').reduce((acc: number, p: any) => acc + Number(p.net_payout || 0), 0)
-
-  // Overall Fuel Efficiency
-  let avgKmPerLiter = 0
-  let avgLitersPer100km = 0
-  if (totalFuelLiters > 0 && odoLogs && odoLogs.length >= 2) {
-    const maxOdo = Number(odoLogs[0].odometer || 0)
-    const minOdo = Number(odoLogs[odoLogs.length - 1].odometer || 0)
-    const dist = maxOdo - minOdo
-    if (dist > 0) {
-      const eff = calculateFuelEfficiency(dist, totalFuelLiters)
-      avgKmPerLiter = eff.kmPerLiter
-      avgLitersPer100km = eff.litersPer100km
+    if (vehicle.vehicle_owner_id) {
+      try {
+        const { data: ownerData } = await supabase
+          .from('vehicle_owners')
+          .select('id, full_name, company_name, owner_number, revenue_share_pct, flat_rate_per_day, mobile')
+          .eq('id', vehicle.vehicle_owner_id)
+          .maybeSingle()
+        vehicle.owner = ownerData || null
+      } catch (e) {
+        vehicle.owner = null
+      }
     }
-  }
 
-  const healthScore = calculateVehicleHealthScore(vehicle)
+    // 2. Fetch Booking Allocations for this vehicle safely
+    let bVehicles: any[] = []
+    try {
+      const { data } = await supabase
+        .from('booking_vehicles')
+        .select('id, booking_id, driver_id, booking:bookings(id, booking_number, rental_start_at, rental_end_at, status, grand_total, is_archived, customer:customers(full_name)), driver:drivers(full_name, mobile)')
+        .eq('vehicle_id', vehicleId)
+        .order('created_at', { ascending: false })
+      if (data) bVehicles = data
+    } catch (e) {
+      if (process.env.NODE_ENV !== 'production') console.warn('[getVehicleProfileData] bVehicles error:', e)
+    }
 
-  return {
-    vehicle,
-    allocations,
-    currentBooking,
-    nextBooking,
-    odometerLogs: odoLogs || [],
-    documents: documents || [],
-    photos: photos || [],
-    maintenance: maintenance || [],
-    fuelLogs: fuelLogs || [],
-    statusHistory: statusHistory || [],
-    ownerPayouts: ownerPayouts || [],
-    healthScore,
-    financials: {
-      collectedRevenue,
-      invoicedRevenue,
-      totalMaintenanceCost,
-      totalFuelCost,
-      totalFuelLiters,
-      totalOwnerPayoutCost,
-      netContribution: collectedRevenue - totalMaintenanceCost - totalFuelCost - totalOwnerPayoutCost,
-      avgKmPerLiter,
-      avgLitersPer100km,
-    },
+    const allocations = (bVehicles || []).filter((bv: any) => bv?.booking && !bv.booking.is_archived)
+
+    // Determine Current and Next Booking safely
+    const todayStr = getColomboTodayString()
+    const todayBounds = getColomboDayBounds(todayStr)
+
+    let currentBooking: any = null
+    let nextBooking: any = null
+
+    const activeOrUpcomingBookings = allocations
+      .filter((bv: any) => bv?.booking?.status && !['cancelled', 'no_show', 'closed'].includes(bv.booking.status))
+      .sort((a: any, b: any) => {
+        const tA = a?.booking?.rental_start_at ? new Date(a.booking.rental_start_at).getTime() : 0
+        const tB = b?.booking?.rental_start_at ? new Date(b.booking.rental_start_at).getTime() : 0
+        return tA - tB
+      })
+
+    activeOrUpcomingBookings.forEach((bv: any) => {
+      const startIso = bv?.booking?.rental_start_at || ''
+      const endIso = bv?.booking?.rental_end_at || ''
+
+      if (startIso && endIso) {
+        if (startIso <= todayBounds.endIso && endIso >= todayBounds.startIso) {
+          if (!currentBooking) currentBooking = bv
+        } else if (startIso > todayBounds.endIso) {
+          if (!nextBooking) nextBooking = bv
+        }
+      }
+    })
+
+    // 3. Fetch Vehicle Odometer Logs safely
+    let odoLogs: any[] = []
+    try {
+      const { data } = await supabase
+        .from('vehicle_odometer_logs')
+        .select('id, odometer, source_type, notes, recorded_at, recorder:profiles(full_name)')
+        .eq('vehicle_id', vehicleId)
+        .order('recorded_at', { ascending: false })
+      if (data) odoLogs = data
+    } catch (e) {}
+
+    // 4. Fetch Vehicle Documents safely
+    let documents: any[] = []
+    try {
+      const { data } = await supabase
+        .from('vehicle_documents')
+        .select('*')
+        .eq('vehicle_id', vehicleId)
+        .order('expiry_date', { ascending: true })
+      if (data) documents = data
+    } catch (e) {}
+
+    // 5. Fetch Vehicle Photos safely
+    let photos: any[] = []
+    try {
+      const { data } = await supabase
+        .from('vehicle_photos')
+        .select('*')
+        .eq('vehicle_id', vehicleId)
+        .order('uploaded_at', { ascending: false })
+      if (data) photos = data
+    } catch (e) {}
+
+    // 6. Fetch Maintenance Records safely
+    let maintenance: any[] = []
+    try {
+      const { data } = await supabase
+        .from('maintenance_records')
+        .select('*')
+        .eq('vehicle_id', vehicleId)
+        .order('service_date', { ascending: false })
+      if (data) maintenance = data
+    } catch (e) {}
+
+    // 7. Fetch Fuel Logs safely
+    let fuelLogs: any[] = []
+    try {
+      const { data } = await supabase
+        .from('fuel_logs')
+        .select('*, driver:drivers(full_name)')
+        .eq('vehicle_id', vehicleId)
+        .order('log_date', { ascending: false })
+      if (data) fuelLogs = data
+    } catch (e) {}
+
+    // 8. Fetch Status History safely
+    let statusHistory: any[] = []
+    try {
+      const { data } = await supabase
+        .from('vehicle_status_history')
+        .select('*, changed_by_profile:profiles(full_name)')
+        .eq('vehicle_id', vehicleId)
+        .order('changed_at', { ascending: false })
+      if (data) statusHistory = data
+    } catch (e) {}
+
+    // 9. Fetch Owner Payouts safely
+    let ownerPayouts: any[] = []
+    try {
+      const { data } = await supabase
+        .from('owner_payouts')
+        .select('*')
+        .eq('vehicle_id', vehicleId)
+        .order('period_start', { ascending: false })
+      if (data) ownerPayouts = data
+    } catch (e) {}
+
+    // 10. Fetch Vehicle Return Checks / Inspections safely
+    let returnChecks: any[] = []
+    try {
+      const { data } = await supabase
+        .from('vehicle_return_checks')
+        .select('*')
+        .eq('vehicle_id', vehicleId)
+        .order('created_at', { ascending: false })
+      if (data) returnChecks = data
+    } catch (e) {}
+
+    // 11. Financial Contribution Calculation
+    const bookingIds = Array.from(new Set(allocations.map((bv: any) => bv.booking_id).filter(Boolean)))
+    let collectedRevenue = 0
+    let invoicedRevenue = 0
+
+    if (bookingIds.length > 0) {
+      try {
+        const [paymentsRes, invoicesRes] = await Promise.all([
+          supabase.from('payments').select('amount').in('booking_id', bookingIds).eq('status', 'completed'),
+          supabase.from('invoices').select('grand_total').in('booking_id', bookingIds).neq('status', 'cancelled'),
+        ])
+
+        collectedRevenue = (paymentsRes.data || []).reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0)
+        invoicedRevenue = (invoicesRes.data || []).reduce((acc: number, inv: any) => acc + Number(inv.grand_total || 0), 0)
+      } catch (e) {}
+    }
+
+    const totalMaintenanceCost = (maintenance || []).reduce((acc: number, m: any) => acc + Number(m.cost || 0), 0)
+    const totalFuelCost = (fuelLogs || []).reduce((acc: number, f: any) => acc + Number(f.total_cost || 0), 0)
+    const totalFuelLiters = (fuelLogs || []).reduce((acc: number, f: any) => acc + Number(f.liters || 0), 0)
+    const totalOwnerPayoutCost = (ownerPayouts || [])
+      .filter((p: any) => p?.status === 'paid' || p?.status === 'approved')
+      .reduce((acc: number, p: any) => acc + Number(p.net_payout || 0), 0)
+
+    // Overall Fuel Efficiency
+    let avgKmPerLiter = 0
+    let avgLitersPer100km = 0
+    if (totalFuelLiters > 0 && odoLogs && odoLogs.length >= 2) {
+      const maxOdo = Number(odoLogs[0]?.odometer || 0)
+      const minOdo = Number(odoLogs[odoLogs.length - 1]?.odometer || 0)
+      const dist = maxOdo - minOdo
+      if (dist > 0) {
+        const eff = calculateFuelEfficiency(dist, totalFuelLiters)
+        avgKmPerLiter = eff.kmPerLiter
+        avgLitersPer100km = eff.litersPer100km
+      }
+    }
+
+    const healthScore = calculateVehicleHealthScore(vehicle)
+
+    return {
+      vehicle,
+      allocations: allocations || [],
+      currentBooking,
+      nextBooking,
+      odometerLogs: odoLogs || [],
+      documents: documents || [],
+      photos: photos || [],
+      maintenance: maintenance || [],
+      fuelLogs: fuelLogs || [],
+      statusHistory: statusHistory || [],
+      ownerPayouts: ownerPayouts || [],
+      returnChecks: returnChecks || [],
+      healthScore,
+      financials: {
+        collectedRevenue,
+        invoicedRevenue,
+        totalMaintenanceCost,
+        totalFuelCost,
+        totalFuelLiters,
+        totalOwnerPayoutCost,
+        netContribution: collectedRevenue - totalMaintenanceCost - totalFuelCost - totalOwnerPayoutCost,
+        avgKmPerLiter,
+        avgLitersPer100km,
+      },
+    }
+  } catch (globalErr: any) {
+    console.error('[getVehicleProfileData] Unhandled exception:', globalErr)
+    return null
   }
 }

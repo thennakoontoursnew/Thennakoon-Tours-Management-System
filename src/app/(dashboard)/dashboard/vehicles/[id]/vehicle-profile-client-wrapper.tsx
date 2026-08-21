@@ -15,30 +15,31 @@ interface VehicleProfileClientWrapperProps {
 }
 
 export function VehicleProfileClientWrapper({
-  vehicle,
-  profileData,
-  userRole,
+  vehicle = {},
+  profileData = {},
+  userRole = 'viewer',
   userId,
 }: VehicleProfileClientWrapperProps) {
   const router = useRouter()
   const [modalType, setModalType] = useState<'odometer' | 'document' | null>(null)
 
   const isOwner = userRole === 'owner'
+  const pData = profileData || {}
 
   return (
     <>
       <VehicleProfileTabs
-        vehicle={vehicle}
-        allocations={profileData.allocations}
-        currentBooking={profileData.currentBooking}
-        nextBooking={profileData.nextBooking}
-        odometerLogs={profileData.odometerLogs}
-        documents={profileData.documents}
-        photos={profileData.photos}
-        maintenance={profileData.maintenance}
-        returnChecks={profileData.returnChecks}
-        financials={profileData.financials}
-        userRole={userRole}
+        vehicle={vehicle || {}}
+        allocations={pData.allocations || []}
+        currentBooking={pData.currentBooking || null}
+        nextBooking={pData.nextBooking || null}
+        odometerLogs={pData.odometerLogs || []}
+        documents={pData.documents || []}
+        photos={pData.photos || []}
+        maintenance={pData.maintenance || []}
+        returnChecks={pData.returnChecks || []}
+        financials={pData.financials || { collectedRevenue: 0, invoicedRevenue: 0, totalMaintenanceCost: 0, netContribution: 0 }}
+        userRole={userRole || 'viewer'}
         onOpenOdometerModal={() => setModalType('odometer')}
         onOpenDocumentModal={() => setModalType('document')}
       />

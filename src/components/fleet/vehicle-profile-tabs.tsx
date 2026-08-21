@@ -19,6 +19,17 @@ import {
 } from 'lucide-react'
 import { calculateDocumentHealth } from '@/lib/fleet/fleet-service'
 
+function formatDateSafe(dateVal: any): string {
+  if (!dateVal) return 'N/A'
+  try {
+    const d = new Date(dateVal)
+    if (isNaN(d.getTime())) return 'N/A'
+    return d.toLocaleDateString()
+  } catch (e) {
+    return 'N/A'
+  }
+}
+
 interface VehicleProfileTabsProps {
   vehicle: any
   allocations: any[]
@@ -252,7 +263,7 @@ export function VehicleProfileTabs({
                     Hirer: {currentBooking.booking.customer?.full_name || 'Customer'}
                   </div>
                   <div className="text-slate-500">
-                    Period: {new Date(currentBooking.booking.rental_start_at).toLocaleDateString()} → {new Date(currentBooking.booking.rental_end_at).toLocaleDateString()}
+                    Period: {formatDateSafe(currentBooking?.booking?.rental_start_at)} → {formatDateSafe(currentBooking?.booking?.rental_end_at)}
                   </div>
                   {currentBooking.driver && (
                     <div className="text-slate-500 font-medium">
@@ -285,7 +296,7 @@ export function VehicleProfileTabs({
                     Hirer: {nextBooking.booking.customer?.full_name || 'Customer'}
                   </div>
                   <div className="text-slate-500">
-                    Pickup: {new Date(nextBooking.booking.rental_start_at).toLocaleString()}
+                    Pickup: {formatDateSafe(nextBooking?.booking?.rental_start_at)}
                   </div>
                 </div>
               ) : (
@@ -319,19 +330,19 @@ export function VehicleProfileTabs({
                   {allocations.map((bv: any) => (
                     <tr key={bv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50">
                       <td className="py-2.5 px-3">
-                        <Link href={`/dashboard/bookings/${bv.booking.id}`} className="font-mono font-bold text-amber-500 hover:underline">
-                          {bv.booking.booking_number}
+                        <Link href={`/dashboard/bookings/${bv.booking?.id}`} className="font-mono font-bold text-amber-500 hover:underline">
+                          {bv.booking?.booking_number || 'Booking'}
                         </Link>
                       </td>
-                      <td className="py-2.5 px-3 font-semibold">{bv.booking.customer?.full_name || 'N/A'}</td>
+                      <td className="py-2.5 px-3 font-semibold">{bv.booking?.customer?.full_name || 'N/A'}</td>
                       <td className="py-2.5 px-3 text-slate-500 font-mono">
-                        {new Date(bv.booking.rental_start_at).toLocaleDateString()} → {new Date(bv.booking.rental_end_at).toLocaleDateString()}
+                        {formatDateSafe(bv.booking?.rental_start_at)} → {formatDateSafe(bv.booking?.rental_end_at)}
                       </td>
                       <td className="py-2.5 px-3">{bv.driver?.full_name || 'Not assigned'}</td>
-                      <td className="py-2.5 px-3 font-mono font-bold">LKR {Number(bv.booking.grand_total || 0).toLocaleString()}</td>
+                      <td className="py-2.5 px-3 font-mono font-bold">LKR {Number(bv.booking?.grand_total || 0).toLocaleString()}</td>
                       <td className="py-2.5 px-3">
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 uppercase">
-                          {bv.booking.status}
+                          {bv.booking?.status || 'N/A'}
                         </span>
                       </td>
                     </tr>
@@ -379,7 +390,7 @@ export function VehicleProfileTabs({
                     return (
                       <tr key={doc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50">
                         <td className="py-2.5 px-3 font-bold capitalize text-slate-900 dark:text-white">
-                          {doc.document_type.replace('_', ' ')}
+                          {(doc.document_type || 'document').replace('_', ' ')}
                         </td>
                         <td className="py-2.5 px-3 font-mono">{doc.document_number || 'N/A'}</td>
                         <td className="py-2.5 px-3">{doc.provider || 'N/A'}</td>
@@ -418,7 +429,7 @@ export function VehicleProfileTabs({
               <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-200/60 dark:border-slate-700">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">Collected Revenue</span>
                 <span className="font-mono font-black text-emerald-500 text-lg">
-                  LKR {financials.collectedRevenue.toLocaleString()}
+                  LKR {Number(financials?.collectedRevenue || 0).toLocaleString()}
                 </span>
                 <span className="text-[10px] text-slate-400 block mt-1">Completed Payments</span>
               </div>
@@ -426,21 +437,21 @@ export function VehicleProfileTabs({
               <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-200/60 dark:border-slate-700">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Invoiced</span>
                 <span className="font-mono font-black text-slate-900 dark:text-white text-lg">
-                  LKR {financials.invoicedRevenue.toLocaleString()}
+                  LKR {Number(financials?.invoicedRevenue || 0).toLocaleString()}
                 </span>
               </div>
 
               <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-200/60 dark:border-slate-700">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">Maintenance Cost</span>
                 <span className="font-mono font-black text-rose-500 text-lg">
-                  LKR {financials.totalMaintenanceCost.toLocaleString()}
+                  LKR {Number(financials?.totalMaintenanceCost || 0).toLocaleString()}
                 </span>
               </div>
 
               <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-200/60 dark:border-slate-700">
                 <span className="text-[10px] uppercase font-bold text-amber-500 block">Net Contribution</span>
                 <span className="font-mono font-black text-amber-500 text-lg">
-                  LKR {financials.netContribution.toLocaleString()}
+                  LKR {Number(financials?.netContribution || 0).toLocaleString()}
                 </span>
               </div>
             </div>
