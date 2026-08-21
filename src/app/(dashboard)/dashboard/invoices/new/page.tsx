@@ -68,6 +68,13 @@ export default async function NewInvoicePage() {
     console.warn('Fallback invoice numbering:', err)
   }
 
+  // Fetch Company Settings
+  const { data: companySettings } = await supabase
+    .from('company_settings')
+    .select('*')
+    .limit(1)
+    .maybeSingle()
+
   return (
     <CreateInvoiceForm
       customers={customers || []}
@@ -76,6 +83,7 @@ export default async function NewInvoicePage() {
       quotations={quotations || []}
       defaultInvoiceNumber={defaultInvoiceNo}
       currentUser={currentUserProfile}
+      companySettings={companySettings || undefined}
     />
   )
 }

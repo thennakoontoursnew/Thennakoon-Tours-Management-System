@@ -137,6 +137,7 @@ export const invoiceSchema = z.object({
   refundable_deposit: z.number().min(0).default(0),
   notes: z.string().optional().nullable(),
   special_notes: z.string().optional().nullable(),
+  terms_and_conditions: z.string().optional().nullable(),
   important_message: z.string().optional().nullable(),
   status: z.enum(['draft', 'issued', 'partially_paid', 'paid', 'overdue', 'cancelled']).default('draft'),
   customer_snapshot: z.record(z.string(), z.unknown()).optional().nullable(),

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { saveCompanySettings } from './settings-actions'
 import { Loader2, Save, CheckCircle, Hash } from 'lucide-react'
+import { COMPANY_CONFIG } from '@/lib/company-config'
 
 interface CompanySettings {
   company_name: string
@@ -17,6 +18,8 @@ interface CompanySettings {
   quotation_prefix: string | null
   invoice_prefix: string | null
   receipt_prefix: string | null
+  default_invoice_terms: string | null
+  default_special_notes: string | null
 }
 
 interface NumberCounter {
@@ -207,6 +210,43 @@ export function CompanySettingsForm({ initialValues, invoiceCounter }: CompanySe
               <option value="true">Enabled (Authorized Users)</option>
               <option value="false">Disabled (Auto Only)</option>
             </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Default Document Terms & Special Notes */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-800 overflow-hidden shadow-sm">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+          <div className="w-2 h-5 bg-amber-400 rounded-full"></div>
+          <div>
+            <h2 className="font-bold text-slate-900 dark:text-white text-sm">Default Document Terms & Special Notes</h2>
+            <p className="text-[11px] text-slate-500">Configure default terms and notes pre-filled on new invoices and quotations.</p>
+          </div>
+        </div>
+        <div className="p-6 space-y-5">
+          <div>
+            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+              Default Special Notes (Customer PDF)
+            </label>
+            <textarea
+              name="default_special_notes"
+              rows={3}
+              defaultValue={initialValues?.default_special_notes ?? COMPANY_CONFIG.defaultInvoiceSpecialNotes}
+              placeholder="A grace period of two (2) days will be allowed..."
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-amber-400 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+              Default Invoice Terms & Conditions (Customer PDF)
+            </label>
+            <textarea
+              name="default_invoice_terms"
+              rows={3}
+              defaultValue={initialValues?.default_invoice_terms ?? COMPANY_CONFIG.defaultInvoiceImportantTerms}
+              placeholder="Payment should be made on or before the due date..."
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-amber-400 transition-colors"
+            />
           </div>
         </div>
       </div>

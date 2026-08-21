@@ -6,5 +6,5 @@ export async function generateInvoicePDF(invoice: Record<string, unknown>, compa
     throw new Error('Invoice data missing')
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return generateCommercialInvoicePDF(invoice as any)
+  return generateCommercialInvoicePDF(invoice as any, companySettings as any)
 }

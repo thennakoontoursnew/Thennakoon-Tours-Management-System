@@ -1,6 +1,7 @@
 import { jsPDF, autoTable, getLetterheadBase64, drawLetterheadOnPage, drawTextWithOrdinalSuperscript, A4_MARGINS } from './pdf-engine'
 import { normalizeNewlines, formatDateOrdinal, formatRentalPeriodOrdinal } from '@/lib/utils/formatters'
 import { setPdfBrandGoldText, PDF_COLORS } from './pdf-theme'
+import { COMPANY_CONFIG } from '../company-config'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateQuotationPDF(quotation: any, companySettings?: any) {
@@ -198,7 +199,9 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   currentY += 7
 
   // 5. SPECIAL NOTES (Minimal Corporate Bordered Layout)
-  const specialNotesText = normalizeNewlines(quotation.special_notes)
+  const specialNotesText = normalizeNewlines(
+    quotation.special_notes || companySettings?.default_special_notes || COMPANY_CONFIG.defaultInvoiceSpecialNotes
+  )
   if (specialNotesText.trim()) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
@@ -226,7 +229,9 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   }
 
   // 6. IMPORTANT TERMS (Minimal Corporate Bordered Layout)
-  const importantMsg = normalizeNewlines(quotation.important_message)
+  const importantMsg = normalizeNewlines(
+    quotation.important_message || quotation.terms_and_conditions || companySettings?.default_quotation_terms || companySettings?.default_invoice_terms || COMPANY_CONFIG.defaultInvoiceImportantTerms
+  )
   if (importantMsg.trim()) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)

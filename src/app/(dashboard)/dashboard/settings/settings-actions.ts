@@ -23,6 +23,8 @@ export async function saveCompanySettings(formData: FormData) {
   const quotationPrefix = formData.get('quotation_prefix')?.toString() || 'QT'
   const invoicePrefix = formData.get('invoice_prefix')?.toString() || 'TT-IN-'
   const receiptPrefix = formData.get('receipt_prefix')?.toString() || 'RCPT'
+  const defaultInvoiceTerms = formData.get('default_invoice_terms')?.toString() || null
+  const defaultSpecialNotes = formData.get('default_special_notes')?.toString() || null
 
   // Update company_settings table
   const { error } = await supabase
@@ -40,6 +42,8 @@ export async function saveCompanySettings(formData: FormData) {
       quotation_prefix: quotationPrefix,
       invoice_prefix: invoicePrefix,
       receipt_prefix: receiptPrefix,
+      default_invoice_terms: defaultInvoiceTerms,
+      default_special_notes: defaultSpecialNotes,
       updated_at: new Date().toISOString(),
     })
 

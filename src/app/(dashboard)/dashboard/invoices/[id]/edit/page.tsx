@@ -79,6 +79,13 @@ export default async function EditInvoicePage({ params }: PageProps) {
     .order('created_at', { ascending: false })
     .limit(50)
 
+  // Fetch Company Settings
+  const { data: companySettings } = await supabase
+    .from('company_settings')
+    .select('*')
+    .limit(1)
+    .maybeSingle()
+
   return (
     <CreateInvoiceForm
       customers={customers || []}
@@ -88,6 +95,7 @@ export default async function EditInvoicePage({ params }: PageProps) {
       defaultInvoiceNumber={existingInvoice.invoice_number}
       currentUser={currentUserProfile}
       initialInvoice={existingInvoice}
+      companySettings={companySettings || undefined}
     />
   )
 }

@@ -1,7 +1,7 @@
 import { jsPDF, getLetterheadBase64, drawLetterheadOnPage, drawTextWithOrdinalSuperscript } from './pdf-engine'
 import { COMPANY_CONFIG } from '../company-config'
 import { calculateCommercialInvoiceFinancials, unwrapDeductionsRelation } from '../utils/relation-utils'
-import { formatDateOrdinal, formatRentalPeriodOrdinal } from '../utils/formatters'
+import { formatDateOrdinal, formatRentalPeriodOrdinal, normalizeNewlines } from '../utils/formatters'
 import {
   PDF_COLORS,
   PDF_TYPOGRAPHY,
@@ -40,7 +40,7 @@ const CONTENT_RIGHT = 192
 const CONTENT_WIDTH = CONTENT_RIGHT - CONTENT_LEFT
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function generateCommercialInvoicePDF(invoice: Record<string, any>) {
+export async function generateCommercialInvoicePDF(invoice: Record<string, any>, companySettings?: Record<string, any>) {
   // A4 Portrait: 210 x 297 mm
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -458,7 +458,13 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   currentY = bankY + 3.5
 
   // STEP 7: SECTION 2: SPECIAL NOTES
-  const specialNotesText = String(invoice.special_notes || COMPANY_CONFIG.defaultInvoiceSpecialNotes)
+  const rawSpecialNotes =
+    invoice.special_notes ||
+    invoice.notes ||
+    companySettings?.default_special_notes ||
+    COMPANY_CONFIG.defaultInvoiceSpecialNotes
+  const specialNotesText = normalizeNewlines(String(rawSpecialNotes || ''))
+
   if (hasMeaningfulValue(specialNotesText)) {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
@@ -475,7 +481,13 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   }
 
   // STEP 8: SECTION 3: IMPORTANT TERMS & CONDITIONS
-  const termsText = String(invoice.terms_and_conditions || invoice.important_message || COMPANY_CONFIG.defaultInvoiceImportantTerms)
+  const rawTerms =
+    invoice.terms_and_conditions ||
+    invoice.important_message ||
+    companySettings?.default_invoice_terms ||
+    COMPANY_CONFIG.defaultInvoiceImportantTerms
+  const termsText = normalizeNewlines(String(rawTerms || ''))
+
   if (hasMeaningfulValue(termsText)) {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)

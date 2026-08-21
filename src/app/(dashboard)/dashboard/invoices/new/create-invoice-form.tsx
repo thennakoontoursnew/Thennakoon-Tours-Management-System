@@ -75,6 +75,7 @@ interface CreateInvoiceFormProps {
   defaultInvoiceNumber: string
   currentUser: CurrentUser
   initialInvoice?: Record<string, unknown>
+  companySettings?: Record<string, unknown>
 }
 
 export function CreateInvoiceForm({
@@ -85,6 +86,7 @@ export function CreateInvoiceForm({
   defaultInvoiceNumber,
   currentUser,
   initialInvoice,
+  companySettings,
 }: CreateInvoiceFormProps) {
   const router = useRouter()
   const isEditing = Boolean(initialInvoice && initialInvoice.id)
@@ -252,8 +254,11 @@ export function CreateInvoiceForm({
   const [advancePayment, setAdvancePayment] = useState<number>(() => Number(initialInvoice?.amount_paid || 0))
 
   // SECTION 6: NOTES
-  const [specialNotes, setSpecialNotes] = useState<string>(() => String(initialInvoice?.special_notes || COMPANY_CONFIG.defaultInvoiceSpecialNotes))
-  const [importantTerms, setImportantTerms] = useState<string>(() => String(initialInvoice?.important_message || COMPANY_CONFIG.defaultInvoiceImportantTerms))
+  const defaultSpecialNotes = String(companySettings?.default_special_notes || COMPANY_CONFIG.defaultInvoiceSpecialNotes)
+  const defaultInvoiceTerms = String(companySettings?.default_invoice_terms || COMPANY_CONFIG.defaultInvoiceImportantTerms)
+
+  const [specialNotes, setSpecialNotes] = useState<string>(() => String(initialInvoice?.special_notes || defaultSpecialNotes))
+  const [importantTerms, setImportantTerms] = useState<string>(() => String(initialInvoice?.terms_and_conditions || initialInvoice?.important_message || defaultInvoiceTerms))
   const [internalNotes, setInternalNotes] = useState<string>(() => String(initialInvoice?.notes || ''))
 
   // Auto-calculate Rental Days with safe manual override
@@ -480,7 +485,7 @@ export function CreateInvoiceForm({
   const handlePreviewPDF = async () => {
     try {
       const snap = getInvoiceDataSnapshot()
-      const doc = await generateCommercialInvoicePDF(snap)
+      const doc = await generateCommercialInvoicePDF(snap, companySettings)
       const blob = doc.output('blob')
       const url = URL.createObjectURL(blob)
       window.open(url, '_blank')
@@ -494,7 +499,7 @@ export function CreateInvoiceForm({
   const handleDownloadPDF = async () => {
     try {
       const snap = getInvoiceDataSnapshot()
-      const doc = await generateCommercialInvoicePDF(snap)
+      const doc = await generateCommercialInvoicePDF(snap, companySettings)
       doc.save(`Invoice_${snap.invoice_number}.pdf`)
     } catch (err) {
       console.error('Failed to download PDF:', err)
