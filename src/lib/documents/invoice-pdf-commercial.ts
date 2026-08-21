@@ -61,7 +61,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
     drawLetterheadOnPage(doc, base64Letterhead)
   }
 
-  // STEP 1: Top Right Header Block (Cleanly right-aligned on Top Right; Top Left is reserved for pre-printed letterhead logo)
+  // STEP 1: Top Right Header Block (Right-aligned; Top Left is reserved for pre-printed letterhead logo)
   let currentY = CONTENT_TOP
 
   // Title: INVOICE (Bold, prominent)
@@ -164,15 +164,15 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
 
   if (custPhone) {
     doc.text(`Phone     : ${custPhone}`, CONTENT_LEFT, leftY)
-    leftY += 4.5
+    leftY += 4.2
   }
   if (custEmail) {
     doc.text(`Email      : ${custEmail}`, CONTENT_LEFT, leftY)
-    leftY += 4.5
+    leftY += 4.2
   }
   if (custCompany) {
     doc.text(`Company : ${custCompany}`, CONTENT_LEFT, leftY)
-    leftY += 4.5
+    leftY += 4.2
   }
   if (custAddress) {
     const addrLines = doc.splitTextToSize(`Address  : ${custAddress}`, 82)
@@ -195,49 +195,49 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   const formattedDueDate = formatDateSafe(invoice.due_date || invoice.invoice_date)
   if (formattedDueDate) {
     doc.text(`Due Date       : ${formattedDueDate}`, rightX, rightY)
-    rightY += 4.5
+    rightY += 4.2
   }
 
   if (hasMeaningfulValue(invoice.payment_terms)) {
     doc.text(`Terms            : ${invoice.payment_terms}`, rightX, rightY)
-    rightY += 4.5
+    rightY += 4.2
   }
 
   if (vehicleStr) {
     doc.text(`Vehicle         : ${vehicleStr}`, rightX, rightY)
-    rightY += 4.5
+    rightY += 4.2
   }
 
   if (rentalStart && rentalEnd) {
     const daysStr = rentalDays ? ` (${rentalDays} Days)` : ''
     doc.text(`Rental Period : ${formatDateSafe(rentalStart)} to ${formatDateSafe(rentalEnd)}${daysStr}`, rightX, rightY)
-    rightY += 4.5
+    rightY += 4.2
   }
 
   if (hasMeaningfulValue(booking.booking_number)) {
     doc.text(`Booking        : #${booking.booking_number}`, rightX, rightY)
-    rightY += 4.5
+    rightY += 4.2
   } else if (hasMeaningfulValue(invoice.quotation_number) || hasMeaningfulValue(invoice.quotation_id)) {
     doc.text(`Quotation     : #${invoice.quotation_number}`, rightX, rightY)
-    rightY += 4.5
+    rightY += 4.2
   }
 
-  currentY = Math.max(leftY, rightY) + 6
+  currentY = Math.max(leftY, rightY) + 5.5
 
   // STEP 3: Items Table (Solid Cell Borders & Clean Vertical Padding)
   const tableHeaderY = currentY
-  const headerHeight = 8
+  const headerHeight = 7.5
   setPdfDarkFill(doc) // Black Header #17171A
   doc.rect(CONTENT_LEFT, tableHeaderY, CONTENT_WIDTH, headerHeight, 'F')
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(PDF_TYPOGRAPHY.tableHeader)
   setPdfWhiteText(doc)
-  doc.text('#', 22, tableHeaderY + 5.5, { align: 'center' })
-  doc.text('Description', 28, tableHeaderY + 5.5)
-  doc.text('Qty', 124, tableHeaderY + 5.5, { align: 'right' })
-  doc.text('Unit Price', 156, tableHeaderY + 5.5, { align: 'right' })
-  doc.text('Line Total', 189, tableHeaderY + 5.5, { align: 'right' })
+  doc.text('#', 22, tableHeaderY + 5.2, { align: 'center' })
+  doc.text('Description', 28, tableHeaderY + 5.2)
+  doc.text('Qty', 124, tableHeaderY + 5.2, { align: 'right' })
+  doc.text('Unit Price', 156, tableHeaderY + 5.2, { align: 'right' })
+  doc.text('Line Total', 189, tableHeaderY + 5.2, { align: 'right' })
 
   currentY = tableHeaderY + headerHeight
 
@@ -260,11 +260,11 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
         doc.setFont('helvetica', 'bold')
         doc.setFontSize(PDF_TYPOGRAPHY.tableHeader)
         setPdfWhiteText(doc)
-        doc.text('#', 22, currentY + 5.5, { align: 'center' })
-        doc.text('Description (Cont.)', 28, currentY + 5.5)
-        doc.text('Qty', 124, currentY + 5.5, { align: 'right' })
-        doc.text('Unit Price', 156, currentY + 5.5, { align: 'right' })
-        doc.text('Line Total', 189, currentY + 5.5, { align: 'right' })
+        doc.text('#', 22, currentY + 5.2, { align: 'center' })
+        doc.text('Description (Cont.)', 28, currentY + 5.2)
+        doc.text('Qty', 124, currentY + 5.2, { align: 'right' })
+        doc.text('Unit Price', 156, currentY + 5.2, { align: 'right' })
+        doc.text('Line Total', 189, currentY + 5.2, { align: 'right' })
         currentY += headerHeight
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(PDF_TYPOGRAPHY.tableBody)
@@ -277,7 +277,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   items.forEach((it: any, idx: number) => {
     const rawDesc = String(it.description || 'Service Line Item')
     const descLines = doc.splitTextToSize(rawDesc, 78)
-    const rowHeight = Math.max(7.5, descLines.length * 4 + 2.5)
+    const rowHeight = Math.max(7.2, descLines.length * 3.8 + 2.4)
 
     checkPageOverflow(rowHeight, true)
 
@@ -286,11 +286,11 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
       doc.rect(CONTENT_LEFT, currentY, CONTENT_WIDTH, rowHeight, 'F')
     }
 
-    doc.text(String(idx + 1), 22, currentY + 5, { align: 'center' })
-    doc.text(descLines, 28, currentY + 5)
-    doc.text(String(it.quantity || 1), 124, currentY + 5, { align: 'right' })
-    doc.text(`LKR ${formatNumberSafe(it.unit_price)}`, 156, currentY + 5, { align: 'right' })
-    doc.text(`LKR ${formatNumberSafe(it.line_total || (Number(it.quantity || 1) * Number(it.unit_price || 0)))}`, 189, currentY + 5, { align: 'right' })
+    doc.text(String(idx + 1), 22, currentY + 4.8, { align: 'center' })
+    doc.text(descLines, 28, currentY + 4.8)
+    doc.text(String(it.quantity || 1), 124, currentY + 4.8, { align: 'right' })
+    doc.text(`LKR ${formatNumberSafe(it.unit_price)}`, 156, currentY + 4.8, { align: 'right' })
+    doc.text(`LKR ${formatNumberSafe(it.line_total || (Number(it.quantity || 1) * Number(it.unit_price || 0)))}`, 189, currentY + 4.8, { align: 'right' })
 
     currentY += rowHeight
 
@@ -299,102 +299,49 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
     doc.line(CONTENT_LEFT, currentY, CONTENT_RIGHT, currentY)
   })
 
-  // STEP 4: Split Bottom Section (Above the pre-printed letterhead footer)
-  currentY += 6
+  // STEP 4: STRUCTURED BOTTOM SECTION
 
-  checkPageOverflow(55, false)
+  // --- ROW 1: Payment & Bank Details (Left 55%) + Totals Summary Card (Right 45%) ---
+  currentY += 5.5
+  checkPageOverflow(50, false)
 
-  const summaryStartY = currentY
+  const row1StartY = currentY
 
-  // LEFT SIDE: PAYMENT & BANK DETAILS, NOTES, TERMS, PREPARED BY
-  let leftStackY = summaryStartY
-
-  // 4a. PAYMENT & BANK DETAILS
+  // Left Column (55% width, X: CONTENT_LEFT -> 104mm): PAYMENT & BANK DETAILS
+  let bankY = row1StartY
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
   setPdfBrandGoldText(doc)
-  doc.text('PAYMENT & BANK DETAILS:', CONTENT_LEFT, leftStackY)
-  leftStackY += 4.5
+  doc.text('PAYMENT & BANK DETAILS:', CONTENT_LEFT, bankY)
+  bankY += 4.5
 
-  doc.setFont('helvetica', 'normal')
   doc.setFontSize(PDF_TYPOGRAPHY.body)
-  setPdfBodyText(doc)
-
   const bankLabels = [
-    { label: 'Account Name', val: COMPANY_CONFIG.bank.accountName },
-    { label: 'Bank', val: COMPANY_CONFIG.bank.bankName },
-    { label: 'Account No', val: COMPANY_CONFIG.bank.accountNumber },
-    { label: 'Swift Code', val: COMPANY_CONFIG.bank.swiftCode },
+    { label: 'Account Name', val: COMPANY_CONFIG.bank.accountName, boldVal: false },
+    { label: 'Bank', val: COMPANY_CONFIG.bank.bankName, boldVal: false },
+    { label: 'Account No', val: COMPANY_CONFIG.bank.accountNumber, boldVal: true },
+    { label: 'Swift Code', val: COMPANY_CONFIG.bank.swiftCode, boldVal: false },
   ]
 
   for (const b of bankLabels) {
-    doc.text(b.label, CONTENT_LEFT, leftStackY)
-    doc.text(':', CONTENT_LEFT + 25, leftStackY)
-    doc.text(b.val, CONTENT_LEFT + 28, leftStackY)
-    leftStackY += 4.2
-  }
-
-  leftStackY += 3.5
-
-  // 4b. SPECIAL NOTES
-  const specialNotesText = String(invoice.special_notes || COMPANY_CONFIG.defaultInvoiceSpecialNotes)
-  if (hasMeaningfulValue(specialNotesText)) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
-    setPdfBrandGoldText(doc)
-    doc.text('SPECIAL NOTES:', CONTENT_LEFT, leftStackY)
-    leftStackY += 4.5
-
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(PDF_TYPOGRAPHY.notes)
-    setPdfMutedText(doc)
-    const specialLines = doc.splitTextToSize(specialNotesText, 82)
-    doc.text(specialLines, CONTENT_LEFT, leftStackY)
-    leftStackY += specialLines.length * 3.8 + 3.5
+    setPdfBodyText(doc)
+    doc.text(b.label, CONTENT_LEFT, bankY)
+    doc.text(':', CONTENT_LEFT + 25, bankY)
+
+    if (b.boldVal) {
+      doc.setFont('helvetica', 'bold')
+      setPdfDarkText(doc)
+    } else {
+      doc.setFont('helvetica', 'normal')
+      setPdfBodyText(doc)
+    }
+    doc.text(b.val, CONTENT_LEFT + 28, bankY)
+    bankY += 4.2
   }
 
-  // 4c. IMPORTANT TERMS & CONDITIONS
-  const termsText = String(invoice.terms_and_conditions || invoice.important_message || COMPANY_CONFIG.defaultInvoiceImportantTerms)
-  if (hasMeaningfulValue(termsText)) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
-    setPdfBrandGoldText(doc)
-    doc.text('IMPORTANT TERMS & CONDITIONS:', CONTENT_LEFT, leftStackY)
-    leftStackY += 4.5
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(PDF_TYPOGRAPHY.notes)
-    setPdfMutedText(doc)
-    const termsLines = doc.splitTextToSize(termsText, 82)
-    doc.text(termsLines, CONTENT_LEFT, leftStackY)
-    leftStackY += termsLines.length * 3.8 + 3.5
-  }
-
-  // 4d. PREPARED BY (Positioned cleanly on left above circular stamp)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
-  setPdfBrandGoldText(doc)
-  doc.text('PREPARED BY:', CONTENT_LEFT, leftStackY)
-  leftStackY += 4.5
-
-  const staffName = invoice.prepared_by_name_snapshot || invoice.prepared_by_profile?.full_name || 'S Madushani'
-  const staffDesignation = invoice.prepared_by_designation_snapshot || 'HR & Account Executive'
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(PDF_TYPOGRAPHY.preparedByName)
-  setPdfDarkText(doc)
-  doc.text(staffName, CONTENT_LEFT, leftStackY)
-  leftStackY += 4.2
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(PDF_TYPOGRAPHY.preparedByDetails)
-  setPdfMutedText(doc)
-  doc.text(staffDesignation, CONTENT_LEFT, leftStackY)
-  leftStackY += 3.8
-  doc.text(COMPANY_CONFIG.name, CONTENT_LEFT, leftStackY)
-
-  // RIGHT SIDE: FINANCIAL SUMMARY BOX (Aligned with Table Right Edge at 192mm)
-  let sumY = summaryStartY
+  // Right Column (45% width, X: 108mm -> CONTENT_RIGHT): TOTALS SUMMARY CARD
+  let sumY = row1StartY
   const sumLabelX = 108
 
   const financials = calculateCommercialInvoiceFinancials({
@@ -411,7 +358,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   doc.setFontSize(PDF_TYPOGRAPHY.financialRow)
   setPdfBodyText(doc)
 
-  const finRowHeight = 4.5
+  const finRowHeight = 4.2
 
   // Subtotal (Always rendered)
   doc.text('Subtotal', sumLabelX, sumY)
@@ -437,13 +384,13 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   if (deductionList.length > 1) {
     doc.setFont('helvetica', 'bold')
     doc.text('Deductions:', sumLabelX, sumY)
-    sumY += 4.2
+    sumY += 4.0
     doc.setFont('helvetica', 'normal')
     for (const d of deductionList) {
       const label = d.description.length > 24 ? `${d.description.slice(0, 23)}...` : d.description
       doc.text(`  ${label}`, sumLabelX, sumY)
       doc.text(`- LKR ${formatNumberSafe(d.amount)}`, 189, sumY, { align: 'right' })
-      sumY += 4.2
+      sumY += 4.0
     }
     doc.setFont('helvetica', 'bold')
     doc.text('Total Deductions', sumLabelX, sumY)
@@ -495,18 +442,87 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   setPdfBodyText(doc)
   doc.text('Amount Paid', sumLabelX, sumY)
   doc.text(`- LKR ${formatNumberSafe(financials.amountPaid)}`, 189, sumY, { align: 'right' })
-  sumY += 5.5
+  sumY += 5.0
 
   // BALANCE DUE HIGHLIGHT BAR
   const barWidth = 192 - 105
-  const barHeight = 9.5
+  const barHeight = 8.5
   setPdfDarkFill(doc) // Black Bar #17171A
   doc.rect(105, sumY - 3.5, barWidth, barHeight, 'F')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(PDF_TYPOGRAPHY.balanceDue)
   setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
-  doc.text('BALANCE DUE', 108, sumY + 3)
-  doc.text(`LKR ${formatNumberSafe(financials.balanceDue)}`, 189, sumY + 3, { align: 'right' })
+  doc.text('BALANCE DUE', 108, sumY + 2.5)
+  doc.text(`LKR ${formatNumberSafe(financials.balanceDue)}`, 189, sumY + 2.5, { align: 'right' })
+  sumY += barHeight
+
+  // Bottom Y of Row 1 is the MAX of Payment Details and Totals Summary
+  const row1Bottom = Math.max(bankY, sumY)
+
+  // --- SUBTLE HORIZONTAL DIVIDER LINE BELOW ROW 1 ---
+  let row2Y = row1Bottom + 4
+  doc.setLineWidth(0.2)
+  doc.setDrawColor(PDF_COLORS.border.rgb[0], PDF_COLORS.border.rgb[1], PDF_COLORS.border.rgb[2])
+  doc.line(CONTENT_LEFT, row2Y, CONTENT_RIGHT, row2Y)
+
+  row2Y += 4.5
+
+  // --- ROW 2: Full-Width SPECIAL NOTES ---
+  const specialNotesText = String(invoice.special_notes || COMPANY_CONFIG.defaultInvoiceSpecialNotes)
+  if (hasMeaningfulValue(specialNotesText)) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
+    setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
+    doc.text('SPECIAL NOTES:', CONTENT_LEFT, row2Y)
+    row2Y += 4.2
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(PDF_TYPOGRAPHY.notes)
+    setPdfMutedText(doc)
+    const specialLines = doc.splitTextToSize(specialNotesText, CONTENT_WIDTH)
+    doc.text(specialLines, CONTENT_LEFT, row2Y)
+    row2Y += specialLines.length * 3.8 + 3.5
+  }
+
+  // --- ROW 3: Full-Width IMPORTANT TERMS & CONDITIONS ---
+  const termsText = String(invoice.terms_and_conditions || invoice.important_message || COMPANY_CONFIG.defaultInvoiceImportantTerms)
+  if (hasMeaningfulValue(termsText)) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
+    setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
+    doc.text('IMPORTANT TERMS & CONDITIONS:', CONTENT_LEFT, row2Y)
+    row2Y += 4.2
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(PDF_TYPOGRAPHY.notes)
+    setPdfMutedText(doc)
+    const termsLines = doc.splitTextToSize(termsText, CONTENT_WIDTH)
+    doc.text(termsLines, CONTENT_LEFT, row2Y)
+    row2Y += termsLines.length * 3.8 + 4.0
+  }
+
+  // --- ROW 4: PREPARED BY (Bottom Left) ---
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
+  setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
+  doc.text('PREPARED BY:', CONTENT_LEFT, row2Y)
+  row2Y += 4.2
+
+  const staffName = invoice.prepared_by_name_snapshot || invoice.prepared_by_profile?.full_name || 'S Madushani'
+  const staffDesignation = invoice.prepared_by_designation_snapshot || 'HR & Account Executive'
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(PDF_TYPOGRAPHY.preparedByName)
+  setPdfDarkText(doc)
+  doc.text(staffName, CONTENT_LEFT, row2Y)
+  row2Y += 4.0
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(PDF_TYPOGRAPHY.preparedByDetails)
+  setPdfMutedText(doc)
+  doc.text(staffDesignation, CONTENT_LEFT, row2Y)
+  row2Y += 3.6
+  doc.text(COMPANY_CONFIG.name, CONTENT_LEFT, row2Y)
 
   // STEP 5: Footer
   // Do NOT render footer text, icons, contacts, or slogans in code.
