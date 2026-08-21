@@ -1,3 +1,5 @@
+import { formatDateOrdinal } from './formatters'
+
 // Utility: Date string YYYY-MM-DD in Asia/Colombo timezone (+05:30)
 export function getColomboTodayString(): string {
   const options: Intl.DateTimeFormatOptions = {
@@ -19,4 +21,9 @@ export function getColomboDayBounds(dateStr?: string) {
   const startIso = `${targetDateStr}T00:00:00.000+05:30`
   const endIso = `${targetDateStr}T23:59:59.999+05:30`
   return { startIso, endIso, targetDateStr }
+}
+
+// Utility: Ordinal formatted date in Asia/Colombo timezone
+export function formatDateColomboOrdinal(dateInput?: unknown): string {
+  return formatDateOrdinal(dateInput || getColomboTodayString())
 }

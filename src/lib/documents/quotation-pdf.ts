@@ -1,5 +1,5 @@
 import { jsPDF, autoTable, getLetterheadBase64, drawLetterheadOnPage, A4_MARGINS } from './pdf-engine'
-import { normalizeNewlines } from '@/lib/utils/formatters'
+import { normalizeNewlines, formatDateOrdinal, formatRentalPeriodOrdinal } from '@/lib/utils/formatters'
 import { setPdfBrandGoldText, PDF_COLORS } from './pdf-theme'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,7 +66,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   // Row 1
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.9)
-  setPdfBrandGoldText(doc) // Brand Gold #ebbf3d
+  setPdfBrandGoldText(doc) // Brand Gold #997711
   doc.text('QUOTATION TO:', leftLabelX, rowY)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
@@ -80,7 +80,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9.5)
   doc.setTextColor(34, 34, 34)
-  doc.text(quotation.quotation_date || 'N/A', rightValueX, rowY)
+  doc.text(formatDateOrdinal(quotation.quotation_date) || 'N/A', rightValueX, rowY)
 
   // Row 2
   rowY += 6.5
@@ -100,7 +100,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9.5)
   doc.setTextColor(34, 34, 34)
-  doc.text(`${quotation.rental_start_date} – ${quotation.rental_end_date}`, rightValueX, rowY)
+  doc.text(formatRentalPeriodOrdinal(quotation.rental_start_date, quotation.rental_end_date), rightValueX, rowY)
 
   // Row 3
   rowY += 6.5
@@ -191,7 +191,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14) // Prominent 14pt Bold
-  setPdfBrandGoldText(doc) // Brand Gold #ebbf3d
+  setPdfBrandGoldText(doc) // Brand Gold #997711
   doc.text('GRAND TOTAL:', totalsX, currentY)
   doc.text(`LKR ${Number(quotation.grand_total).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
 
@@ -213,7 +213,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9.5)
-    setPdfBrandGoldText(doc) // Brand Gold #ebbf3d
+    setPdfBrandGoldText(doc) // Brand Gold #997711
     doc.text('SPECIAL NOTES', A4_MARGINS.left + 3, currentY + 4.2)
     currentY += 6 + 4 // Heading strip -> Body spacing: 4 mm
 
@@ -241,7 +241,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9.5)
-    setPdfBrandGoldText(doc) // Brand Gold #ebbf3d
+    setPdfBrandGoldText(doc) // Brand Gold #997711
     doc.text('IMPORTANT TERMS & CONDITIONS', A4_MARGINS.left + 3, currentY + 4.2)
     currentY += 6 + 4 // Heading strip -> Body spacing: 4 mm
 
@@ -272,7 +272,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   let bY = bankBoxStartY + 5
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
-  setPdfBrandGoldText(doc) // Brand Gold #ebbf3d
+  setPdfBrandGoldText(doc) // Brand Gold #997711
   doc.text('PAYMENT & BANK DETAILS', A4_MARGINS.left + 4, bY)
 
   bY += 5
@@ -302,7 +302,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   const prepX = A4_MARGINS.left
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
-  setPdfBrandGoldText(doc) // Brand Gold #ebbf3d
+  setPdfBrandGoldText(doc) // Brand Gold #997711
   doc.text('PREPARED BY:', prepX, currentY)
   currentY += 4.5
 

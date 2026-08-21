@@ -1,6 +1,7 @@
 import { jsPDF, getLetterheadBase64, drawLetterheadOnPage } from './pdf-engine'
 import { COMPANY_CONFIG } from '../company-config'
 import { calculateCommercialInvoiceFinancials, unwrapDeductionsRelation } from '../utils/relation-utils'
+import { formatDateOrdinal, formatRentalPeriodOrdinal } from '../utils/formatters'
 import {
   PDF_COLORS,
   PDF_TYPOGRAPHY,
@@ -28,14 +29,7 @@ function formatNumberSafe(val: unknown, decimals: number = 2): string {
 }
 
 function formatDateSafe(val: unknown): string {
-  if (!hasMeaningfulValue(val)) return ''
-  try {
-    const d = new Date(String(val))
-    if (isNaN(d.getTime())) return ''
-    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-  } catch {
-    return ''
-  }
+  return formatDateOrdinal(val)
 }
 
 // SAFE CONTENT BOUNDARIES WITHIN OFFICIAL LETTERHEAD
@@ -210,8 +204,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   }
 
   if (rentalStart && rentalEnd) {
-    const daysStr = rentalDays ? ` (${rentalDays} Days)` : ''
-    doc.text(`Rental Period : ${formatDateSafe(rentalStart)} to ${formatDateSafe(rentalEnd)}${daysStr}`, rightX, rightY)
+    doc.text(`Rental Period : ${formatRentalPeriodOrdinal(rentalStart, rentalEnd, rentalDays)}`, rightX, rightY)
     rightY += 4.0
   }
 

@@ -2,6 +2,88 @@
  * Central String & Date Utility Helpers
  */
 
+const MONTH_NAMES_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/**
+ * Returns ordinal suffix for a given day number (1..31).
+ * Examples: 1 -> "st", 2 -> "nd", 3 -> "rd", 4 -> "th", 21 -> "st", 22 -> "nd", 23 -> "rd", 31 -> "st"
+ */
+export function getOrdinalSuffix(day: number): string {
+  if (isNaN(day) || day < 1 || day > 31) return 'th'
+  const j = day % 10
+  const k = day % 100
+  if (j === 1 && k !== 11) {
+    return 'st'
+  }
+  if (j === 2 && k !== 12) {
+    return 'nd'
+  }
+  if (j === 3 && k !== 13) {
+    return 'rd'
+  }
+  return 'th'
+}
+
+/**
+ * Formats a day number with its ordinal suffix.
+ * Example: 26 -> "26th", 1 -> "1st", 2 -> "2nd", 3 -> "3rd"
+ */
+export function formatDayOrdinal(day: number): string {
+  return `${day}${getOrdinalSuffix(day)}`
+}
+
+/**
+ * Standardized System-Wide Ordinal Date Formatter
+ * Output format: [D][st/nd/rd/th] [Mon] [YYYY]
+ * Examples: "26th Aug 2026", "1st Jan 2026", "2nd Sep 2026", "3rd Oct 2026"
+ */
+export function formatDateOrdinal(val: unknown): string {
+  if (val === null || val === undefined || val === '') return ''
+  try {
+    const str = String(val).trim()
+    if (!str || str.toLowerCase() === 'n/a' || str.toLowerCase() === 'null') return ''
+
+    // If YYYY-MM-DD string without time, parse parts directly to prevent UTC timezone shifts
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+      const [y, m, d] = str.split('-').map(Number)
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return `${d}${getOrdinalSuffix(d)} ${MONTH_NAMES_SHORT[m - 1]} ${y}`
+      }
+    }
+
+    const dateObj = new Date(str)
+    if (isNaN(dateObj.getTime())) return ''
+
+    const day = dateObj.getDate()
+    const month = MONTH_NAMES_SHORT[dateObj.getMonth()]
+    const year = dateObj.getFullYear()
+
+    return `${day}${getOrdinalSuffix(day)} ${month} ${year}`
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Formats a rental period with ordinal dates and inclusive day count.
+ * Example: "28th Aug 2026 to 27th Sep 2026 (30 Days)"
+ */
+export function formatRentalPeriodOrdinal(
+  startDateStr: unknown,
+  endDateStr: unknown,
+  days?: number | null
+): string {
+  const startFmt = formatDateOrdinal(startDateStr)
+  const endFmt = formatDateOrdinal(endDateStr)
+
+  if (!startFmt && !endFmt) return ''
+  if (startFmt && !endFmt) return startFmt
+  if (!startFmt && endFmt) return endFmt
+
+  const totalDays = days && days > 0 ? days : calculateRentalDays(String(startDateStr), String(endDateStr))
+  return `${startFmt} to ${endFmt} (${totalDays} Days)`
+}
+
 /**
  * Normalizes literal '\\n' strings into actual line break characters ('\n').
  * Ensures textareas and PDFs render proper line breaks without literal backslash-n artifacts.
@@ -74,8 +156,8 @@ export function buildWhatsAppQuotationMessage(quotation: any, companyName: strin
   const customerName = quotation?.customer?.full_name || 'Valued Customer'
   const quotationNumber = quotation?.quotation_number || 'N/A'
   const grandTotal = Number(quotation?.grand_total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })
-  const rentalStart = quotation?.rental_start_date || 'N/A'
-  const rentalEnd = quotation?.rental_end_date || 'N/A'
+  const rentalStart = formatDateOrdinal(quotation?.rental_start_date) || 'N/A'
+  const rentalEnd = formatDateOrdinal(quotation?.rental_end_date) || 'N/A'
 
   return `Hello ${customerName},\n\nPlease find your Quotation (${quotationNumber}) details:\n\nAmount: LKR ${grandTotal}\n\nRental Dates:\n${rentalStart} to ${rentalEnd}\n\nThank you,\n${companyName}`
 }
@@ -98,12 +180,8 @@ export function buildWhatsAppQuotationUrl(quotation: any, companyName: string = 
   const encodedMsg = encodeURIComponent(messageText)
 
   const url = phone
-    ? `https://api.whatsapp.com/send?phone=${phone}&text=${encodedMsg}`
-    : `https://api.whatsapp.com/send?text=${encodedMsg}`
-
-  if (!url.includes('text=')) {
-    throw new Error('WhatsApp URL assertion failure: Generated URL must contain text= parameter.')
-  }
+    ? `https://wa.me/${phone}?text=${encodedMsg}`
+    : `https://wa.me/?text=${encodedMsg}`
 
   return url
 }

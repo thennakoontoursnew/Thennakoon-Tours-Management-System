@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import { CustomerStatementItem } from '@/lib/finance/finance-service'
+import { formatDateOrdinal } from '@/lib/utils/formatters'
 import { setPdfBrandGoldText } from './pdf-theme'
 
 export async function generateCustomerStatementPDF(
@@ -38,8 +39,8 @@ export async function generateCustomerStatementPDF(
 
   doc.setFontSize(8.5)
   doc.setFont('helvetica', 'normal')
-  setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
-  const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  setPdfBrandGoldText(doc) // Brand Gold #997711
+  const todayStr = formatDateOrdinal(new Date())
   doc.text(`Statement Date: ${todayStr}`, 195, currentY + 5, { align: 'right' })
 
   currentY += 16
@@ -98,60 +99,41 @@ export async function generateCustomerStatementPDF(
   doc.text('TYPE', 37, currentY + 4)
   doc.text('REFERENCE', 55, currentY + 4)
   doc.text('DESCRIPTION', 85, currentY + 4)
-  doc.text('DEBIT (LKR)', 140, currentY + 4, { align: 'right' })
-  doc.text('CREDIT (LKR)', 165, currentY + 4, { align: 'right' })
+  doc.text('AMOUNT (LKR)', 160, currentY + 4, { align: 'right' })
 
   currentY += 6
 
   // Ledger Rows
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7)
-  doc.setTextColor(30, 41, 59)
+  doc.setFontSize(7.5)
 
-  items.forEach((item, idx) => {
-    if (currentY > 270) {
+  items.forEach((item, index) => {
+    if (currentY > 275) {
       doc.addPage()
       currentY = 15
-
-      doc.setFillColor(15, 23, 42)
-      doc.rect(15, currentY, 180, 6, 'F')
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(7.5)
-      doc.setTextColor(255, 255, 255)
-      doc.text('DATE', 17, currentY + 4)
-      doc.text('TYPE', 37, currentY + 4)
-      doc.text('REFERENCE', 55, currentY + 4)
-      doc.text('DESCRIPTION', 85, currentY + 4)
-      doc.text('DEBIT (LKR)', 140, currentY + 4, { align: 'right' })
-      doc.text('CREDIT (LKR)', 165, currentY + 4, { align: 'right' })
-
-      currentY += 6
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(7)
-      doc.setTextColor(30, 41, 59)
     }
 
-    if (idx % 2 === 1) {
+    if (index % 2 === 1) {
       doc.setFillColor(248, 250, 252)
       doc.rect(15, currentY, 180, 5.5, 'F')
     }
 
-    const dStr = new Date(item.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-    doc.text(dStr, 17, currentY + 3.8)
-    doc.text(item.type.toUpperCase(), 37, currentY + 3.8)
-    doc.text(item.reference || '-', 55, currentY + 3.8)
-    const descShort = item.description.length > 32 ? item.description.substring(0, 30) + '...' : item.description
-    doc.text(descShort, 85, currentY + 3.8)
+    doc.setTextColor(51, 65, 85)
+    doc.text(formatDateOrdinal(item.date), 17, currentY + 4)
+    doc.text(String(item.type).toUpperCase(), 37, currentY + 4)
+    doc.text(item.reference || 'N/A', 55, currentY + 4)
 
-    const debitAmt = Number(item.debit || 0)
-    const creditAmt = Number(item.credit || 0)
+    const desc = item.description.length > 42 ? item.description.substring(0, 40) + '...' : item.description
+    doc.text(desc, 85, currentY + 4)
 
-    if (item.type === 'invoice') {
-      doc.text(debitAmt.toLocaleString('en-US', { minimumFractionDigits: 2 }), 140, currentY + 3.8, { align: 'right' })
-      doc.text('-', 165, currentY + 3.8, { align: 'right' })
+    const isCredit = item.credit > 0
+    const amt = isCredit ? item.credit : item.debit
+    if (isCredit) {
+      doc.setTextColor(16, 185, 129)
+      doc.text(`- ${amt.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 190, currentY + 4, { align: 'right' })
     } else {
-      doc.text('-', 140, currentY + 3.8, { align: 'right' })
-      doc.text(creditAmt.toLocaleString('en-US', { minimumFractionDigits: 2 }), 165, currentY + 3.8, { align: 'right' })
+      doc.setTextColor(15, 23, 42)
+      doc.text(amt.toLocaleString('en-US', { minimumFractionDigits: 2 }), 190, currentY + 4, { align: 'right' })
     }
 
     currentY += 5.5

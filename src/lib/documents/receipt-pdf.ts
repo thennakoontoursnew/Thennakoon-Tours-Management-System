@@ -1,4 +1,5 @@
 import { jsPDF, getLetterheadBase64, drawLetterheadOnPage, A4_MARGINS } from './pdf-engine'
+import { formatDateOrdinal } from '@/lib/utils/formatters'
 import { setPdfBrandGoldText } from './pdf-theme'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
@@ -27,7 +28,7 @@ export async function generateReceiptPDF(receipt: any, companySettings?: any) {
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
-  doc.text(`Date: ${new Date(receipt.receipt_date || receipt.created_at).toLocaleDateString()}`, A4_MARGINS.left, currentY)
+  doc.text(`Date: ${formatDateOrdinal(receipt.receipt_date || receipt.created_at)}`, A4_MARGINS.left, currentY)
 
   currentY += 10
 
@@ -40,7 +41,7 @@ export async function generateReceiptPDF(receipt: any, companySettings?: any) {
   let boxY = currentY + 6
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
-  setPdfBrandGoldText(doc) // Brand Gold #ebbf3d
+  setPdfBrandGoldText(doc) // Brand Gold #997711
   doc.text('RECEIVED FROM:', A4_MARGINS.left + 5, boxY)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(15, 23, 42)
@@ -69,7 +70,7 @@ export async function generateReceiptPDF(receipt: any, companySettings?: any) {
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
-  setPdfBrandGoldText(doc) // Brand Gold #ebbf3d
+  setPdfBrandGoldText(doc) // Brand Gold #997711
   doc.text('AMOUNT RECEIVED:', A4_MARGINS.left + 6, currentY + 10)
 
   doc.setFont('helvetica', 'bold')

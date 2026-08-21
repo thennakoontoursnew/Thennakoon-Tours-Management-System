@@ -1,23 +1,11 @@
 import { jsPDF, LEGAL_MARGINS } from './pdf-engine'
 import { USER_AGREEMENT_COMPANY_REG_NO } from '@/lib/agreements/templates/user-agreement-v1'
+import { formatDateOrdinal } from '@/lib/utils/formatters'
 import { setPdfBrandGoldText } from './pdf-theme'
 
 function formatDateSafe(val: unknown): string {
   if (!val) return 'N/A'
-  try {
-    const d = new Date(String(val))
-    if (isNaN(d.getTime())) return 'N/A'
-    return d.toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    })
-  } catch {
-    return 'N/A'
-  }
+  return formatDateOrdinal(val) || 'N/A'
 }
 
 function formatNumberSafe(val: unknown, decimals: number = 2): string {
@@ -59,7 +47,7 @@ export async function generateAgreementPDF(agreement: any, companySettings?: any
   doc.text('VEHICLE RENTAL AGREEMENT', LEGAL_MARGINS.right, currentY, { align: 'right' })
 
   doc.setFontSize(9)
-  setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
+  setPdfBrandGoldText(doc) // Brand Gold #997711
   doc.text(`Ref: ${agreement.agreement_number || 'N/A'}`, LEGAL_MARGINS.right, currentY + 4.5, { align: 'right' })
 
   currentY += 12
