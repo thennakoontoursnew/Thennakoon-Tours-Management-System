@@ -36,21 +36,21 @@ export const PDF_COLORS = {
   },
 } as const
 
-// CANONICAL GLOBAL TYPOGRAPHY TOKENS (pt)
+// CANONICAL GLOBAL TYPOGRAPHY TOKENS (pt) - ENLARGED LEGIBLE SCALE
 export const PDF_TYPOGRAPHY = {
-  documentTitle: 23.5,
-  invoiceNumber: 14.5,
-  sectionHeading: 9.8,
-  customerName: 10.0,
-  body: 8.8,
-  metadata: 8.8,
-  tableHeader: 8.8,
-  tableBody: 8.8,
-  financialRow: 8.8,
+  documentTitle: 19.0,
+  invoiceNumber: 13.5,
+  sectionHeading: 10.8,
+  customerName: 10.5,
+  body: 9.2,
+  metadata: 9.0,
+  tableHeader: 9.5,
+  tableBody: 9.0,
+  financialRow: 9.5,
   balanceDue: 10.5,
-  notes: 8.5,
-  preparedByName: 9.5,
-  preparedByDetails: 8.5,
+  notes: 9.0,
+  preparedByName: 10.0,
+  preparedByDetails: 9.0,
 } as const
 
 // CANONICAL GLOBAL SPACING TOKENS (mm)

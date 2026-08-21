@@ -66,12 +66,12 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
 
   // LEFT SIDE: INVOICE Title & Date
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(19)
+  doc.setFontSize(PDF_TYPOGRAPHY.documentTitle)
   setPdfDarkText(doc)
   doc.text('INVOICE', CONTENT_LEFT, CONTENT_TOP)
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9.5)
+  doc.setFontSize(PDF_TYPOGRAPHY.metadata)
   setPdfMutedText(doc)
   const formattedInvoiceDate = formatDateSafe(invoice.invoice_date)
   if (formattedInvoiceDate) {
@@ -85,7 +85,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   doc.text('INVOICE NO:', CONTENT_RIGHT, CONTENT_TOP, { align: 'right' })
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13.5)
+  doc.setFontSize(PDF_TYPOGRAPHY.invoiceNumber)
   setPdfDarkText(doc)
   doc.text(invoice.invoice_number || 'TT-IN-10001', CONTENT_RIGHT, CONTENT_TOP + 6.2, { align: 'right' })
 
@@ -149,7 +149,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   // LEFT COLUMN: INVOICE TO
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
-  setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
+  setPdfBrandGoldText(doc) // Brand Gold #997711
   doc.text('INVOICE TO:', CONTENT_LEFT, currentY)
 
   let leftY = currentY + 4.8
@@ -185,7 +185,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   const rightX = 108
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
-  setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
+  setPdfBrandGoldText(doc) // Brand Gold #997711
   doc.text('INVOICE METADATA & RENTAL:', rightX, currentY)
 
   let rightY = currentY + 4.8
@@ -321,7 +321,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   doc.setFontSize(PDF_TYPOGRAPHY.financialRow)
   setPdfBodyText(doc)
 
-  const finRowHeight = 4.0
+  const finRowHeight = 4.2
 
   // Subtotal (Always rendered)
   doc.text('Subtotal', sumLabelX, sumY)
@@ -347,13 +347,13 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   if (deductionList.length > 1) {
     doc.setFont('helvetica', 'bold')
     doc.text('Deductions:', sumLabelX, sumY)
-    sumY += 3.8
+    sumY += 4.0
     doc.setFont('helvetica', 'normal')
     for (const d of deductionList) {
       const label = d.description.length > 24 ? `${d.description.slice(0, 23)}...` : d.description
       doc.text(`  ${label}`, sumLabelX, sumY)
       doc.text(`- LKR ${formatNumberSafe(d.amount)}`, 189, sumY, { align: 'right' })
-      sumY += 3.8
+      sumY += 4.0
     }
     doc.setFont('helvetica', 'bold')
     doc.text('Total Deductions', sumLabelX, sumY)
@@ -393,7 +393,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
 
   // Net Amount (Always rendered)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
+  doc.setFontSize(PDF_TYPOGRAPHY.financialRow)
   setPdfDarkText(doc)
   doc.text('Net Amount', sumLabelX, sumY)
   doc.text(`LKR ${formatNumberSafe(financials.netAmount)}`, 189, sumY, { align: 'right' })
@@ -409,14 +409,14 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
 
   // BALANCE DUE HIGHLIGHT BAR
   const barWidth = 192 - 105
-  const barHeight = 8.0
+  const barHeight = 8.2
   setPdfDarkFill(doc) // Black Bar #17171A
   doc.rect(105, sumY - 3.2, barWidth, barHeight, 'F')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(PDF_TYPOGRAPHY.balanceDue)
-  setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
-  doc.text('BALANCE DUE', 108, sumY + 2.2)
-  doc.text(`LKR ${formatNumberSafe(financials.balanceDue)}`, 189, sumY + 2.2, { align: 'right' })
+  setPdfBrandGoldText(doc) // Brand Gold #997711
+  doc.text('BALANCE DUE', 108, sumY + 2.3)
+  doc.text(`LKR ${formatNumberSafe(financials.balanceDue)}`, 189, sumY + 2.3, { align: 'right' })
   sumY += barHeight
 
   currentY = sumY
@@ -433,9 +433,9 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   let bankY = currentY
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
-  setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
+  setPdfBrandGoldText(doc) // Brand Gold #997711
   doc.text('PAYMENT & BANK DETAILS:', CONTENT_LEFT, bankY)
-  bankY += 4.2
+  bankY += 4.4
 
   doc.setFontSize(PDF_TYPOGRAPHY.body)
   const bankLabels = [
@@ -459,7 +459,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
       setPdfBodyText(doc)
     }
     doc.text(b.val, CONTENT_LEFT + 28, bankY)
-    bankY += 3.8
+    bankY += 4.0
   }
 
   currentY = bankY + 3.5
@@ -469,16 +469,16 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   if (hasMeaningfulValue(specialNotesText)) {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
-    setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
+    setPdfBrandGoldText(doc) // Brand Gold #997711
     doc.text('SPECIAL NOTES:', CONTENT_LEFT, currentY)
-    currentY += 4.2
+    currentY += 4.4
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(PDF_TYPOGRAPHY.notes)
     setPdfMutedText(doc)
     const specialLines = doc.splitTextToSize(specialNotesText, CONTENT_WIDTH)
     doc.text(specialLines, CONTENT_LEFT, currentY)
-    currentY += specialLines.length * 3.6 + 3.5
+    currentY += specialLines.length * 3.8 + 3.5
   }
 
   // STEP 8: SECTION 3: IMPORTANT TERMS & CONDITIONS
@@ -486,24 +486,24 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   if (hasMeaningfulValue(termsText)) {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
-    setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
+    setPdfBrandGoldText(doc) // Brand Gold #997711
     doc.text('IMPORTANT TERMS & CONDITIONS:', CONTENT_LEFT, currentY)
-    currentY += 4.2
+    currentY += 4.4
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(PDF_TYPOGRAPHY.notes)
     setPdfMutedText(doc)
     const termsLines = doc.splitTextToSize(termsText, CONTENT_WIDTH)
     doc.text(termsLines, CONTENT_LEFT, currentY)
-    currentY += termsLines.length * 3.6 + 3.8
+    currentY += termsLines.length * 3.8 + 3.8
   }
 
   // STEP 9: SECTION 4: PREPARED BY (Bottom Left)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
-  setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
+  setPdfBrandGoldText(doc) // Brand Gold #997711
   doc.text('PREPARED BY:', CONTENT_LEFT, currentY)
-  currentY += 4.2
+  currentY += 4.4
 
   const staffName = invoice.prepared_by_name_snapshot || invoice.prepared_by_profile?.full_name || 'S Madushani'
   const staffDesignation = invoice.prepared_by_designation_snapshot || 'HR & Account Executive'
@@ -512,13 +512,13 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>)
   doc.setFontSize(PDF_TYPOGRAPHY.preparedByName)
   setPdfDarkText(doc)
   doc.text(staffName, CONTENT_LEFT, currentY)
-  currentY += 3.8
+  currentY += 4.0
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(PDF_TYPOGRAPHY.preparedByDetails)
   setPdfMutedText(doc)
   doc.text(staffDesignation, CONTENT_LEFT, currentY)
-  currentY += 3.5
+  currentY += 3.8
   doc.text(COMPANY_CONFIG.name, CONTENT_LEFT, currentY)
 
   // STEP 10: Footer
