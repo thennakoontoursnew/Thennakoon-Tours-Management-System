@@ -37,13 +37,13 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14)
-  doc.setTextColor(15, 23, 42) // Dark Slate Title
+  setPdfBrandGoldText(doc) // Brand Gold #997711
   doc.text('OFFICIAL QUOTATION', A4_MARGINS.left + 5, currentY + 8)
 
-  doc.setFontSize(11)
+  doc.setFontSize(10.5)
   doc.setFont('helvetica', 'bold')
-  setPdfBrandGoldText(doc) // Brand Gold #997711
-  doc.text(`NO: #${quotation.quotation_number}`, A4_MARGINS.right - 5, currentY + 8, { align: 'right' })
+  doc.setTextColor(15, 23, 42)
+  doc.text(`Quotation No.: #${quotation.quotation_number || 'QT-10001'}`, A4_MARGINS.right - 5, currentY + 8, { align: 'right' })
 
   currentY += titleCardHeight + 5
 

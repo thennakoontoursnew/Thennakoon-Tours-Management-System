@@ -104,44 +104,49 @@ export async function generateReceiptPDF(receiptData: any, companySettings?: any
 
     let currentY = A4_MARGINS.top // 48mm top margin below letterhead
 
-    // 1. Centered Document Header Title: "CASH RECEIPT"
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(16)
-    setPdfBrandGoldText(doc) // Brand Gold #997711
-    doc.text('CASH RECEIPT', 105, currentY, { align: 'center' })
-
-    currentY += 7
-
-    // Company Address & Date (Left-aligned) and Receipt Number (Right-aligned)
     const leftX = A4_MARGINS.left
     const rightX = A4_MARGINS.right
-    let metaY = currentY
 
+    // 1. LEFT-ALIGNED HEADER STACK
+    // Main Document Title (Left-aligned, 18pt Bold Brand Gold #997711)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9.5)
-    doc.setTextColor(15, 23, 42)
-    doc.text(COMPANY_CONFIG.name, leftX, metaY)
+    doc.setFontSize(18)
+    setPdfBrandGoldText(doc) // Brand Gold #997711
+    doc.text('CASH RECEIPT', leftX, currentY)
 
+    // Right-aligned Primary Reference Number
     const receiptNoStr = receipt.receipt_number
       ? String(receipt.receipt_number).startsWith('#')
         ? String(receipt.receipt_number)
         : `#${receipt.receipt_number}`
       : '#CR8076'
 
-    doc.setFontSize(10)
-    doc.text(`Receipt No.: ${receiptNoStr}`, rightX, metaY, { align: 'right' })
+    doc.setFontSize(10.5)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(15, 23, 42)
+    doc.text(`Receipt No.: ${receiptNoStr}`, rightX, currentY, { align: 'right' })
 
-    metaY += 4.2
+    currentY += 5.5
+
+    // Company Name
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    doc.setTextColor(15, 23, 42)
+    doc.text(COMPANY_CONFIG.name, leftX, currentY)
+
+    currentY += 4.0
+    // Company Address
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
+    doc.setFontSize(8.5)
     doc.setTextColor(71, 85, 105)
-    doc.text(COMPANY_CONFIG.address, leftX, metaY)
+    doc.text(COMPANY_CONFIG.address, leftX, currentY)
 
-    metaY += 4.0
+    currentY += 4.0
+    // Document Date
     const receiptDateStr = formatDateOrdinal(receipt.receipt_date || receipt.created_at || new Date())
-    drawTextWithOrdinalSuperscript(doc, `Date: ${receiptDateStr || 'N/A'}`, leftX, metaY)
+    drawTextWithOrdinalSuperscript(doc, `Date: ${receiptDateStr || 'N/A'}`, leftX, currentY)
 
-    currentY = metaY + 7
+    currentY += 7
 
     // 2. Customer, Payment & Vehicle Key-Value Grid Box
     const gridCardHeight = 44

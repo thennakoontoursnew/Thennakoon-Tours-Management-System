@@ -30,11 +30,12 @@ export async function generateAgreementPDF(agreement: any, companySettings?: any
   // STEP 1: Agreement Header & Company Information Box
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
-  doc.setTextColor(15, 23, 42) // Dark Slate Title
+  setPdfBrandGoldText(doc) // Brand Gold #997711
   doc.text('VEHICLE RENTAL AGREEMENT', LEGAL_MARGINS.left, currentY)
 
   doc.setFontSize(10)
-  doc.setTextColor(71, 85, 105)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(15, 23, 42)
   doc.text(`Agreement No: #${agreement.agreement_number}`, LEGAL_MARGINS.right, currentY, { align: 'right' })
 
   currentY += 5

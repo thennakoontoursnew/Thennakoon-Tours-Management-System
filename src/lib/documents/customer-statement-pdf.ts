@@ -2,6 +2,7 @@ import { jsPDF, drawTextWithOrdinalSuperscript, drawAlignedKeyValueRow } from '.
 import { CustomerStatementItem } from '@/lib/finance/finance-service'
 import { formatDateOrdinal } from '@/lib/utils/formatters'
 import { setPdfBrandGoldText } from './pdf-theme'
+import { COMPANY_CONFIG } from '../company-config'
 
 export async function generateCustomerStatementPDF(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -13,39 +14,43 @@ export async function generateCustomerStatementPDF(
 ) {
   // A4 Portrait: 210 x 297 mm
   const doc = new jsPDF({
-    orientation: 'portrait',
+    orientation: 'p',
     unit: 'mm',
     format: 'a4',
   })
 
   let currentY = 15
 
-  // Header
+  // 1. LEFT-ALIGNED HEADER STACK
+  // Main Title: Left-aligned, 16pt Bold Brand Gold #997711
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(14)
-  doc.setTextColor(15, 23, 42)
-  doc.text('THENNAKOON TOURS (PVT) LTD', 15, currentY)
-
-  doc.setFontSize(8.5)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(71, 85, 105)
-  doc.text('39A, 1st cross street, Pagoda Road, Nugegoda, Sri Lanka | Reg No. PV 00312253', 15, currentY + 4.5)
-  doc.text('Phone: +94 112 823 723 / +94 77 727 3820 | Email: info@thennakoontours.lk', 15, currentY + 8.5)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
-  doc.setTextColor(15, 23, 42)
-  doc.text('CUSTOMER STATEMENT OF ACCOUNT', 195, currentY, { align: 'right' })
-
-  doc.setFontSize(8.5)
-  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(16)
   setPdfBrandGoldText(doc) // Brand Gold #997711
-  const todayStr = formatDateOrdinal(new Date())
-  drawTextWithOrdinalSuperscript(doc, `Statement Date: ${todayStr}`, 195, currentY + 5, { align: 'right' })
+  doc.text('CUSTOMER STATEMENT OF ACCOUNT', 15, currentY)
 
-  currentY += 16
-  doc.setLineWidth(0.4)
-  doc.setDrawColor(15, 23, 42)
+  // Right-aligned Date
+  const todayStr = formatDateOrdinal(new Date())
+  drawTextWithOrdinalSuperscript(doc, `Statement Date: ${todayStr}`, 195, currentY, { align: 'right' })
+
+  currentY += 5.5
+
+  // Company Name
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9.5)
+  doc.setTextColor(15, 23, 42)
+  doc.text(COMPANY_CONFIG.name, 15, currentY)
+
+  currentY += 4.0
+
+  // Company Address & Contacts
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.setTextColor(71, 85, 105)
+  doc.text(`${COMPANY_CONFIG.address} | Reg No. ${COMPANY_CONFIG.registrationNumber}`, 15, currentY)
+
+  currentY += 6.0
+  doc.setLineWidth(0.3)
+  doc.setDrawColor(226, 232, 240)
   doc.line(15, currentY, 195, currentY)
   currentY += 6
 

@@ -61,15 +61,15 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>,
   // LEFT SIDE: INVOICE Title & Date
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(PDF_TYPOGRAPHY.documentTitle)
-  setPdfDarkText(doc)
-  doc.text('INVOICE', CONTENT_LEFT, CONTENT_TOP)
+  setPdfBrandGoldText(doc) // Brand Gold #997711
+  doc.text('COMMERCIAL INVOICE', CONTENT_LEFT, CONTENT_TOP)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(PDF_TYPOGRAPHY.metadata)
   setPdfMutedText(doc)
   const formattedInvoiceDate = formatDateSafe(invoice.invoice_date)
   if (formattedInvoiceDate) {
-    drawTextWithOrdinalSuperscript(doc, `Invoice Date: ${formattedInvoiceDate}`, CONTENT_LEFT, CONTENT_TOP + 6.2)
+    drawTextWithOrdinalSuperscript(doc, `Date: ${formattedInvoiceDate}`, CONTENT_LEFT, CONTENT_TOP + 6.2)
   }
 
   // RIGHT SIDE: INVOICE NO Label & Number
