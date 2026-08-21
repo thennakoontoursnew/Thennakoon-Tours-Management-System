@@ -11,14 +11,27 @@ interface PageProps {
 
 export default async function VehicleDetailPage({ params }: PageProps) {
   const { id } = await params
-
-  // Validate UUID parameter format strictly
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-  if (!id || typeof id !== 'string' || !uuidRegex.test(id)) {
+  if (!id || typeof id !== 'string') {
     notFound()
   }
 
   const supabase = await createClient()
+
+  let vehicleId = id
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  if (!uuidRegex.test(id)) {
+    const { data: vByCode } = await supabase
+      .from('vehicles')
+      .select('id')
+      .or(`vehicle_code.eq.${id},registration_number.eq.${id}`)
+      .maybeSingle()
+
+    if (vByCode?.id) {
+      vehicleId = vByCode.id
+    } else {
+      notFound()
+    }
+  }
 
   const {
     data: { user },
@@ -33,7 +46,7 @@ export default async function VehicleDetailPage({ params }: PageProps) {
   const canEdit = ['owner', 'manager', 'operations_staff'].includes(userRole)
 
   // Fetch full vehicle profile data via fleet service passing supabase client
-  const profileData = await getVehicleProfileData(supabase, id)
+  const profileData = await getVehicleProfileData(supabase, vehicleId)
   if (!profileData) {
     notFound()
   }

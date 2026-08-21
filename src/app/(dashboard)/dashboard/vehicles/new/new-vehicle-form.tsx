@@ -68,7 +68,11 @@ export default function NewVehicleForm({ categories }: Props) {
       return
     }
 
-    router.push(`/dashboard/vehicles/${res.vehicleId}`)
+    if (res.vehicleId) {
+      router.push(`/dashboard/vehicles/${res.vehicleId}`)
+    } else {
+      router.push('/dashboard/vehicles')
+    }
   }
 
   return (

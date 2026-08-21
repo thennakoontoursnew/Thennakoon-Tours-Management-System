@@ -8,8 +8,8 @@ export default async function NewVehiclePage() {
   const { data: categories } = await supabase
     .from('vehicle_categories')
     .select('id, name')
-    .eq('is_active', true)
-    .order('display_order')
+    .or('is_active.eq.true,is_active.is.null')
+    .order('display_order', { ascending: true })
 
   return <NewVehicleForm categories={categories || []} />
 }

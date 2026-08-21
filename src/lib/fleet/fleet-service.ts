@@ -258,15 +258,29 @@ export async function getFleetSummaryKPIs(supabase: any): Promise<FleetKPIs> {
 }
 
 export async function getVehicleProfileData(supabase: any, vehicleId: string) {
-  // 1. Fetch Vehicle Record with owner details
+  // 1. Fetch Vehicle Record
   const { data: vehicle, error } = await supabase
     .from('vehicles')
-    .select('*, category:vehicle_categories(category_name), owner:vehicle_owners(id, full_name, company_name, owner_number, settlement_rule, revenue_share_pct, flat_rate_per_day, mobile)')
+    .select('*, vehicle_categories(name)')
     .eq('id', vehicleId)
-    .single()
+    .maybeSingle()
 
   if (error || !vehicle) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[getVehicleProfileData] Error fetching vehicle:', error)
+    }
     return null
+  }
+
+  vehicle.category = vehicle.vehicle_categories ? { category_name: vehicle.vehicle_categories.name } : null
+
+  if (vehicle.vehicle_owner_id) {
+    const { data: ownerData } = await supabase
+      .from('vehicle_owners')
+      .select('id, full_name, company_name, owner_number, revenue_share_pct, flat_rate_per_day, mobile')
+      .eq('id', vehicle.vehicle_owner_id)
+      .maybeSingle()
+    vehicle.owner = ownerData
   }
 
   // 2. Fetch Booking Allocations for this vehicle
