@@ -43,7 +43,7 @@ export async function generateAgreementPDF(agreement: any, companySettings?: any
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(71, 85, 105)
-  doc.text('THENNAKOON TOURS (PVT) LTD | Reg No. PV 00312253 | 39A, 1st cross street, Pagoda Road, Nugegoda', LEGAL_MARGINS.left, currentY)
+  doc.text('THENNAKOON TOURS (PVT) LTD | Reg No. PV 00312253', LEGAL_MARGINS.left, currentY)
   drawTextWithOrdinalSuperscript(doc, `Date: ${formatDateSafe(agreement.agreement_date || agreement.created_at)}`, LEGAL_MARGINS.right, currentY, { align: 'right' })
 
   currentY += 8

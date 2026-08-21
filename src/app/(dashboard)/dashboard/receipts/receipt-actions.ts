@@ -50,3 +50,24 @@ export async function generateReceipt(paymentId: string) {
     return { success: false, error: err.message }
   }
 }
+
+export async function updateReceiptTerms(receiptId: string, terms: string) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated.' }
+
+    const { error } = await supabase
+      .from('receipts')
+      .update({ terms_and_conditions: terms })
+      .eq('id', receiptId)
+
+    if (error) return { success: false, error: error.message }
+
+    revalidatePath(`/dashboard/receipts/${receiptId}/preview`)
+    revalidatePath('/dashboard/receipts')
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message }
+  }
+}

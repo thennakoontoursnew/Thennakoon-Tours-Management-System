@@ -42,11 +42,11 @@ export async function generateCustomerStatementPDF(
 
   currentY += 4.0
 
-  // Company Address & Contacts
+  // Company Reg No.
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
   doc.setTextColor(71, 85, 105)
-  doc.text(`${COMPANY_CONFIG.address} | Reg No. ${COMPANY_CONFIG.registrationNumber}`, 15, currentY)
+  doc.text(`Reg No. ${COMPANY_CONFIG.registrationNumber}`, 15, currentY)
 
   currentY += 6.0
   doc.setLineWidth(0.3)

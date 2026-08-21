@@ -4,7 +4,10 @@ import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { generateReceiptPDF } from '@/lib/documents/receipt-pdf'
-import { ArrowLeft, Download, Loader2, AlertTriangle, FileCheck, ExternalLink } from 'lucide-react'
+import { updateReceiptTerms } from '../../receipt-actions'
+import { ArrowLeft, Download, Loader2, AlertTriangle, FileCheck, ExternalLink, Save } from 'lucide-react'
+
+const DEFAULT_TERMS = `1. The Advance payment made is non-refundable, even if the vehicle is not collected.\n2. The full balance payment must be settled on the date of vehicle collection.`
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -17,6 +20,10 @@ export default function ReceiptPreviewPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null)
+
+  const [termsText, setTermsText] = useState<string>('')
+  const [savingTerms, setSavingTerms] = useState(false)
+  const [termsSaved, setTermsSaved] = useState(false)
 
   useEffect(() => {
     async function loadData() {
@@ -60,7 +67,6 @@ export default function ReceiptPreviewPage({ params }: PageProps) {
             .maybeSingle()
           customer = c || null
         }
-        console.log('STEP 3 Customer loaded', customer?.full_name || 'N/A')
 
         // STEP 4: Fetch Related Invoice
         let invoice: any = null
@@ -72,7 +78,6 @@ export default function ReceiptPreviewPage({ params }: PageProps) {
             .maybeSingle()
           invoice = inv || null
         }
-        console.log('STEP 4 Invoice loaded', invoice?.invoice_number || 'N/A')
 
         // STEP 5: Fetch Related Booking
         let booking: any = null
@@ -84,7 +89,6 @@ export default function ReceiptPreviewPage({ params }: PageProps) {
             .maybeSingle()
           booking = bk || null
         }
-        console.log('STEP 5 Booking loaded', booking?.booking_number || 'N/A')
 
         // STEP 6: Fetch Company Settings
         const { data: settings } = await supabase
@@ -92,13 +96,16 @@ export default function ReceiptPreviewPage({ params }: PageProps) {
           .select('*')
           .limit(1)
           .maybeSingle()
-        console.log('STEP 6 Company loaded')
+
+        const initialTerms = r.terms_and_conditions || settings?.receipt_terms || DEFAULT_TERMS
+        setTermsText(initialTerms)
 
         const fullReceiptData = {
           ...r,
           customer,
           invoice,
           booking,
+          terms_and_conditions: initialTerms,
         }
 
         setReceipt(fullReceiptData)
@@ -120,6 +127,29 @@ export default function ReceiptPreviewPage({ params }: PageProps) {
 
     loadData()
   }, [id])
+
+  const handleSaveTerms = async () => {
+    if (!id || !receipt) return
+    setSavingTerms(true)
+    setTermsSaved(false)
+
+    const res = await updateReceiptTerms(id, termsText)
+    if (res.success) {
+      setTermsSaved(true)
+      const updatedReceipt = { ...receipt, terms_and_conditions: termsText }
+      setReceipt(updatedReceipt)
+
+      const pdfDoc = await generateReceiptPDF(updatedReceipt, companySettings)
+      const pdfBlob = pdfDoc.output('blob')
+      if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl)
+      setPdfBlobUrl(URL.createObjectURL(pdfBlob))
+
+      setTimeout(() => setTermsSaved(false), 3000)
+    } else {
+      alert(res.error || 'Failed to update receipt terms.')
+    }
+    setSavingTerms(false)
+  }
 
   const handleDownload = async () => {
     if (!receipt) return
@@ -209,6 +239,38 @@ export default function ReceiptPreviewPage({ params }: PageProps) {
           <span>Receipt No: <strong className="font-mono">{receiptNo}</strong></span>
           <span>Customer: <strong>{custName}</strong></span>
           <span>Amount Received: <strong className="font-mono text-amber-500 font-bold">LKR {Number(receipt.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></span>
+        </div>
+      </div>
+
+      {/* Editable Terms & Conditions Card */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 space-y-3 shadow-xs">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+            Custom Receipt Terms & Conditions
+          </label>
+          {termsSaved && (
+            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+              ✓ Terms Saved & PDF Updated!
+            </span>
+          )}
+        </div>
+        <textarea
+          rows={3}
+          value={termsText}
+          onChange={(e) => setTermsText(e.target.value)}
+          placeholder="1. The Advance payment made is non-refundable...\n2. Full balance payment due upon collection."
+          className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-xl p-3 focus:outline-none focus:border-amber-400 font-mono leading-relaxed"
+        />
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleSaveTerms}
+            disabled={savingTerms}
+            className="px-3.5 py-1.5 bg-amber-400 text-slate-950 font-bold rounded-lg text-xs hover:bg-amber-300 disabled:opacity-50 cursor-pointer transition-all flex items-center gap-1.5 shadow-xs"
+          >
+            {savingTerms ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+            <span>Save & Refresh PDF</span>
+          </button>
         </div>
       </div>
 

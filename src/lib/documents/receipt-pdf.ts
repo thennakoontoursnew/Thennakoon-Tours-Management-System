@@ -135,18 +135,11 @@ export async function generateReceiptPDF(receiptData: any, companySettings?: any
     doc.text(COMPANY_CONFIG.name, leftX, currentY)
 
     currentY += 4.0
-    // Company Address
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.5)
-    doc.setTextColor(71, 85, 105)
-    doc.text(COMPANY_CONFIG.address, leftX, currentY)
-
-    currentY += 4.0
     // Document Date
     const receiptDateStr = formatDateOrdinal(receipt.receipt_date || receipt.created_at || new Date())
     drawTextWithOrdinalSuperscript(doc, `Date: ${receiptDateStr || 'N/A'}`, leftX, currentY)
 
-    currentY += 7
+    currentY += 7.5
 
     // 2. Customer, Payment & Vehicle Key-Value Grid Box
     const gridCardHeight = 44
@@ -323,8 +316,9 @@ export async function generateReceiptPDF(receiptData: any, companySettings?: any
       '2. The full balance payment must be settled on the date of vehicle collection.',
     ]
 
-    const termsLines = companySettings?.receipt_terms
-      ? String(companySettings.receipt_terms).split('\n').filter((t) => t.trim())
+    const rawTerms = receipt.terms_and_conditions || receipt.terms || companySettings?.receipt_terms
+    const termsLines = rawTerms
+      ? String(rawTerms).split('\n').filter((t) => t.trim())
       : defaultTerms
 
     doc.setFont('helvetica', 'normal')
