@@ -1,6 +1,6 @@
 import { jsPDF, autoTable, getLetterheadBase64, drawLetterheadOnPage, A4_MARGINS } from './pdf-engine'
 import { normalizeNewlines } from '@/lib/utils/formatters'
-import { setPdfBrandGoldText } from './pdf-theme'
+import { setPdfBrandGoldText, PDF_COLORS } from './pdf-theme'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateQuotationPDF(quotation: any, companySettings?: any) {
@@ -66,8 +66,8 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   // Row 1
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8.9)
-  doc.setTextColor(71, 85, 105)
-  doc.text('TO:', leftLabelX, rowY)
+  setPdfBrandGoldText(doc) // Brand Gold #ebbf3d
+  doc.text('QUOTATION TO:', leftLabelX, rowY)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
   doc.setTextColor(34, 34, 34) // #222222
@@ -142,7 +142,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
     body: tableRows,
     margin: { left: A4_MARGINS.left, right: 210 - A4_MARGINS.right },
     styles: { fontSize: 9.5, cellPadding: 2.5, textColor: [34, 34, 34], valign: 'middle' },
-    headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9.5, halign: 'center', valign: 'middle' },
+    headStyles: { fillColor: [23, 23, 26], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9.5, halign: 'center', valign: 'middle' },
     columnStyles: {
       0: { halign: 'center', valign: 'middle' },
       1: { halign: 'left', valign: 'middle' },
@@ -191,7 +191,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14) // Prominent 14pt Bold
-  setPdfBrandGoldText(doc) // Canonical Brand Gold #D97706
+  setPdfBrandGoldText(doc) // Brand Gold #ebbf3d
   doc.text('GRAND TOTAL:', totalsX, currentY)
   doc.text(`LKR ${Number(quotation.grand_total).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
 
@@ -206,18 +206,18 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
     const requiredH = splitNotes.length * 4 + 12
     ensureSpace(requiredH)
 
-    // Heading Strip (1px Thin Black Border, No Fill)
-    doc.setDrawColor(17, 17, 17)
+    // Heading Strip (1px Thin Border)
+    doc.setDrawColor(PDF_COLORS.border.rgb[0], PDF_COLORS.border.rgb[1], PDF_COLORS.border.rgb[2])
     doc.setLineWidth(0.3)
     doc.rect(A4_MARGINS.left, currentY, A4_MARGINS.width, 6, 'S')
 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9.5)
-    doc.setTextColor(17, 17, 17)
+    setPdfBrandGoldText(doc) // Brand Gold #ebbf3d
     doc.text('SPECIAL NOTES', A4_MARGINS.left + 3, currentY + 4.2)
     currentY += 6 + 4 // Heading strip -> Body spacing: 4 mm
 
-    // Body Text (9pt Black, 4mm Line Spacing)
+    // Body Text
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
     doc.setTextColor(17, 17, 17)
@@ -225,7 +225,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
     currentY += splitNotes.length * 4 + 7 // Body -> Next section spacing: 7 mm
   }
 
-  // 6. IMPORTANT (Minimal Corporate Bordered Layout)
+  // 6. IMPORTANT TERMS (Minimal Corporate Bordered Layout)
   const importantMsg = normalizeNewlines(quotation.important_message)
   if (importantMsg.trim()) {
     doc.setFont('helvetica', 'normal')
@@ -234,18 +234,18 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
     const requiredH = splitMsg.length * 4 + 12
     ensureSpace(requiredH)
 
-    // Heading Strip (1px Thin Black Border, No Fill)
-    doc.setDrawColor(17, 17, 17)
+    // Heading Strip (1px Thin Border)
+    doc.setDrawColor(PDF_COLORS.border.rgb[0], PDF_COLORS.border.rgb[1], PDF_COLORS.border.rgb[2])
     doc.setLineWidth(0.3)
     doc.rect(A4_MARGINS.left, currentY, A4_MARGINS.width, 6, 'S')
 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9.5)
-    doc.setTextColor(17, 17, 17)
-    doc.text('IMPORTANT', A4_MARGINS.left + 3, currentY + 4.2)
+    setPdfBrandGoldText(doc) // Brand Gold #ebbf3d
+    doc.text('IMPORTANT TERMS & CONDITIONS', A4_MARGINS.left + 3, currentY + 4.2)
     currentY += 6 + 4 // Heading strip -> Body spacing: 4 mm
 
-    // Body Text (9pt Black, 4mm Line Spacing)
+    // Body Text
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
     doc.setTextColor(17, 17, 17)
@@ -253,7 +253,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
     currentY += splitMsg.length * 4 + 7 // Body -> Next section spacing: 7 mm
   }
 
-  // 7. BANK DETAILS (Simple Rectangular Box, Thin Black Border, No Rounded Corners, No Background Fill)
+  // 7. PAYMENT & BANK DETAILS (Simple Rectangular Box, Thin Border)
   const bankAccName = quotation.bank_account_name_snapshot || companySettings?.bank_account_name || 'Thennakoon Tours (Pvt) Ltd'
   const bankName = quotation.bank_name_snapshot || companySettings?.bank_name || 'Nations Trust Bank'
   const bankBranch = quotation.bank_branch_snapshot || companySettings?.bank_branch || 'Nugegoda'
@@ -265,15 +265,15 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   ensureSpace(bankBoxHeight + 25)
 
   const bankBoxStartY = currentY
-  doc.setDrawColor(17, 17, 17)
+  doc.setDrawColor(PDF_COLORS.border.rgb[0], PDF_COLORS.border.rgb[1], PDF_COLORS.border.rgb[2])
   doc.setLineWidth(0.3)
   doc.rect(A4_MARGINS.left, bankBoxStartY, bankBoxWidth, bankBoxHeight, 'S')
 
   let bY = bankBoxStartY + 5
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
-  doc.setTextColor(17, 17, 17)
-  doc.text('BANK DETAILS', A4_MARGINS.left + 4, bY)
+  setPdfBrandGoldText(doc) // Brand Gold #ebbf3d
+  doc.text('PAYMENT & BANK DETAILS', A4_MARGINS.left + 4, bY)
 
   bY += 5
   doc.setFont('helvetica', 'normal')
@@ -294,7 +294,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
 
   currentY = bankBoxStartY + bankBoxHeight + 6 // Bank Details -> Prepared By: 6 mm
 
-  // 8. PREPARED BY BLOCK (No Box, No Signature Line, Text-Only Directly Below Bank Details)
+  // 8. PREPARED BY BLOCK
   const prepName = quotation.prepared_by_name_snapshot || 'Anuba Kudaligama'
   const prepDesignation = quotation.prepared_by_designation_snapshot || 'Admin & Marketing Assistant'
   const companyName = quotation.company_name_snapshot || 'Thennakoon Tours (Pvt) Ltd'
@@ -302,8 +302,8 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   const prepX = A4_MARGINS.left
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
-  doc.setTextColor(17, 17, 17)
-  doc.text('Prepared By:', prepX, currentY)
+  setPdfBrandGoldText(doc) // Brand Gold #ebbf3d
+  doc.text('PREPARED BY:', prepX, currentY)
   currentY += 4.5
 
   doc.setFont('helvetica', 'bold')

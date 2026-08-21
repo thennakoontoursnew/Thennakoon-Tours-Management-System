@@ -1,4 +1,5 @@
 import { jsPDF, getLetterheadBase64, drawLetterheadOnPage, A4_MARGINS } from './pdf-engine'
+import { setPdfBrandGoldText } from './pdf-theme'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
 export async function generateReceiptPDF(receipt: any, companySettings?: any) {
@@ -12,10 +13,10 @@ export async function generateReceiptPDF(receipt: any, companySettings?: any) {
 
   let currentY = A4_MARGINS.top
 
-  // Header Title & Document Number (Semantic Emerald Header for Payment Receipt)
+  // Header Title & Document Number
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(18)
-  doc.setTextColor(16, 185, 129) // Emerald header
+  doc.setTextColor(15, 23, 42) // Dark Slate Title
   doc.text('PAYMENT RECEIPT', A4_MARGINS.left, currentY)
 
   doc.setFontSize(10)
@@ -39,8 +40,11 @@ export async function generateReceiptPDF(receipt: any, companySettings?: any) {
   let boxY = currentY + 6
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
+  setPdfBrandGoldText(doc) // Brand Gold #ebbf3d
+  doc.text('RECEIVED FROM:', A4_MARGINS.left + 5, boxY)
+  doc.setFont('helvetica', 'bold')
   doc.setTextColor(15, 23, 42)
-  doc.text(`RECEIVED FROM: ${customer.full_name || 'Valued Customer'}`, A4_MARGINS.left + 5, boxY)
+  doc.text(` ${customer.full_name || 'Valued Customer'}`, A4_MARGINS.left + 35, boxY)
 
   boxY += 6
   doc.setFont('helvetica', 'normal')
@@ -58,17 +62,19 @@ export async function generateReceiptPDF(receipt: any, companySettings?: any) {
 
   currentY += 42
 
-  // Amount Received Highlight Box (Semantic Emerald Payment Success Box)
-  doc.setFillColor(236, 253, 245) // Emerald light background
-  doc.setDrawColor(167, 243, 208)
+  // Amount Received Highlight Box
+  doc.setFillColor(248, 250, 252)
+  doc.setDrawColor(226, 232, 240)
   doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, 24, 2, 2, 'FD')
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
-  doc.setTextColor(6, 95, 70)
+  setPdfBrandGoldText(doc) // Brand Gold #ebbf3d
   doc.text('AMOUNT RECEIVED:', A4_MARGINS.left + 6, currentY + 10)
 
+  doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
+  doc.setTextColor(15, 23, 42)
   doc.text(`LKR ${Number(receipt.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right - 6, currentY + 15, { align: 'right' })
 
   return doc

@@ -3,8 +3,8 @@ import { jsPDF } from 'jspdf'
 // CANONICAL GLOBAL BRAND COLOR TOKENS FOR ALL OFFICIAL PDF DOCUMENTS
 export const PDF_COLORS = {
   brandGold: {
-    hex: '#D97706',
-    rgb: [217, 119, 6] as const,
+    hex: '#ebbf3d',
+    rgb: [235, 191, 61] as const,
   },
   dark: {
     hex: '#17171A',
