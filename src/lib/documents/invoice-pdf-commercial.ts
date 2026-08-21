@@ -1,4 +1,4 @@
-import { jsPDF, getLetterheadBase64, drawLetterheadOnPage, drawTextWithOrdinalSuperscript } from './pdf-engine'
+import { jsPDF, getLetterheadBase64, drawLetterheadOnPage, drawTextWithOrdinalSuperscript, drawAlignedKeyValueRow } from './pdf-engine'
 import { COMPANY_CONFIG } from '../company-config'
 import { calculateCommercialInvoiceFinancials, unwrapDeductionsRelation } from '../utils/relation-utils'
 import { formatDateOrdinal, formatRentalPeriodOrdinal, normalizeNewlines } from '../utils/formatters'
@@ -124,9 +124,18 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>,
     ? vehicleSnap.registration_number
     : (hasMeaningfulValue(invoice.vehicle_registration) ? invoice.vehicle_registration : null)
 
-  const vehicleStr = vehicleName
-    ? `${vehicleName}${vehicleReg ? ` (${vehicleReg})` : ''}`
-    : (vehicleReg ? `Vehicle (${vehicleReg})` : null)
+  let vehicleStr = null
+  if (vehicleName && vehicleReg) {
+    if (vehicleName.toLowerCase().includes(vehicleReg.toLowerCase())) {
+      vehicleStr = vehicleName
+    } else {
+      vehicleStr = `${vehicleReg} (${vehicleName})`
+    }
+  } else if (vehicleName) {
+    vehicleStr = vehicleName
+  } else if (vehicleReg) {
+    vehicleStr = `Vehicle (${vehicleReg})`
+  }
 
   const rentalStart = hasMeaningfulValue(vehicleSnap.rental_start_date)
     ? vehicleSnap.rental_start_date
@@ -151,28 +160,19 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>,
   doc.setFontSize(PDF_TYPOGRAPHY.customerName)
   setPdfDarkText(doc)
   doc.text(custName, CONTENT_LEFT, leftY)
-  leftY += 4.2
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(PDF_TYPOGRAPHY.metadata)
-  setPdfBodyText(doc)
+  leftY += 4.5
 
   if (custPhone) {
-    doc.text(`Phone     : ${custPhone}`, CONTENT_LEFT, leftY)
-    leftY += 4.0
+    leftY = drawAlignedKeyValueRow(doc, 'Phone', custPhone, CONTENT_LEFT, leftY, { labelWidth: 16, maxWidth: 65 })
   }
   if (custEmail) {
-    doc.text(`Email      : ${custEmail}`, CONTENT_LEFT, leftY)
-    leftY += 4.0
+    leftY = drawAlignedKeyValueRow(doc, 'Email', custEmail, CONTENT_LEFT, leftY, { labelWidth: 16, maxWidth: 65 })
   }
   if (custCompany) {
-    doc.text(`Company : ${custCompany}`, CONTENT_LEFT, leftY)
-    leftY += 4.0
+    leftY = drawAlignedKeyValueRow(doc, 'Company', custCompany, CONTENT_LEFT, leftY, { labelWidth: 16, maxWidth: 65 })
   }
   if (custAddress) {
-    const addrLines = doc.splitTextToSize(`Address  : ${custAddress}`, 82)
-    doc.text(addrLines, CONTENT_LEFT, leftY)
-    leftY += addrLines.length * 4.0
+    leftY = drawAlignedKeyValueRow(doc, 'Address', custAddress, CONTENT_LEFT, leftY, { labelWidth: 16, maxWidth: 65 })
   }
 
   // RIGHT COLUMN: INVOICE METADATA & RENTAL
@@ -183,37 +183,28 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>,
   doc.text('INVOICE METADATA & RENTAL:', rightX, currentY)
 
   let rightY = currentY + 4.8
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(PDF_TYPOGRAPHY.metadata)
-  setPdfBodyText(doc)
 
   const formattedDueDate = formatDateSafe(invoice.due_date || invoice.invoice_date)
   if (formattedDueDate) {
-    drawTextWithOrdinalSuperscript(doc, `Due Date       : ${formattedDueDate}`, rightX, rightY)
-    rightY += 4.0
+    rightY = drawAlignedKeyValueRow(doc, 'Due Date', formattedDueDate, rightX, rightY, { labelWidth: 23, maxWidth: 60 })
   }
 
   if (hasMeaningfulValue(invoice.payment_terms)) {
-    doc.text(`Terms            : ${invoice.payment_terms}`, rightX, rightY)
-    rightY += 4.0
+    rightY = drawAlignedKeyValueRow(doc, 'Terms', invoice.payment_terms, rightX, rightY, { labelWidth: 23, maxWidth: 60 })
   }
 
   if (vehicleStr) {
-    doc.text(`Vehicle         : ${vehicleStr}`, rightX, rightY)
-    rightY += 4.0
+    rightY = drawAlignedKeyValueRow(doc, 'Vehicle', vehicleStr, rightX, rightY, { labelWidth: 23, maxWidth: 60 })
   }
 
   if (rentalStart && rentalEnd) {
-    drawTextWithOrdinalSuperscript(doc, `Rental Period : ${formatRentalPeriodOrdinal(rentalStart, rentalEnd, rentalDays)}`, rightX, rightY)
-    rightY += 4.0
+    rightY = drawAlignedKeyValueRow(doc, 'Rental Period', formatRentalPeriodOrdinal(rentalStart, rentalEnd, rentalDays), rightX, rightY, { labelWidth: 23, maxWidth: 60 })
   }
 
   if (hasMeaningfulValue(booking.booking_number)) {
-    doc.text(`Booking        : #${booking.booking_number}`, rightX, rightY)
-    rightY += 4.0
+    rightY = drawAlignedKeyValueRow(doc, 'Booking', `#${booking.booking_number}`, rightX, rightY, { labelWidth: 23, maxWidth: 60 })
   } else if (hasMeaningfulValue(invoice.quotation_number) || hasMeaningfulValue(invoice.quotation_id)) {
-    doc.text(`Quotation     : #${invoice.quotation_number}`, rightX, rightY)
-    rightY += 4.0
+    rightY = drawAlignedKeyValueRow(doc, 'Quotation', `#${invoice.quotation_number}`, rightX, rightY, { labelWidth: 23, maxWidth: 60 })
   }
 
   currentY = Math.max(leftY, rightY) + 5.0

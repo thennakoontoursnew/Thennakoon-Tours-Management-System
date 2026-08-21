@@ -1,4 +1,4 @@
-import { jsPDF, drawTextWithOrdinalSuperscript } from './pdf-engine'
+import { jsPDF, drawTextWithOrdinalSuperscript, drawAlignedKeyValueRow } from './pdf-engine'
 import { CustomerStatementItem } from '@/lib/finance/finance-service'
 import { formatDateOrdinal } from '@/lib/utils/formatters'
 import { setPdfBrandGoldText } from './pdf-theme'
@@ -58,19 +58,14 @@ export async function generateCustomerStatementPDF(
   currentY += 4.5
   doc.setFontSize(9.5)
   doc.text(customer.full_name || 'Customer Name', 15, currentY)
-  if (customer.company_name) {
-    currentY += 4
-    doc.setFontSize(8.5)
-    doc.setFont('helvetica', 'normal')
-    doc.text(`Company: ${customer.company_name}`, 15, currentY)
-  }
+  currentY += 4.5
 
-  currentY += 4
-  doc.setFontSize(8)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(71, 85, 105)
-  doc.text(`Mobile: ${customer.mobile || 'N/A'} | NIC/Passport: ${customer.identifier_no || customer.nic || 'N/A'}`, 15, currentY)
-  doc.text(`Address: ${customer.address || customer.address_line_1 || 'Sri Lanka'}`, 15, currentY + 3.5)
+  if (customer.company_name) {
+    currentY = drawAlignedKeyValueRow(doc, 'Company', customer.company_name, 15, currentY, { labelWidth: 24, maxWidth: 90 })
+  }
+  currentY = drawAlignedKeyValueRow(doc, 'Mobile', customer.mobile || 'N/A', 15, currentY, { labelWidth: 24, maxWidth: 90 })
+  currentY = drawAlignedKeyValueRow(doc, 'NIC / Passport', customer.identifier_no || customer.nic || 'N/A', 15, currentY, { labelWidth: 24, maxWidth: 90 })
+  currentY = drawAlignedKeyValueRow(doc, 'Address', customer.address || customer.address_line_1 || 'Sri Lanka', 15, currentY, { labelWidth: 24, maxWidth: 90 })
 
   // Summary Metrics Box on top right
   doc.setFillColor(248, 250, 252)

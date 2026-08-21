@@ -1,4 +1,4 @@
-import { jsPDF, autoTable, getLetterheadBase64, drawLetterheadOnPage, drawTextWithOrdinalSuperscript, A4_MARGINS } from './pdf-engine'
+import { jsPDF, autoTable, getLetterheadBase64, drawLetterheadOnPage, drawTextWithOrdinalSuperscript, drawAlignedKeyValueRow, A4_MARGINS } from './pdf-engine'
 import { normalizeNewlines, formatDateOrdinal, formatRentalPeriodOrdinal } from '@/lib/utils/formatters'
 import { setPdfBrandGoldText, PDF_COLORS } from './pdf-theme'
 import { COMPANY_CONFIG } from '../company-config'
@@ -19,33 +19,31 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
 
   // Helper for multi-page overflow (only triggered for genuinely long content)
   const ensureSpace = (requiredHeight: number) => {
-    if (currentY + requiredHeight > 255) {
+    if (currentY + requiredHeight > A4_MARGINS.bottom) {
       doc.addPage()
       if (base64Letterhead) {
         drawLetterheadOnPage(doc, base64Letterhead)
       }
-      doc.setTextColor(17, 17, 17)
-      currentY = 38
+      currentY = A4_MARGINS.top
     }
   }
+  const checkPageOverflow = ensureSpace
 
-  // 1. QUOTATION Title in a White Rounded Card
-  const titleCardHeight = 13
-  doc.setFillColor(255, 255, 255) // White background card
-  doc.setDrawColor(203, 213, 225) // 1px Light Gray border
-  doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, titleCardHeight, 4, 4, 'FD')
+  // 1. Header Title & Quotation Metadata Box
+  const titleCardHeight = 12
+  doc.setFillColor(248, 250, 252) // Slate-50
+  doc.setDrawColor(226, 232, 240) // Light Slate Border
+  doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, titleCardHeight, 2, 2, 'FD')
 
-  // Title Text (Black 18pt Bold)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  doc.setTextColor(17, 17, 17) // #111111 Black
-  doc.text('QUOTATION', A4_MARGINS.left + 5, currentY + 9)
+  doc.setFontSize(14)
+  doc.setTextColor(15, 23, 42) // Dark Slate Title
+  doc.text('OFFICIAL QUOTATION', A4_MARGINS.left + 5, currentY + 8)
 
-  // Reference Text (9.5pt Slate-600)
-  doc.setFontSize(9.5)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(71, 85, 105)
-  doc.text(`Ref: ${quotation.quotation_number}`, A4_MARGINS.right - 5, currentY + 8.5, { align: 'right' })
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'bold')
+  setPdfBrandGoldText(doc) // Brand Gold #997711
+  doc.text(`NO: #${quotation.quotation_number}`, A4_MARGINS.right - 5, currentY + 8, { align: 'right' })
 
   currentY += titleCardHeight + 5
 
@@ -58,73 +56,20 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
 
   // Fixed Grid Coordinates
   const leftLabelX = A4_MARGINS.left + 5
-  const leftValueX = A4_MARGINS.left + 35
   const rightLabelX = A4_MARGINS.left + 95
-  const rightValueX = A4_MARGINS.left + 130
 
-  let rowY = currentY + 6.5
+  let leftY = currentY + 6.0
+  let rightY = currentY + 6.0
 
-  // Row 1
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.9)
-  setPdfBrandGoldText(doc) // Brand Gold #997711
-  doc.text('QUOTATION TO:', leftLabelX, rowY)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.setTextColor(34, 34, 34) // #222222
-  doc.text(customer.full_name || 'Valued Customer', leftValueX, rowY)
+  leftY = drawAlignedKeyValueRow(doc, 'QUOTATION TO', customer.full_name || 'Valued Customer', leftLabelX, leftY, { labelWidth: 26, isBoldLabel: true, maxWidth: 60 })
+  leftY = drawAlignedKeyValueRow(doc, 'Mobile', customer.mobile || customer.phone || 'N/A', leftLabelX, leftY, { labelWidth: 26, maxWidth: 60 })
+  leftY = drawAlignedKeyValueRow(doc, 'NIC / Passport', customer.nic || customer.passport_number || 'N/A', leftLabelX, leftY, { labelWidth: 26, maxWidth: 60 })
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.9)
-  doc.setTextColor(71, 85, 105)
-  doc.text('Quotation Date:', rightLabelX, rowY)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9.5)
-  doc.setTextColor(34, 34, 34)
-  drawTextWithOrdinalSuperscript(doc, formatDateOrdinal(quotation.quotation_date) || 'N/A', rightValueX, rowY)
+  rightY = drawAlignedKeyValueRow(doc, 'Quotation Date', formatDateOrdinal(quotation.quotation_date) || 'N/A', rightLabelX, rightY, { labelWidth: 26, maxWidth: 55 })
+  rightY = drawAlignedKeyValueRow(doc, 'Rental Period', formatRentalPeriodOrdinal(quotation.rental_start_date, quotation.rental_end_date), rightLabelX, rightY, { labelWidth: 26, maxWidth: 55 })
+  rightY = drawAlignedKeyValueRow(doc, 'Destination', quotation.destination || 'As requested', rightLabelX, rightY, { labelWidth: 26, maxWidth: 55 })
 
-  // Row 2
-  rowY += 6.5
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.9)
-  doc.setTextColor(71, 85, 105)
-  doc.text('Mobile:', leftLabelX, rowY)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9.5)
-  doc.setTextColor(34, 34, 34)
-  doc.text(customer.mobile || customer.phone || 'N/A', leftValueX, rowY)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.9)
-  doc.setTextColor(71, 85, 105)
-  doc.text('Rental Period:', rightLabelX, rowY)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9.5)
-  doc.setTextColor(34, 34, 34)
-  drawTextWithOrdinalSuperscript(doc, formatRentalPeriodOrdinal(quotation.rental_start_date, quotation.rental_end_date), rightValueX, rowY)
-
-  // Row 3
-  rowY += 6.5
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.9)
-  doc.setTextColor(71, 85, 105)
-  doc.text('NIC / Passport:', leftLabelX, rowY)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9.5)
-  doc.setTextColor(34, 34, 34)
-  doc.text(customer.nic || customer.passport_number || 'N/A', leftValueX, rowY)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.9)
-  doc.setTextColor(71, 85, 105)
-  doc.text('Route / Destination:', rightLabelX, rowY)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9.5)
-  doc.setTextColor(34, 34, 34)
-  const destText = doc.splitTextToSize(quotation.destination || 'As requested', 50)
-  doc.text(destText, rightValueX, rowY)
-
-  currentY += cardHeight + 5
+  currentY += Math.max(leftY - currentY, rightY - currentY, cardHeight) + 5
 
   // 3. Vehicle Table (9.5pt Header & Body, Centered Numeric Values)
   const tableHead = [['#', 'Description', 'Days', 'Rate (LKR)', 'Amount (LKR)']]

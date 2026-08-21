@@ -1,4 +1,4 @@
-import { jsPDF, getLetterheadBase64, drawLetterheadOnPage, drawTextWithOrdinalSuperscript, A4_MARGINS } from './pdf-engine'
+import { jsPDF, getLetterheadBase64, drawLetterheadOnPage, drawTextWithOrdinalSuperscript, drawAlignedKeyValueRow, A4_MARGINS } from './pdf-engine'
 import { formatDateOrdinal } from '@/lib/utils/formatters'
 import { setPdfBrandGoldText } from './pdf-theme'
 
@@ -22,7 +22,7 @@ export async function generateReceiptPDF(receipt: any, companySettings?: any) {
 
   doc.setFontSize(10)
   doc.setTextColor(71, 85, 105)
-  doc.text(`Receipt No: ${receipt.receipt_number}`, A4_MARGINS.right, currentY, { align: 'right' })
+  doc.text(`Receipt No: #${receipt.receipt_number}`, A4_MARGINS.right, currentY, { align: 'right' })
 
   currentY += 6
 
@@ -39,26 +39,11 @@ export async function generateReceiptPDF(receipt: any, companySettings?: any) {
   doc.roundedRect(A4_MARGINS.left, currentY, A4_MARGINS.width, 35, 2, 2, 'FD')
 
   let boxY = currentY + 6
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9.5)
-  setPdfBrandGoldText(doc) // Brand Gold #997711
-  doc.text('RECEIVED FROM:', A4_MARGINS.left + 5, boxY)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(15, 23, 42)
-  doc.text(` ${customer.full_name || 'Valued Customer'}`, A4_MARGINS.left + 35, boxY)
-
-  boxY += 6
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  doc.setTextColor(71, 85, 105)
-  doc.text(`Mobile: ${customer.mobile || 'N/A'}`, A4_MARGINS.left + 5, boxY)
-
-  boxY += 6
-  doc.text(`Payment Method: ${receipt.payment_method?.toUpperCase()}`, A4_MARGINS.left + 5, boxY)
-
+  boxY = drawAlignedKeyValueRow(doc, 'RECEIVED FROM', customer.full_name || 'Valued Customer', A4_MARGINS.left + 5, boxY, { labelWidth: 28, isBoldLabel: true, maxWidth: 140 })
+  boxY = drawAlignedKeyValueRow(doc, 'Mobile', customer.mobile || 'N/A', A4_MARGINS.left + 5, boxY, { labelWidth: 28, maxWidth: 140 })
+  boxY = drawAlignedKeyValueRow(doc, 'Payment Method', String(receipt.payment_method || '').toUpperCase(), A4_MARGINS.left + 5, boxY, { labelWidth: 28, maxWidth: 140 })
   if (receipt.reference_number) {
-    boxY += 6
-    doc.text(`Reference No: ${receipt.reference_number}`, A4_MARGINS.left + 5, boxY)
+    boxY = drawAlignedKeyValueRow(doc, 'Reference No', receipt.reference_number, A4_MARGINS.left + 5, boxY, { labelWidth: 28, maxWidth: 140 })
   }
 
   currentY += 42

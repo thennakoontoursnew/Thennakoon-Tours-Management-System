@@ -1,4 +1,4 @@
-import { jsPDF, drawTextWithOrdinalSuperscript, LEGAL_MARGINS } from './pdf-engine'
+import { jsPDF, drawTextWithOrdinalSuperscript, drawAlignedKeyValueRow, LEGAL_MARGINS } from './pdf-engine'
 import { USER_AGREEMENT_COMPANY_REG_NO } from '@/lib/agreements/templates/user-agreement-v1'
 import { formatDateOrdinal } from '@/lib/utils/formatters'
 import { setPdfBrandGoldText } from './pdf-theme'
@@ -18,12 +18,7 @@ function formatNumberSafe(val: unknown, decimals: number = 2): string {
 export async function generateAgreementPDF(agreement: any, companySettings?: any) {
   console.log('AgreementDocument mounted (Clean White US Legal Paper — NO APPLICATION UI — NO LETTERHEAD)')
 
-  if (!agreement) {
-    console.error('Agreement data missing in generateAgreementPDF')
-    throw new Error('Agreement data missing')
-  }
-
-  // Create US Legal Size PDF: 8.5 x 14 in (215.9 x 355.6 mm)
+  // US LEGAL Paper: 215.9 x 355.6 mm (8.5 x 14 in)
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -32,29 +27,23 @@ export async function generateAgreementPDF(agreement: any, companySettings?: any
 
   let currentY = LEGAL_MARGINS.top
 
-  // STEP 1: Draw Clean Formal Document Header (NO APPLICATION CHROME, NO LETTERHEAD IMAGE)
+  // STEP 1: Agreement Header & Company Information Box
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(14)
-  doc.setTextColor(15, 23, 42) // Dark Slate
-  doc.text('THENNAKOON TOURS (PVT) LTD', LEGAL_MARGINS.left, currentY)
+  doc.setFontSize(16)
+  doc.setTextColor(15, 23, 42) // Dark Slate Title
+  doc.text('VEHICLE RENTAL AGREEMENT', LEGAL_MARGINS.left, currentY)
 
-  doc.setFontSize(9)
+  doc.setFontSize(10)
   doc.setTextColor(71, 85, 105)
-  doc.text(`39A, 1st cross street, Pagoda Road, Nugegoda | Reg No. ${USER_AGREEMENT_COMPANY_REG_NO}`, LEGAL_MARGINS.left, currentY + 4.5)
+  doc.text(`Agreement No: #${agreement.agreement_number}`, LEGAL_MARGINS.right, currentY, { align: 'right' })
 
-  doc.setFontSize(12)
-  doc.setTextColor(15, 23, 42)
-  doc.text('VEHICLE RENTAL AGREEMENT', LEGAL_MARGINS.right, currentY, { align: 'right' })
+  currentY += 5
 
-  doc.setFontSize(9)
-  setPdfBrandGoldText(doc) // Brand Gold #997711
-  doc.text(`Ref: ${agreement.agreement_number || 'N/A'}`, LEGAL_MARGINS.right, currentY + 4.5, { align: 'right' })
-
-  currentY += 12
-
-  doc.setLineWidth(0.5)
-  doc.setDrawColor(15, 23, 42)
-  doc.line(LEGAL_MARGINS.left, currentY, LEGAL_MARGINS.right, currentY)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(71, 85, 105)
+  doc.text('THENNAKOON TOURS (PVT) LTD | Reg No. PV 00312253 | 39A, 1st cross street, Pagoda Road, Nugegoda', LEGAL_MARGINS.left, currentY)
+  drawTextWithOrdinalSuperscript(doc, `Date: ${formatDateSafe(agreement.agreement_date || agreement.created_at)}`, LEGAL_MARGINS.right, currentY, { align: 'right' })
 
   currentY += 8
 
@@ -68,39 +57,27 @@ export async function generateAgreementPDF(agreement: any, companySettings?: any
   doc.setDrawColor(226, 232, 240)
   doc.roundedRect(LEGAL_MARGINS.left, currentY, LEGAL_MARGINS.width, 36, 2, 2, 'FD')
 
-  let boxY = currentY + 5
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.setTextColor(15, 23, 42)
-  doc.text(`HIRER: ${customer.full_name || 'N/A'}`, LEGAL_MARGINS.left + 4, boxY)
-  doc.text(`NIC/Passport: ${customer.identifier_no || customer.nic || customer.passport_number || 'N/A'}`, LEGAL_MARGINS.left + 100, boxY)
+  const leftX = LEGAL_MARGINS.left + 4
+  const rightX = LEGAL_MARGINS.left + 95
 
-  boxY += 5
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(71, 85, 105)
-  doc.text(`Phone: ${customer.mobile || customer.phone || 'N/A'}`, LEGAL_MARGINS.left + 4, boxY)
-  doc.text(`Address: ${customer.address || customer.address_line_1 || 'Sri Lanka'}`, LEGAL_MARGINS.left + 100, boxY)
+  let leftY = currentY + 5
+  let rightY = currentY + 5
 
-  boxY += 5
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(15, 23, 42)
-  doc.text(`RENTAL PERIOD:`, LEGAL_MARGINS.left + 4, boxY)
-  doc.setFont('helvetica', 'normal')
+  leftY = drawAlignedKeyValueRow(doc, 'HIRER', customer.full_name || 'N/A', leftX, leftY, { labelWidth: 26, isBoldLabel: true, maxWidth: 60 })
+  leftY = drawAlignedKeyValueRow(doc, 'Phone', customer.mobile || customer.phone || 'N/A', leftX, leftY, { labelWidth: 26, maxWidth: 60 })
   const startStr = formatDateSafe(agreement.rental_start_at || booking.rental_start_at)
   const endStr = formatDateSafe(agreement.rental_end_at || booking.rental_end_at)
-  drawTextWithOrdinalSuperscript(doc, `${startStr} to ${endStr}`, LEGAL_MARGINS.left + 35, boxY)
+  leftY = drawAlignedKeyValueRow(doc, 'Rental Period', `${startStr} to ${endStr}`, leftX, leftY, { labelWidth: 26, maxWidth: 60 })
 
-  boxY += 5
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(15, 23, 42)
-  doc.text(`VEHICLE: ${vehicleObj.registration_number || 'N/A'} (${vehicleObj.make || ''} ${vehicleObj.model || ''})`, LEGAL_MARGINS.left + 4, boxY)
+  const vReg = vehicleObj.registration_number || ''
+  const vMakeModel = [vehicleObj.make, vehicleObj.model].filter(Boolean).join(' ')
+  const vDisplay = vReg && vMakeModel ? `${vReg} (${vMakeModel})` : (vReg || vMakeModel || 'N/A')
+  leftY = drawAlignedKeyValueRow(doc, 'Vehicle', vDisplay, leftX, leftY, { labelWidth: 26, maxWidth: 60 })
+  leftY = drawAlignedKeyValueRow(doc, 'Daily Rate', `LKR ${formatNumberSafe(rentalObj.daily_rate)} | Total: LKR ${formatNumberSafe(rentalObj.total_amount)}`, leftX, leftY, { labelWidth: 26, maxWidth: 60 })
 
-  boxY += 5
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(71, 85, 105)
-  doc.text(`Daily Rate: LKR ${formatNumberSafe(rentalObj.daily_rate)} | Total Charges: LKR ${formatNumberSafe(rentalObj.total_amount)}`, LEGAL_MARGINS.left + 4, boxY)
-  doc.text(`Deposit: LKR ${formatNumberSafe(rentalObj.refundable_deposit)}`, LEGAL_MARGINS.left + 100, boxY)
+  rightY = drawAlignedKeyValueRow(doc, 'NIC / Passport', customer.identifier_no || customer.nic || customer.passport_number || 'N/A', rightX, rightY, { labelWidth: 26, maxWidth: 60 })
+  rightY = drawAlignedKeyValueRow(doc, 'Address', customer.address || customer.address_line_1 || 'Sri Lanka', rightX, rightY, { labelWidth: 26, maxWidth: 60 })
+  rightY = drawAlignedKeyValueRow(doc, 'Deposit', `LKR ${formatNumberSafe(rentalObj.refundable_deposit)}`, rightX, rightY, { labelWidth: 26, maxWidth: 60 })
 
   currentY += 42
 

@@ -133,4 +133,82 @@ export function drawTextWithOrdinalSuperscript(
   doc.text(cleanText, x, y, options)
 }
 
+export interface KeyValueRowOptions {
+  labelWidth?: number
+  colonGap?: number
+  fontSize?: number
+  labelColor?: [number, number, number]
+  valueColor?: [number, number, number]
+  isBoldValue?: boolean
+  isBoldLabel?: boolean
+  maxWidth?: number
+  lineHeight?: number
+}
+
+/**
+ * Standardized key-value row renderer for jsPDF documents.
+ * Renders Label at x, Colon (:) precisely at x + labelWidth, and Value at x + labelWidth + colonGap with text wrapping.
+ * Returns the next Y position.
+ */
+export function drawAlignedKeyValueRow(
+  doc: jsPDF,
+  label: string,
+  value: string | number | null | undefined,
+  x: number,
+  y: number,
+  options: KeyValueRowOptions = {}
+): number {
+  if (value === undefined || value === null || value === '') return y
+
+  const labelWidth = options.labelWidth ?? 25 // 25mm (~70pt)
+  const colonGap = options.colonGap ?? 2 // 2mm gap after colon
+  const fontSize = options.fontSize ?? 8.5
+  const labelColor = options.labelColor ?? [71, 85, 105] // slate-600
+  const valueColor = options.valueColor ?? [15, 23, 42] // slate-900
+  const isBoldValue = options.isBoldValue ?? true
+  const isBoldLabel = options.isBoldLabel ?? false
+  const maxWidth = options.maxWidth ?? 65 // max width for value wrapping
+  const lineHeight = options.lineHeight ?? 4.0 // mm per line
+
+  doc.setFontSize(fontSize)
+
+  // 1. Draw Label
+  if (isBoldLabel) {
+    doc.setFont('helvetica', 'bold')
+  } else {
+    doc.setFont('helvetica', 'normal')
+  }
+  doc.setTextColor(labelColor[0], labelColor[1], labelColor[2])
+  doc.text(label, x, y)
+
+  // 2. Draw Colon (:) aligned precisely at x + labelWidth
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(labelColor[0], labelColor[1], labelColor[2])
+  doc.text(':', x + labelWidth, y)
+
+  // 3. Draw Value aligned at x + labelWidth + colonGap
+  if (isBoldValue) {
+    doc.setFont('helvetica', 'bold')
+  } else {
+    doc.setFont('helvetica', 'normal')
+  }
+  doc.setTextColor(valueColor[0], valueColor[1], valueColor[2])
+
+  let valStr = String(value ?? '')
+  valStr = valStr
+    .replace(/ˢᵗ/g, 'st')
+    .replace(/ⁿᵈ/g, 'nd')
+    .replace(/ʳᵈ/g, 'rd')
+    .replace(/ᵗʰ/g, 'th')
+
+  const valX = x + labelWidth + colonGap
+
+  // Wrap long text within maxWidth
+  const splitValue = doc.splitTextToSize(valStr, maxWidth)
+  doc.text(splitValue, valX, y)
+
+  const numLines = Array.isArray(splitValue) ? splitValue.length : 1
+  return y + (numLines * lineHeight)
+}
+
 export { autoTable }
