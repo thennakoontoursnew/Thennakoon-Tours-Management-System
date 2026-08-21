@@ -114,9 +114,8 @@ export interface TextOptionsWithAlign {
 }
 
 /**
- * Draws text with authentic superscript styling for ordinal date suffixes (st, nd, rd, th).
- * Automatically calculates character widths and renders the suffix at a smaller font size
- * with an elevated vertical baseline.
+ * Standard uniform text rendering for plain text ordinal dates.
+ * Dates flow naturally on the exact same baseline and font size as surrounding text.
  */
 export function drawTextWithOrdinalSuperscript(
   doc: jsPDF,
@@ -126,95 +125,12 @@ export function drawTextWithOrdinalSuperscript(
   options?: TextOptionsWithAlign
 ) {
   if (!text) return
-
-  const mainFontSize = doc.getFontSize()
-  const supFontSize = Math.max(5.5, mainFontSize * 0.62)
-  const baselineOffset = mainFontSize * 0.28 // Baseline elevation in mm
-
-  // Standardize any unicode superscripts back to ASCII for clean font rendering
-  let cleanText = String(text)
+  const cleanText = String(text)
     .replace(/ˢᵗ/g, 'st')
     .replace(/ⁿᵈ/g, 'nd')
     .replace(/ʳᵈ/g, 'rd')
     .replace(/ᵗʰ/g, 'th')
-
-  const regex = /(\b\d{1,2})(st|nd|rd|th)\b/gi
-  let match: RegExpExecArray | null
-
-  // Tokenize text into segments: { text: string, isSuperscript: boolean }
-  const segments: { text: string; isSuperscript: boolean }[] = []
-  let lastIndex = 0
-
-  while ((match = regex.exec(cleanText)) !== null) {
-    const dayPart = match[1]
-    const suffixPart = match[2]
-    const matchStart = match.index
-
-    // Text before match
-    if (matchStart > lastIndex) {
-      segments.push({ text: cleanText.slice(lastIndex, matchStart), isSuperscript: false })
-    }
-
-    // Day part
-    segments.push({ text: dayPart, isSuperscript: false })
-
-    // Suffix part
-    segments.push({ text: suffixPart, isSuperscript: true })
-
-    lastIndex = regex.lastIndex
-  }
-
-  if (lastIndex < cleanText.length) {
-    segments.push({ text: cleanText.slice(lastIndex), isSuperscript: false })
-  }
-
-  // If no ordinal match found, fallback to standard doc.text
-  if (segments.length <= 1) {
-    doc.text(cleanText, x, y, options)
-    return
-  }
-
-  // Calculate total width of all segments
-  let totalWidth = 0
-  const segmentWidths: number[] = []
-
-  for (const seg of segments) {
-    if (seg.isSuperscript) {
-      doc.setFontSize(supFontSize)
-    } else {
-      doc.setFontSize(mainFontSize)
-    }
-    const w = doc.getTextWidth(seg.text)
-    segmentWidths.push(w)
-    totalWidth += w
-  }
-
-  // Determine starting X coordinate
-  let currentX = x
-  if (options?.align === 'right') {
-    currentX = x - totalWidth
-  } else if (options?.align === 'center') {
-    currentX = x - totalWidth / 2
-  }
-
-  // Render segments
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i]
-    const w = segmentWidths[i]
-
-    if (seg.isSuperscript) {
-      doc.setFontSize(supFontSize)
-      doc.text(seg.text, currentX, y - baselineOffset)
-    } else {
-      doc.setFontSize(mainFontSize)
-      doc.text(seg.text, currentX, y)
-    }
-
-    currentX += w
-  }
-
-  // Restore original font size
-  doc.setFontSize(mainFontSize)
+  doc.text(cleanText, x, y, options)
 }
 
 export { autoTable }

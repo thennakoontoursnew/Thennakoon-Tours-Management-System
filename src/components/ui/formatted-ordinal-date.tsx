@@ -40,10 +40,8 @@ export function FormattedOrdinalDate({ date, className = '' }: FormattedOrdinalD
     const month = MONTH_NAMES_SHORT[monthIdx]
 
     return (
-      <span className={`inline-flex items-baseline ${className}`}>
-        <span>{day}</span>
-        <sup className="text-[10px] leading-none ml-[0.5px] font-normal">{suffix}</sup>
-        <span className="ml-1">{month} {year}</span>
+      <span className={className}>
+        {day}{suffix} {month} {year}
       </span>
     )
   } catch {

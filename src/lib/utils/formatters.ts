@@ -25,23 +25,10 @@ export function getOrdinalSuffix(day: number): string {
 }
 
 /**
- * Returns Unicode superscript ordinal suffix for a given day number (1..31).
- * Examples: 1 -> "ˢᵗ", 2 -> "ⁿᵈ", 3 -> "ʳᵈ", 4 -> "ᵗʰ", 21 -> "ˢᵗ", 22 -> "ⁿᵈ", 23 -> "ʳᵈ", 31 -> "ˢᵗ"
+ * Legacy compatibility alias for getOrdinalSuffix.
  */
 export function getOrdinalSuperscriptSuffix(day: number): string {
-  if (isNaN(day) || day < 1 || day > 31) return 'ᵗʰ'
-  const j = day % 10
-  const k = day % 100
-  if (j === 1 && k !== 11) {
-    return 'ˢᵗ'
-  }
-  if (j === 2 && k !== 12) {
-    return 'ⁿᵈ'
-  }
-  if (j === 3 && k !== 13) {
-    return 'ʳᵈ'
-  }
-  return 'ᵗʰ'
+  return getOrdinalSuffix(day)
 }
 
 /**
@@ -53,19 +40,18 @@ export function formatDayOrdinal(day: number): string {
 }
 
 /**
- * Formats a day number with its Unicode superscript ordinal suffix.
- * Example: 26 -> "26ᵗʰ", 1 -> "1ˢᵗ", 2 -> "2ⁿᵈ", 3 -> "3ʳᵈ"
+ * Legacy compatibility alias for formatDayOrdinal.
  */
 export function formatDayOrdinalUnicode(day: number): string {
-  return `${day}${getOrdinalSuperscriptSuffix(day)}`
+  return formatDayOrdinal(day)
 }
 
 /**
- * Standardized System-Wide Ordinal Date Formatter (with Unicode Superscript)
- * Output format: [D][ˢᵗ/ⁿᵈ/ʳᵈ/ᵗʰ] [Mon] [YYYY]
- * Examples: "26ᵗʰ Aug 2026", "1ˢᵗ Sep 2026", "2ⁿᵈ Oct 2026", "3ʳᵈ Nov 2026"
+ * Standardized System-Wide Plain Text Ordinal Date Formatter
+ * Output format: [D][st/nd/rd/th] [Mon] [YYYY]
+ * Examples: "28th Aug 2026", "1st Sep 2026", "2nd Oct 2026", "3rd Nov 2026"
  */
-export function formatDateOrdinalUnicode(val: unknown): string {
+export function formatDateOrdinal(val: unknown): string {
   if (val === null || val === undefined || val === '') return ''
   try {
     const str = String(val).trim()
@@ -75,7 +61,7 @@ export function formatDateOrdinalUnicode(val: unknown): string {
     if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
       const [y, m, d] = str.split('-').map(Number)
       if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
-        return `${d}${getOrdinalSuperscriptSuffix(d)} ${MONTH_NAMES_SHORT[m - 1]} ${y}`
+        return `${d}${getOrdinalSuffix(d)} ${MONTH_NAMES_SHORT[m - 1]} ${y}`
       }
     }
 
@@ -86,31 +72,30 @@ export function formatDateOrdinalUnicode(val: unknown): string {
     const month = MONTH_NAMES_SHORT[dateObj.getMonth()]
     const year = dateObj.getFullYear()
 
-    return `${day}${getOrdinalSuperscriptSuffix(day)} ${month} ${year}`
+    return `${day}${getOrdinalSuffix(day)} ${month} ${year}`
   } catch {
     return ''
   }
 }
 
 /**
- * Standardized System-Wide Ordinal Date Formatter
- * Consumes formatDateOrdinalUnicode by default for real superscript rendering.
+ * Legacy compatibility alias for formatDateOrdinal.
  */
-export function formatDateOrdinal(val: unknown): string {
-  return formatDateOrdinalUnicode(val)
+export function formatDateOrdinalUnicode(val: unknown): string {
+  return formatDateOrdinal(val)
 }
 
 /**
- * Formats a rental period with Unicode superscript ordinal dates and inclusive day count.
- * Example: "28ᵗʰ Aug 2026 to 27ᵗʰ Sep 2026 (30 Days)"
+ * Formats a rental period with plain text ordinal dates and inclusive day count.
+ * Example: "28th Aug 2026 to 27th Sep 2026 (30 Days)"
  */
-export function formatRentalPeriodOrdinalUnicode(
+export function formatRentalPeriodOrdinal(
   startDateStr: unknown,
   endDateStr: unknown,
   days?: number | null
 ): string {
-  const startFmt = formatDateOrdinalUnicode(startDateStr)
-  const endFmt = formatDateOrdinalUnicode(endDateStr)
+  const startFmt = formatDateOrdinal(startDateStr)
+  const endFmt = formatDateOrdinal(endDateStr)
 
   if (!startFmt && !endFmt) return ''
   if (startFmt && !endFmt) return startFmt
@@ -121,14 +106,14 @@ export function formatRentalPeriodOrdinalUnicode(
 }
 
 /**
- * Formats a rental period with ordinal dates and inclusive day count.
+ * Legacy compatibility alias for formatRentalPeriodOrdinal.
  */
-export function formatRentalPeriodOrdinal(
+export function formatRentalPeriodOrdinalUnicode(
   startDateStr: unknown,
   endDateStr: unknown,
   days?: number | null
 ): string {
-  return formatRentalPeriodOrdinalUnicode(startDateStr, endDateStr, days)
+  return formatRentalPeriodOrdinal(startDateStr, endDateStr, days)
 }
 
 /**
@@ -198,8 +183,8 @@ export function buildWhatsAppQuotationMessage(quotation: any, companyName: strin
   const customerName = quotation?.customer?.full_name || 'Valued Customer'
   const quotationNumber = quotation?.quotation_number || 'N/A'
   const grandTotal = Number(quotation?.grand_total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })
-  const rentalStart = formatDateOrdinalUnicode(quotation?.rental_start_date) || 'N/A'
-  const rentalEnd = formatDateOrdinalUnicode(quotation?.rental_end_date) || 'N/A'
+  const rentalStart = formatDateOrdinal(quotation?.rental_start_date) || 'N/A'
+  const rentalEnd = formatDateOrdinal(quotation?.rental_end_date) || 'N/A'
 
   return `Hello ${customerName},\n\nPlease find your Quotation (${quotationNumber}) details:\n\nAmount: LKR ${grandTotal}\n\nRental Dates:\n${rentalStart} to ${rentalEnd}\n\nThank you,\n${companyName}`
 }
