@@ -47,11 +47,17 @@ interface Booking {
 
 interface Vehicle {
   id: string
-  vehicle_name: string
-  registration_number: string
+  vehicle_name?: string
+  registration_number?: string
+  license_plate?: string
   category?: string
   make?: string
   model?: string
+  brand?: string
+  daily_rate?: number
+  monthly_rate?: number
+  refundable_deposit?: number
+  [key: string]: unknown
 }
 
 interface Quotation {
@@ -335,10 +341,30 @@ export function CreateInvoiceForm({
   // Handle Vehicle Selection Auto-fill
   const handleVehicleSelect = (vId: string) => {
     setSelectedVehicleId(vId)
+    if (!vId) return
+
     const v = vehicles.find((vh) => vh.id === vId)
     if (v) {
-      setVehicleName(v.vehicle_name || '')
-      setRegistrationNumber(v.registration_number || '')
+      const reg = v.registration_number || v.license_plate || ''
+      const makeModel = [v.make || v.brand, v.model].filter(Boolean).join(' ')
+      const displayName = v.vehicle_name ? (makeModel ? `${v.vehicle_name} (${makeModel})` : v.vehicle_name) : (makeModel || 'Vehicle')
+
+      setVehicleName(displayName)
+      setRegistrationNumber(reg)
+
+      // Auto fill daily rate & line item description if single default item is present
+      const rate = Number(v.daily_rate || 0)
+      if (rate > 0 && items.length === 1 && (items[0].unit_price === 15000 || items[0].unit_price === 0)) {
+        const days = rentalDaysToDisplay || 1
+        setItems([
+          {
+            description: `${displayName} Rental (${reg || 'N/A'})`,
+            quantity: days,
+            unit_price: rate,
+            line_total: days * rate,
+          },
+        ])
+      }
     }
   }
 
@@ -936,11 +962,16 @@ export function CreateInvoiceForm({
               className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-semibold"
             >
               <option value="">-- Custom / No Vehicle --</option>
-              {vehicles.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.vehicle_name} ({v.registration_number})
-                </option>
-              ))}
+              {vehicles.map((v) => {
+                const reg = v.registration_number || v.license_plate || 'No Plate'
+                const makeModel = [v.make || v.brand, v.model].filter(Boolean).join(' ')
+                const nameStr = v.vehicle_name ? (makeModel ? `${v.vehicle_name} (${makeModel})` : v.vehicle_name) : (makeModel || 'Vehicle')
+                return (
+                  <option key={v.id} value={v.id}>
+                    {reg} - {nameStr}
+                  </option>
+                )
+              })}
             </select>
           </div>
 
