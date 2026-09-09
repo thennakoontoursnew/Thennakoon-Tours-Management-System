@@ -206,3 +206,56 @@ export async function getCompanySettingsAction() {
   return data || null
 }
 
+export async function getNextVoucherNumberAction(): Promise<string> {
+  const supabase = await createClient()
+
+  const { data: expenses } = await supabase
+    .from('expenses')
+    .select('voucher_number')
+    .ilike('voucher_number', 'VN-%')
+
+  let maxNum = 10000
+
+  if (expenses && expenses.length > 0) {
+    expenses.forEach((e) => {
+      if (e.voucher_number) {
+        const match = e.voucher_number.match(/VN-(\d+)/i)
+        if (match && match[1]) {
+          const num = parseInt(match[1], 10)
+          if (!isNaN(num) && num > maxNum) {
+            maxNum = num
+          }
+        }
+      }
+    })
+  }
+
+  return `VN-${maxNum + 1}`
+}
+
+export async function getCurrentUserProfilePreparedByAction(): Promise<{ fullName: string; role: string; formatted: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { fullName: 'Finance Officer', role: 'Staff', formatted: 'Finance Officer' }
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name, role')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  const fullName = profile?.full_name || user.user_metadata?.full_name || 'Authorized Officer'
+  const rawRole = profile?.role || 'Staff'
+  const roleDisplay = rawRole.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+  const formatted = `${fullName} (${roleDisplay})`
+
+  return { fullName, role: roleDisplay, formatted }
+
+}
+
+

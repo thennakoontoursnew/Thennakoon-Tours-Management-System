@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { Plus, X, Trash2, FileText, ChevronDown, ChevronUp } from 'lucide-react'
 
+import { getNextVoucherNumberAction, getCurrentUserProfilePreparedByAction } from '@/app/(dashboard)/dashboard/invoices/finance-actions'
+
 export interface ExpenseBreakdownRow {
   description: string
   amount: number
@@ -42,13 +44,20 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit }: NewExpenseModalPr
   const [preparedBy, setPreparedBy] = useState('Finance Officer')
   const [approvedBy, setApprovedBy] = useState('Managing Director')
 
-  // Auto-generate voucher number when modal opens
+  // Auto-generate sequential voucher number (VN-10001) & load logged-in user profile on modal open
   useEffect(() => {
-    if (isOpen && !voucherNumber) {
-      const genNum = `VOUCH-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`
-      setVoucherNumber(genNum)
+    if (isOpen) {
+      getNextVoucherNumberAction()
+        .then((vNum) => setVoucherNumber(vNum))
+        .catch(() => setVoucherNumber('VN-10001'))
+
+      getCurrentUserProfilePreparedByAction()
+        .then((prof) => {
+          if (prof.formatted) setPreparedBy(prof.formatted)
+        })
+        .catch(() => {})
     }
-  }, [isOpen, voucherNumber])
+  }, [isOpen])
 
   // Automatically enable voucher mode if category is owner_statement
   useEffect(() => {
@@ -57,6 +66,7 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit }: NewExpenseModalPr
       if (!billName) setBillName('Owner Statement & Monthly Settlement')
     }
   }, [category, billName])
+
 
   // Calculate Net Balance dynamically when additions or deductions change
   const totalAdditions = additions.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
