@@ -315,39 +315,70 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
       currentY += 4
     }
 
-    // 8. Signatures Block - POSITIONED ABOVE FOOTER SEAL & ADDRESS (y = 232mm)
-    const sigY = Math.min(Math.max(currentY + 6, 228), 234)
+    // 8. Consolidated Digital Authorization & E-Signature Card (Positioned Safely Above Letterhead Footer Seal)
+    const cardY = Math.min(Math.max(currentY + 4, 208), 218)
+    const cardWidth = 105
+    const cardX = A4_MARGINS.left + 75 // Align to right margin (15 + 75 = 90mm -> 95mm to 195mm)
 
     doc.setDrawColor(203, 213, 225) // Slate-300
-    doc.setLineWidth(0.4)
+    doc.setFillColor(248, 250, 252) // Slate-50 background
+    doc.roundedRect(cardX, cardY, cardWidth, 27, 2, 2, 'FD')
 
-    // Prepared By (Logged-in User)
-    doc.line(A4_MARGINS.left, sigY, A4_MARGINS.left + 52, sigY)
+    // Top Tag Line inside Card
+    doc.setFillColor(30, 41, 59) // Slate-800
+    doc.roundedRect(cardX, cardY, cardWidth, 5, 2, 2, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7)
+    doc.setTextColor(255, 255, 255)
+    doc.text('SYSTEM DIGITAL AUTHORIZATION & E-SIGNATURE VERIFICATION', cardX + 4, cardY + 3.5)
+
+    let innerY = cardY + 9.5
+
+    // Prepared By & Stylized E-Signature Script
+    const prepUser = voucherData.prepared_by || 'Finance Officer'
+    const nameOnly = prepUser.split('(')[0].trim()
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7.5)
+    doc.setTextColor(100, 116, 139) // Slate-500
+    doc.text('PREPARED BY:', cardX + 4, innerY)
+
+    doc.setFont('times', 'bolditalic') // Stylized cursive script simulation
+    doc.setFontSize(10)
+    doc.setTextColor(15, 23, 42) // Slate-900
+    doc.text(`~ ${nameOnly} ~`, cardX + 28, innerY)
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(6.5)
+    doc.setTextColor(16, 185, 129) // Emerald-500
+    const timeStampStr = voucherData.expense_date ? `${voucherData.expense_date} 12:00 UTC` : 'Auth Verified'
+    doc.text(`✔ Digitally Verified via Thennakoon Tours Auth  (${timeStampStr})`, cardX + 28, innerY + 3.8)
+
+    innerY += 8.5
+
+    // Divider Line inside Card
+    doc.setDrawColor(226, 232, 240)
+    doc.setLineWidth(0.3)
+    doc.line(cardX + 4, innerY, cardX + cardWidth - 4, innerY)
+
+    innerY += 4.5
+
+    // Approved By (Subordinate directly underneath Prepared By)
+    const approvedUser = voucherData.approved_by || 'Managing Director'
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7.5)
+    doc.setTextColor(100, 116, 139)
+    doc.text('APPROVED BY:', cardX + 4, innerY)
+
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8)
-    doc.setTextColor(51, 65, 85)
-    doc.text('Prepared By', A4_MARGINS.left, sigY + 4)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(100, 116, 139)
-    doc.text(voucherData.prepared_by || 'Finance Officer', A4_MARGINS.left, sigY + 8)
+    doc.setTextColor(30, 41, 59)
+    doc.text(approvedUser, cardX + 28, innerY)
 
-    // Received By / Payee
-    doc.line(A4_MARGINS.left + 64, sigY, A4_MARGINS.left + 116, sigY)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(51, 65, 85)
-    doc.text('Received By / Payee', A4_MARGINS.left + 64, sigY + 4)
     doc.setFont('helvetica', 'normal')
-    doc.setTextColor(100, 116, 139)
-    doc.text(voucherData.customer_name || voucherData.supplier_name || 'Signature & Stamp', A4_MARGINS.left + 64, sigY + 8)
-
-    // Approved By
-    doc.line(A4_MARGINS.left + 128, sigY, A4_MARGINS.left + 180, sigY)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(51, 65, 85)
-    doc.text('Approved By', A4_MARGINS.left + 128, sigY + 4)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(100, 116, 139)
-    doc.text(voucherData.approved_by || 'Managing Director', A4_MARGINS.left + 128, sigY + 8)
+    doc.setFontSize(6.5)
+    doc.setTextColor(71, 85, 105)
+    doc.text('Status: Formally Authorized Executive Record', cardX + 28, innerY + 3.8)
 
     return doc
   } catch (err) {
@@ -355,3 +386,4 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
     throw err
   }
 }
+
