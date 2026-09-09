@@ -324,7 +324,7 @@ export function NewInspectionModal({ isOpen, vehicles, categories = [], initialV
                 onChange={(e) => setInspectionType(e.target.value)}
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-semibold"
               >
-                {mode === 'onboarding' && <option value="pre_onboarding">Pre-Fleet Onboarding Audit</option>}
+                <option value="pre_onboarding">Pre-Fleet Onboarding Audit</option>
                 <option value="general">General Inspection</option>
                 <option value="pre_handover">Pre-Handover Check</option>
                 <option value="return">Return Inspection</option>
@@ -344,6 +344,22 @@ export function NewInspectionModal({ isOpen, vehicles, categories = [], initialV
               />
             </div>
           </div>
+
+          {/* Pending Onboarding Notice Banner */}
+          {(() => {
+            const curVeh = vehicles.find((v) => v.id === (vehicleId || initialVehicleId))
+            if (curVeh?.status === 'pending_inspection' || curVeh?.status === 'inspection_failed') {
+              return (
+                <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl text-[11px] text-purple-700 dark:text-purple-300 flex items-start gap-2 font-medium">
+                  <Info size={15} className="shrink-0 mt-0.5 text-purple-500" />
+                  <span>
+                    This vehicle (<strong>{curVeh.registration_number || curVeh.vehicle_name}</strong>) is pending onboarding approval. A <strong>PASS</strong> result will advance its status to <strong>Management Review</strong>.
+                  </span>
+                </div>
+              )
+            }
+            return null
+          })()}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

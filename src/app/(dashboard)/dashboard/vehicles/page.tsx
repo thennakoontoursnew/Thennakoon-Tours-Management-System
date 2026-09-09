@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Plus, Archive, Car } from 'lucide-react'
 import { getFleetSummaryKPIs } from '@/lib/fleet/fleet-service'
 import { VehiclesClientTable } from './vehicles-client-table'
+import { reconcilePendingOnboardingVehiclesAction } from '../maintenance/maintenance-actions'
 
 interface PageProps {
   searchParams: Promise<{
@@ -26,6 +27,11 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
   const pageSize = 12
 
   const supabase = await createClient()
+
+  // One-time auto-reconciliation of stuck onboarding vehicles (e.g. CBN 1122)
+  try {
+    await reconcilePendingOnboardingVehiclesAction()
+  } catch (_) {}
   const { data: { user } } = await supabase.auth.getUser()
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user?.id).maybeSingle()

@@ -12,6 +12,13 @@ export async function createVehicleInspectionAction(inspectionData: any) {
 
   const inspNum = `INS-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`
 
+  // Fetch current vehicle record to check pre-inspection status
+  const { data: currentVehicle } = await supabase
+    .from('vehicles')
+    .select('id, status, current_mileage, registration_number')
+    .eq('id', inspectionData.vehicle_id)
+    .single()
+
   const { data: inspection, error } = await supabase
     .from('vehicle_inspections')
     .insert({
@@ -36,10 +43,10 @@ export async function createVehicleInspectionAction(inspectionData: any) {
     throw new Error(`Failed to record inspection: ${error.message}`)
   }
 
-  // Update vehicle mileage if odometer_reading is higher
+  // Update vehicle mileage if odometer_reading is provided & higher
   if (inspectionData.odometer_reading && inspectionData.vehicle_id) {
-    const { data: vehicle } = await supabase.from('vehicles').select('current_mileage').eq('id', inspectionData.vehicle_id).single()
-    if (vehicle && Number(inspectionData.odometer_reading) > Number(vehicle.current_mileage || 0)) {
+    const curMile = Number(currentVehicle?.current_mileage || 0)
+    if (Number(inspectionData.odometer_reading) > curMile) {
       await supabase.from('vehicles').update({ current_mileage: inspectionData.odometer_reading }).eq('id', inspectionData.vehicle_id)
       await supabase.from('vehicle_odometer_logs').insert({
         vehicle_id: inspectionData.vehicle_id,
@@ -50,8 +57,16 @@ export async function createVehicleInspectionAction(inspectionData: any) {
     }
   }
 
-  // If inspection condition requires maintenance, automatically block vehicle if critical
-  if (['damage_found', 'maintenance_required'].includes(inspectionData.overall_condition)) {
+  // STATUS TRANSITION LOGIC FOR PENDING / RE-INSPECTED ONBOARDING VEHICLES
+  const preStatus = currentVehicle?.status
+  if (preStatus === 'pending_inspection' || preStatus === 'inspection_failed') {
+    if (inspectionData.overall_condition === 'pass') {
+      await supabase.from('vehicles').update({ status: 'pending_management_approval' }).eq('id', inspectionData.vehicle_id)
+    } else if (['fail', 'damage_found', 'maintenance_required'].includes(inspectionData.overall_condition)) {
+      await supabase.from('vehicles').update({ status: 'inspection_failed' }).eq('id', inspectionData.vehicle_id)
+    }
+  } else if (['damage_found', 'maintenance_required'].includes(inspectionData.overall_condition)) {
+    // Standard vehicle critical damage -> maintenance lock
     await supabase.from('vehicles').update({ status: 'maintenance' }).eq('id', inspectionData.vehicle_id)
   }
 
@@ -64,10 +79,61 @@ export async function createVehicleInspectionAction(inspectionData: any) {
     user_id: user?.id || null,
   })
 
+  revalidatePath('/dashboard/fleet')
+  revalidatePath('/dashboard/vehicles')
   revalidatePath('/dashboard/maintenance/inspections')
   revalidatePath('/dashboard/maintenance')
   revalidatePath(`/dashboard/vehicles/${inspectionData.vehicle_id}`)
   return { success: true, inspection_id: inspection.id }
+}
+
+export async function reconcilePendingOnboardingVehiclesAction() {
+  const supabase = await createClient()
+
+  // Find all vehicles in pending_inspection or inspection_failed
+  const { data: pendingVehicles } = await supabase
+    .from('vehicles')
+    .select('id, registration_number, status')
+    .in('status', ['pending_inspection', 'inspection_failed'])
+    .eq('is_archived', false)
+
+  if (!pendingVehicles || pendingVehicles.length === 0) return { reconciledCount: 0 }
+
+  let reconciledCount = 0
+
+  for (const v of pendingVehicles) {
+    const { data: latestInsp } = await supabase
+      .from('vehicle_inspections')
+      .select('id, overall_condition')
+      .eq('vehicle_id', v.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (latestInsp) {
+      if (latestInsp.overall_condition === 'pass') {
+        await supabase
+          .from('vehicles')
+          .update({ status: 'pending_management_approval' })
+          .eq('id', v.id)
+        reconciledCount++
+      } else if (['fail', 'damage_found', 'maintenance_required'].includes(latestInsp.overall_condition)) {
+        await supabase
+          .from('vehicles')
+          .update({ status: 'inspection_failed' })
+          .eq('id', v.id)
+      }
+    }
+  }
+
+  if (reconciledCount > 0) {
+    revalidatePath('/dashboard/fleet')
+    revalidatePath('/dashboard/vehicles')
+    revalidatePath('/dashboard/maintenance/inspections')
+    revalidatePath('/dashboard/maintenance')
+  }
+
+  return { reconciledCount }
 }
 
 export async function createMaintenanceTaskAction(taskData: any) {

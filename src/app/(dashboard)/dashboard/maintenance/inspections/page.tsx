@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ClipboardCheck, Wrench, Search, Filter } from 'lucide-react'
 import { getInspectionCenterSummary } from '@/lib/maintenance/maintenance-service'
 import { InspectionsClientWrapper } from './inspections-client-wrapper'
+import { reconcilePendingOnboardingVehiclesAction } from '../maintenance-actions'
 
 export const metadata = {
   title: 'Inspection Center — Thennakoon Tours',
@@ -16,13 +17,18 @@ export default async function InspectionsPage({ searchParams }: PageProps) {
   const { type, condition } = await searchParams
   const supabase = await createClient()
 
+  // One-time auto-reconciliation of stuck onboarding vehicles (e.g. CBN 1122)
+  try {
+    await reconcilePendingOnboardingVehiclesAction()
+  } catch (_) {}
+
   // Fetch KPI summary
   const kpis = await getInspectionCenterSummary(supabase)
 
   // Fetch Vehicles list
   const { data: vehicles } = await supabase
     .from('vehicles')
-    .select('id, vehicle_code, vehicle_name, registration_number')
+    .select('id, vehicle_code, vehicle_name, registration_number, status')
     .eq('is_archived', false)
 
   // Fetch Categories for new vehicle onboarding in inspection modal
@@ -31,10 +37,10 @@ export default async function InspectionsPage({ searchParams }: PageProps) {
     .select('id, name')
     .order('name')
 
-  // Fetch Inspections list
+  // Fetch Inspections list with full vehicle details for contextual action triggers
   let query = supabase
     .from('vehicle_inspections')
-    .select('*, vehicle:vehicles(vehicle_name, registration_number)')
+    .select('*, vehicle:vehicles(id, vehicle_name, registration_number, status, holding_type, owner_contact_name, owner_contact_phone, agreed_payout_rate)')
     .order('inspection_date', { ascending: false })
 
   if (type && type !== 'all') query = query.eq('inspection_type', type)
