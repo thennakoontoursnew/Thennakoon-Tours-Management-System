@@ -35,8 +35,52 @@ export const LEGAL_MARGINS: DocumentMargins = {
 }
 
 // Convert image URL or path to base64 for jsPDF rendering
-export async function getLetterheadBase64(): Promise<string | null> {
+export async function getLetterheadBase64(companySettings?: Record<string, any> | null): Promise<string | null> {
   try {
+    let customUrl: string | null = companySettings?.letterhead_url || null
+
+    if (!customUrl && typeof window === 'undefined') {
+      try {
+        const { createAdminClient } = await import('@/lib/supabase/admin')
+        const adminClient = createAdminClient()
+        const { data: cs } = await adminClient
+          .from('company_settings')
+          .select('letterhead_url')
+          .limit(1)
+          .maybeSingle()
+        if (cs?.letterhead_url) {
+          customUrl = cs.letterhead_url
+        }
+      } catch (_) {}
+    }
+
+    if (customUrl && typeof customUrl === 'string' && customUrl.trim()) {
+      try {
+        const fetchUrl = `${customUrl}${customUrl.includes('?') ? '&' : '?'}v=${Date.now()}`
+        const res = await fetch(fetchUrl)
+        if (res.ok) {
+          if (typeof window !== 'undefined') {
+            const blob = await res.blob()
+            return new Promise((resolve) => {
+              const reader = new FileReader()
+              reader.onloadend = () => resolve(reader.result as string)
+              reader.onerror = () => resolve(null)
+              reader.readAsDataURL(blob)
+            })
+          } else {
+            const arrayBuffer = await res.arrayBuffer()
+            const buffer = Buffer.from(arrayBuffer)
+            const contentType = res.headers.get('content-type') || 'image/png'
+            const mime = contentType.includes('jpeg') || contentType.includes('jpg') ? 'image/jpeg' : 'image/png'
+            return `data:${mime};base64,${buffer.toString('base64')}`
+          }
+        }
+      } catch (err) {
+        console.warn('[getLetterheadBase64] Custom letterhead URL fetch failed, falling back to default asset:', err)
+      }
+    }
+
+    // Default Built-in Fallback
     if (typeof window !== 'undefined') {
       const cacheBustUrl = `/documents/thennakoon-tours-letterhead.png?v=20260909_seal_${Date.now()}`
       const response = await fetch(cacheBustUrl)
@@ -72,7 +116,8 @@ export async function getLetterheadBase64(): Promise<string | null> {
 export function drawLetterheadOnPage(doc: jsPDF, base64Img: string | null) {
   if (!base64Img) return
   try {
-    doc.addImage(base64Img, 'PNG', 0, 0, 210, 297)
+    const isJpg = base64Img.includes('image/jpeg') || base64Img.includes('image/jpg')
+    doc.addImage(base64Img, isJpg ? 'JPEG' : 'PNG', 0, 0, 210, 297)
   } catch (err) {
     console.error('Error drawing letterhead on page', err)
   }
@@ -82,7 +127,8 @@ export function drawLetterheadOnPage(doc: jsPDF, base64Img: string | null) {
 export function drawLetterheadOnLegalPage(doc: jsPDF, base64Img: string | null) {
   if (!base64Img) return
   try {
-    doc.addImage(base64Img, 'PNG', 0, 0, 215.9, 355.6)
+    const isJpg = base64Img.includes('image/jpeg') || base64Img.includes('image/jpg')
+    doc.addImage(base64Img, isJpg ? 'JPEG' : 'PNG', 0, 0, 215.9, 355.6)
   } catch (err) {
     console.error('Error drawing legal letterhead on page', err)
   }
@@ -91,22 +137,24 @@ export function drawLetterheadOnLegalPage(doc: jsPDF, base64Img: string | null) 
 // Draw letterhead background image on all existing pages of an A4 jsPDF document
 export function drawLetterheadBackground(doc: jsPDF, base64Img: string | null) {
   if (!base64Img) return
+  const isJpg = base64Img.includes('image/jpeg') || base64Img.includes('image/jpg')
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const totalPages = (doc as any).internal.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i)
-    doc.addImage(base64Img, 'PNG', 0, 0, 210, 297)
+    doc.addImage(base64Img, isJpg ? 'JPEG' : 'PNG', 0, 0, 210, 297)
   }
 }
 
 // Draw letterhead background image on all existing pages of a US Legal jsPDF document
 export function drawLetterheadBackgroundLegal(doc: jsPDF, base64Img: string | null) {
   if (!base64Img) return
+  const isJpg = base64Img.includes('image/jpeg') || base64Img.includes('image/jpg')
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const totalPages = (doc as any).internal.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i)
-    doc.addImage(base64Img, 'PNG', 0, 0, 215.9, 355.6)
+    doc.addImage(base64Img, isJpg ? 'JPEG' : 'PNG', 0, 0, 215.9, 355.6)
   }
 }
 

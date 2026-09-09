@@ -49,7 +49,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>,
   })
 
   // Load canonical letterhead asset
-  const base64Letterhead = await getLetterheadBase64()
+  const base64Letterhead = await getLetterheadBase64(companySettings)
 
   // 1. Draw Official Letterhead Background FIRST on Page 1 (Layer 0)
   if (base64Letterhead) {

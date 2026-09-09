@@ -130,3 +130,131 @@ export async function updateRolePermissionsAction(role: string, moduleName: stri
   revalidatePath('/dashboard/users')
   return { success: true }
 }
+
+// =============================================
+// UPLOAD COMPANY LETTERHEAD ASSET
+// =============================================
+export async function uploadCompanyLetterheadAction(formData: FormData): Promise<{ success?: boolean; error?: string; url?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const file = formData.get('file') as File | null
+  if (!file || typeof file === 'string') {
+    return { error: 'Please select a valid image file to upload.' }
+  }
+
+  const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
+  if (!validTypes.includes(file.type)) {
+    return { error: 'Invalid file format. Please upload a PNG or JPEG image.' }
+  }
+
+  const MAX_SIZE = 5 * 1024 * 1024 // 5MB
+  if (file.size > MAX_SIZE) {
+    return { error: 'File size exceeds maximum limit of 5MB.' }
+  }
+
+  const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
+  const filePath = `branding/letterhead-${Date.now()}.${ext}`
+
+  const adminClient = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : supabase
+
+  // Ensure storage bucket exists
+  try {
+    await adminClient.storage.createBucket('company-assets', { public: true })
+  } catch (_) {}
+
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+
+  const { error: uploadError } = await adminClient.storage
+    .from('company-assets')
+    .upload(filePath, buffer, {
+      contentType: file.type,
+      upsert: true,
+    })
+
+  if (uploadError) {
+    console.error('[uploadCompanyLetterheadAction] Storage upload error:', uploadError)
+    return { error: `Failed to upload letterhead image: ${uploadError.message}` }
+  }
+
+  const { data: publicUrlData } = adminClient.storage
+    .from('company-assets')
+    .getPublicUrl(filePath)
+
+  const publicUrl = publicUrlData.publicUrl
+
+  // Query existing row to preserve single-record primary key ID
+  const { data: existing } = await adminClient
+    .from('company_settings')
+    .select('id')
+    .limit(1)
+    .maybeSingle()
+
+  const payload: Record<string, unknown> = {
+    letterhead_url: publicUrl,
+    updated_at: new Date().toISOString(),
+  }
+  if (existing?.id) {
+    payload.id = existing.id
+  }
+
+  const { error: updateError } = await adminClient
+    .from('company_settings')
+    .upsert(payload, { onConflict: 'id' })
+
+  if (updateError) {
+    console.error('[uploadCompanyLetterheadAction] Settings update error:', updateError)
+    return { error: `Failed to update company settings: ${updateError.message}` }
+  }
+
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard/invoices')
+  revalidatePath('/dashboard/agreements')
+  revalidatePath('/dashboard/quotations')
+  revalidatePath('/dashboard/receipts')
+
+  return { success: true, url: publicUrl }
+}
+
+// =============================================
+// REMOVE COMPANY LETTERHEAD (RESET TO DEFAULT)
+// =============================================
+export async function removeCompanyLetterheadAction(): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const adminClient = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : supabase
+
+  const { data: existing } = await adminClient
+    .from('company_settings')
+    .select('id')
+    .limit(1)
+    .maybeSingle()
+
+  const payload: Record<string, unknown> = {
+    letterhead_url: null,
+    updated_at: new Date().toISOString(),
+  }
+  if (existing?.id) {
+    payload.id = existing.id
+  }
+
+  const { error: updateError } = await adminClient
+    .from('company_settings')
+    .upsert(payload, { onConflict: 'id' })
+
+  if (updateError) {
+    return { error: `Failed to reset letterhead: ${updateError.message}` }
+  }
+
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard/invoices')
+  revalidatePath('/dashboard/agreements')
+  revalidatePath('/dashboard/quotations')
+  revalidatePath('/dashboard/receipts')
+
+  return { success: true }
+}

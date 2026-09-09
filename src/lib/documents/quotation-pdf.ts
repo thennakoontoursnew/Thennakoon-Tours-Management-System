@@ -6,7 +6,7 @@ import { COMPANY_CONFIG } from '../company-config'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateQuotationPDF(quotation: any, companySettings?: any) {
   const doc = new jsPDF('p', 'mm', 'a4')
-  const base64Letterhead = await getLetterheadBase64()
+  const base64Letterhead = await getLetterheadBase64(companySettings)
 
   // 1. Draw Letterhead Background FIRST on Page 1 (Layer 0)
   if (base64Letterhead) {

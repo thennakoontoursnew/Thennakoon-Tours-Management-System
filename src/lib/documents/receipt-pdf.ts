@@ -95,7 +95,7 @@ export async function generateReceiptPDF(receiptData: any, companySettings?: any
     const booking = receipt.booking || {}
     const vehicleObj = receipt.vehicle || booking.vehicle || invoice.vehicle || {}
 
-    const base64Letterhead = await getLetterheadBase64()
+    const base64Letterhead = await getLetterheadBase64(companySettings)
 
     // 1. Draw Letterhead Background FIRST on Page 1 (Layer 0)
     if (base64Letterhead) {
