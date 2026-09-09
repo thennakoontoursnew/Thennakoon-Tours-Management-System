@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { VehicleOwnersClient } from './vehicle-owners-client'
+import { reconcileMissingVehicleOwnersAction } from '../../maintenance/maintenance-actions'
 
 export const metadata = {
   title: 'Vehicle Owners — Thennakoon Tours',
@@ -7,6 +8,11 @@ export const metadata = {
 
 export default async function VehicleOwnersPage() {
   const supabase = await createClient()
+
+  // Auto-reconciliation of unlinked legacy vehicle owners
+  try {
+    await reconcileMissingVehicleOwnersAction()
+  } catch (_) {}
 
   // Fetch all vehicle owners with vehicle counts
   const { data: ownersRaw } = await supabase

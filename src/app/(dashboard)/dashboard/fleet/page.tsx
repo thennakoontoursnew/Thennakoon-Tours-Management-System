@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { Car, Wrench, AlertTriangle, Calendar, ChevronRight, ShieldAlert, CheckCircle2, Clock, Calculator } from 'lucide-react'
 import { getFleetSummaryKPIs, calculateDocumentHealth } from '@/lib/fleet/fleet-service'
+import { reconcileMissingVehicleOwnersAction } from '../maintenance/maintenance-actions'
 
 export const metadata = {
   title: 'Fleet Overview — Thennakoon Tours Management System',
@@ -9,6 +10,11 @@ export const metadata = {
 
 export default async function FleetOverviewPage() {
   const supabase = await createClient()
+
+  try {
+    await reconcileMissingVehicleOwnersAction()
+  } catch (_) {}
+
   const kpis = await getFleetSummaryKPIs(supabase)
 
   // Fetch vehicles with categories

@@ -445,11 +445,39 @@ export function VehicleOwnersClient({ owners }: VehicleOwnersClientProps) {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-col gap-0.5 text-xs text-slate-500">
+                        <div className="flex flex-col gap-1 text-xs text-slate-500">
                           {owner.mobile && (
-                            <span className="flex items-center gap-1"><Phone size={11} /> {owner.mobile}</span>
+                            <div className="flex items-center gap-2">
+                              <a
+                                href={`tel:${owner.mobile}`}
+                                className="inline-flex items-center gap-1 font-mono font-medium text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+                                title="Call owner"
+                              >
+                                <Phone size={12} className="text-amber-500" />
+                                {owner.mobile}
+                              </a>
+                              {(() => {
+                                const norm = owner.mobile.replace(/[^\d]/g, '')
+                                const waUrl = norm
+                                  ? norm.startsWith('0')
+                                    ? `https://wa.me/94${norm.slice(1)}`
+                                    : `https://wa.me/${norm}`
+                                  : null
+                                return waUrl ? (
+                                  <a
+                                    href={waUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-1.5 py-0.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-md transition-colors text-[10px] font-bold inline-flex items-center gap-1"
+                                    title="WhatsApp Chat"
+                                  >
+                                    WhatsApp
+                                  </a>
+                                ) : null
+                              })()}
+                            </div>
                           )}
-                          {owner.email && <span>{owner.email}</span>}
+                          {owner.email && <span className="text-[11px] text-slate-400 truncate max-w-[180px]">{owner.email}</span>}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right">

@@ -538,7 +538,7 @@ export async function resolveOnboardingManagementDecisionAction(input: Managemen
 
   const { data: vehicle, error: vErr } = await supabase
     .from('vehicles')
-    .select('id, registration_number, vehicle_name')
+    .select('id, registration_number, vehicle_name, vehicle_owner_id, owner_contact_name, owner_contact_phone')
     .eq('id', vehicleId)
     .single()
 
@@ -567,6 +567,53 @@ export async function resolveOnboardingManagementDecisionAction(input: Managemen
     agreementStatus = 'exempt'
   }
 
+  // Auto-sync owner to vehicle_owners table if vehicle_owner_id is missing
+  let linkedOwnerId = vehicle.vehicle_owner_id
+  const ownerName = vehicle.owner_contact_name?.trim()
+  const ownerPhone = vehicle.owner_contact_phone?.trim()
+
+  if (!linkedOwnerId && (ownerName || ownerPhone)) {
+    const normPhone = ownerPhone ? ownerPhone.replace(/[^\d+]/g, '') : ''
+
+    if (normPhone) {
+      const { data: byPhone } = await supabase
+        .from('vehicle_owners')
+        .select('id')
+        .or(`mobile.ilike.%${normPhone}%,whatsapp.ilike.%${normPhone}%`)
+        .maybeSingle()
+      if (byPhone) linkedOwnerId = byPhone.id
+    }
+
+    if (!linkedOwnerId && ownerName) {
+      const { data: byName } = await supabase
+        .from('vehicle_owners')
+        .select('id')
+        .ilike('full_name', ownerName)
+        .maybeSingle()
+      if (byName) linkedOwnerId = byName.id
+    }
+
+    if (!linkedOwnerId) {
+      const ownerNum = `OWN-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`
+      const { data: newOwner } = await supabase
+        .from('vehicle_owners')
+        .insert({
+          owner_number: ownerNum,
+          full_name: ownerName || 'Partner Owner',
+          mobile: ownerPhone || null,
+          whatsapp: ownerPhone || null,
+          owner_type: 'individual',
+          is_active: true,
+          notes: 'Auto-created via Management Approval',
+          created_by: user?.id || null,
+        })
+        .select('id')
+        .single()
+
+      if (newOwner) linkedOwnerId = newOwner.id
+    }
+  }
+
   const updatePayload: Record<string, any> = {
     status: finalStatus,
     holding_type: finalHoldingType,
@@ -575,6 +622,10 @@ export async function resolveOnboardingManagementDecisionAction(input: Managemen
     management_notes: managementNotes?.trim() || null,
     management_reviewed_at: new Date().toISOString(),
     updated_by: user?.id || null,
+  }
+
+  if (linkedOwnerId) {
+    updatePayload.vehicle_owner_id = linkedOwnerId
   }
 
   if (typeof agreedPayoutRate === 'number' && agreedPayoutRate >= 0) {
@@ -601,8 +652,96 @@ export async function resolveOnboardingManagementDecisionAction(input: Managemen
 
   revalidatePath('/dashboard/fleet')
   revalidatePath('/dashboard/vehicles')
+  revalidatePath('/dashboard/fleet/owners')
   revalidatePath('/dashboard/maintenance/inspections')
   revalidatePath('/dashboard/maintenance')
 
   return { success: true, status: finalStatus }
+}
+
+export async function reconcileMissingVehicleOwnersAction() {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const { data: unlinkedVehicles, error: fetchErr } = await supabase
+    .from('vehicles')
+    .select('id, owner_contact_name, owner_contact_phone, vehicle_name, registration_number')
+    .is('vehicle_owner_id', null)
+    .eq('is_archived', false)
+    .not('owner_contact_name', 'is', null)
+
+  if (fetchErr || !unlinkedVehicles || unlinkedVehicles.length === 0) {
+    return { success: true, reconciledCount: 0 }
+  }
+
+  let reconciledCount = 0
+
+  for (const v of unlinkedVehicles) {
+    const ownerName = v.owner_contact_name?.trim()
+    const ownerPhone = v.owner_contact_phone?.trim()
+
+    if (!ownerName || ownerName === '') continue
+
+    let linkedOwnerId: string | null = null
+    const normPhone = ownerPhone ? ownerPhone.replace(/[^\d+]/g, '') : ''
+
+    if (normPhone) {
+      const { data: byPhone } = await supabase
+        .from('vehicle_owners')
+        .select('id')
+        .or(`mobile.ilike.%${normPhone}%,whatsapp.ilike.%${normPhone}%`)
+        .maybeSingle()
+      if (byPhone) linkedOwnerId = byPhone.id
+    }
+
+    if (!linkedOwnerId && ownerName) {
+      const { data: byName } = await supabase
+        .from('vehicle_owners')
+        .select('id')
+        .ilike('full_name', ownerName)
+        .maybeSingle()
+      if (byName) linkedOwnerId = byName.id
+    }
+
+    if (!linkedOwnerId) {
+      const ownerNum = `OWN-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`
+      const { data: newOwner } = await supabase
+        .from('vehicle_owners')
+        .insert({
+          owner_number: ownerNum,
+          full_name: ownerName,
+          mobile: ownerPhone || null,
+          whatsapp: ownerPhone || null,
+          owner_type: 'individual',
+          is_active: true,
+          notes: 'Auto-reconciled legacy owner record',
+          created_by: user?.id || null,
+        })
+        .select('id')
+        .single()
+
+      if (newOwner) {
+        linkedOwnerId = newOwner.id
+      }
+    }
+
+    if (linkedOwnerId) {
+      await supabase
+        .from('vehicles')
+        .update({ vehicle_owner_id: linkedOwnerId })
+        .eq('id', v.id)
+      reconciledCount++
+    }
+  }
+
+  if (reconciledCount > 0) {
+    revalidatePath('/dashboard/fleet/owners')
+    revalidatePath('/dashboard/vehicles')
+    revalidatePath('/dashboard/fleet')
+  }
+
+  return { success: true, reconciledCount }
 }
