@@ -38,7 +38,8 @@ export const LEGAL_MARGINS: DocumentMargins = {
 export async function getLetterheadBase64(): Promise<string | null> {
   try {
     if (typeof window !== 'undefined') {
-      const response = await fetch('/documents/thennakoon-tours-letterhead.png')
+      const cacheBustUrl = `/documents/thennakoon-tours-letterhead.png?v=20260909_seal_${Date.now()}`
+      const response = await fetch(cacheBustUrl)
       if (!response.ok) return null
       const blob = await response.blob()
       return new Promise((resolve) => {

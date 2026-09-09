@@ -100,7 +100,7 @@ export default async function CompanySettingsPage() {
               <div className="border-2 border-amber-200 dark:border-amber-500/20 rounded-lg overflow-hidden shadow-md">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="/documents/thennakoon-tours-letterhead.png"
+                  src="/documents/thennakoon-tours-letterhead.png?v=20260909_seal"
                   alt="Thennakoon Tours Official Letterhead"
                   className="w-full object-contain"
                 />
