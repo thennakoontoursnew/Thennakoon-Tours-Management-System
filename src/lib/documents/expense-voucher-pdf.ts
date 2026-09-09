@@ -315,70 +315,54 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
       currentY += 4
     }
 
-    // 8. Consolidated Digital Authorization & E-Signature Card (Positioned Safely Above Letterhead Footer Seal)
-    const cardY = Math.min(Math.max(currentY + 4, 208), 218)
-    const cardWidth = 105
-    const cardX = A4_MARGINS.left + 75 // Align to right margin (15 + 75 = 90mm -> 95mm to 195mm)
+    // 8. Executive Left-Aligned Signature & Authorization Section
+    const sigY = Math.min(Math.max(currentY + 12, 220), 228)
+    const lineX = A4_MARGINS.left
+    const lineWidth = 55
 
-    doc.setDrawColor(203, 213, 225) // Slate-300
-    doc.setFillColor(248, 250, 252) // Slate-50 background
-    doc.roundedRect(cardX, cardY, cardWidth, 27, 2, 2, 'FD')
+    // Subtle horizontal line for physical/manual signature
+    doc.setDrawColor(148, 163, 184) // Slate-400
+    doc.setLineWidth(0.4)
+    doc.line(lineX, sigY, lineX + lineWidth, sigY)
 
-    // Top Tag Line inside Card
-    doc.setFillColor(30, 41, 59) // Slate-800
-    doc.roundedRect(cardX, cardY, cardWidth, 5, 2, 2, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7)
-    doc.setTextColor(255, 255, 255)
-    doc.text('SYSTEM DIGITAL AUTHORIZATION & E-SIGNATURE VERIFICATION', cardX + 4, cardY + 3.5)
+    let blockY = sigY + 4.5
 
-    let innerY = cardY + 9.5
-
-    // Prepared By & Stylized E-Signature Script
+    // Prepared By Block
     const prepUser = voucherData.prepared_by || 'Finance Officer'
-    const nameOnly = prepUser.split('(')[0].trim()
+    let prepName = prepUser
+    let prepRole = 'Finance Officer'
+    if (prepUser.includes('(')) {
+      const parts = prepUser.split('(')
+      prepName = parts[0].trim()
+      prepRole = parts[1].replace(')', '').trim()
+    }
 
     doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(30, 41, 59) // Slate-800
+    doc.text(`Prepared By: ${prepName}`, lineX, blockY)
+
+    blockY += 4
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(100, 116, 139) // Slate-500
+    doc.text(prepRole, lineX, blockY)
+
+    blockY += 6.5
+
+    // Approved By Block (Directly Underneath with 5mm gap)
+    const approvedUser = voucherData.approved_by || 'Managing Director'
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8.5)
+    doc.setTextColor(30, 41, 59) // Slate-800
+    doc.text(`Approved By: ${approvedUser}`, lineX, blockY)
+
+    blockY += 3.8
+    doc.setFont('helvetica', 'normal')
     doc.setFontSize(7.5)
     doc.setTextColor(100, 116, 139) // Slate-500
-    doc.text('PREPARED BY:', cardX + 4, innerY)
-
-    doc.setFont('times', 'bolditalic') // Stylized cursive script simulation
-    doc.setFontSize(10)
-    doc.setTextColor(15, 23, 42) // Slate-900
-    doc.text(`~ ${nameOnly} ~`, cardX + 28, innerY)
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(6.5)
-    doc.setTextColor(16, 185, 129) // Emerald-500
-    const timeStampStr = voucherData.expense_date ? `${voucherData.expense_date} 12:00 UTC` : 'Auth Verified'
-    doc.text(`✔ Digitally Verified via Thennakoon Tours Auth  (${timeStampStr})`, cardX + 28, innerY + 3.8)
-
-    innerY += 8.5
-
-    // Divider Line inside Card
-    doc.setDrawColor(226, 232, 240)
-    doc.setLineWidth(0.3)
-    doc.line(cardX + 4, innerY, cardX + cardWidth - 4, innerY)
-
-    innerY += 4.5
-
-    // Approved By (Subordinate directly underneath Prepared By)
-    const approvedUser = voucherData.approved_by || 'Managing Director'
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7.5)
-    doc.setTextColor(100, 116, 139)
-    doc.text('APPROVED BY:', cardX + 4, innerY)
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-    doc.setTextColor(30, 41, 59)
-    doc.text(approvedUser, cardX + 28, innerY)
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(6.5)
-    doc.setTextColor(71, 85, 105)
-    doc.text('Status: Formally Authorized Executive Record', cardX + 28, innerY + 3.8)
+    doc.text('Authorized Signatory • Thennakoon Tours (Pvt) Ltd', lineX, blockY)
 
     return doc
   } catch (err) {
