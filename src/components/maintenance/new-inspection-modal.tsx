@@ -7,16 +7,17 @@ interface NewInspectionModalProps {
   isOpen: boolean
   vehicles: any[]
   categories?: any[]
+  initialVehicleId?: string
   onClose: () => void
   onSubmit: (inspectionData: any) => Promise<void>
 }
 
-export function NewInspectionModal({ isOpen, vehicles, categories = [], onClose, onSubmit }: NewInspectionModalProps) {
+export function NewInspectionModal({ isOpen, vehicles, categories = [], initialVehicleId, onClose, onSubmit }: NewInspectionModalProps) {
   const [mode, setMode] = useState<'existing' | 'onboarding'>('existing')
   const [loading, setLoading] = useState(false)
 
   // Existing mode state
-  const [vehicleId, setVehicleId] = useState(vehicles[0]?.id || '')
+  const [vehicleId, setVehicleId] = useState(initialVehicleId || vehicles[0]?.id || '')
 
   // Onboarding mode state
   const [regNumber, setRegNumber] = useState('')
@@ -30,6 +31,8 @@ export function NewInspectionModal({ isOpen, vehicles, categories = [], onClose,
   const [ownerContactName, setOwnerContactName] = useState('')
   const [ownerContactPhone, setOwnerContactPhone] = useState('')
   const [agreedPayoutRate, setAgreedPayoutRate] = useState('')
+  const [insuranceExpiry, setInsuranceExpiry] = useState('')
+  const [revenueLicenseExpiry, setRevenueLicenseExpiry] = useState('')
 
   // Shared inspection state
   const [inspectionType, setInspectionType] = useState('general')
@@ -63,6 +66,8 @@ export function NewInspectionModal({ isOpen, vehicles, categories = [], onClose,
           owner_contact_name: ownerContactName || undefined,
           owner_contact_phone: ownerContactPhone || undefined,
           agreed_payout_rate: agreedPayoutRate ? Number(agreedPayoutRate) : undefined,
+          insurance_expiry: insuranceExpiry || undefined,
+          revenue_license_expiry: revenueLicenseExpiry || undefined,
           inspection_type: inspectionType || 'pre_onboarding',
           odometer_reading: odometerReading ? Number(odometerReading) : 0,
           fuel_level_percent: Number(fuelLevelPercent),
@@ -70,14 +75,15 @@ export function NewInspectionModal({ isOpen, vehicles, categories = [], onClose,
           general_notes: generalNotes || undefined,
         })
       } else {
-        if (!vehicleId) {
+        const selectedId = vehicleId || initialVehicleId || vehicles[0]?.id
+        if (!selectedId) {
           alert('Please select a vehicle.')
           setLoading(false)
           return
         }
         await onSubmit({
           mode: 'existing',
-          vehicle_id: vehicleId,
+          vehicle_id: selectedId,
           inspection_type: inspectionType,
           odometer_reading: odometerReading ? Number(odometerReading) : undefined,
           fuel_level_percent: Number(fuelLevelPercent),
@@ -253,6 +259,33 @@ export function NewInspectionModal({ isOpen, vehicles, categories = [], onClose,
                       value={agreedPayoutRate}
                       onChange={(e) => setAgreedPayoutRate(e.target.value)}
                       placeholder="e.g. 12000"
+                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Legal Compliance & Document Expiry Section */}
+              <div className="pt-2 border-t border-purple-200/40 dark:border-purple-800/40 space-y-2">
+                <div className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">
+                  Legal Compliance Expiry Dates (Optional / Initial Intake)
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">Insurance Expiry Date</label>
+                    <input
+                      type="date"
+                      value={insuranceExpiry}
+                      onChange={(e) => setInsuranceExpiry(e.target.value)}
+                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">Revenue License Expiry Date</label>
+                    <input
+                      type="date"
+                      value={revenueLicenseExpiry}
+                      onChange={(e) => setRevenueLicenseExpiry(e.target.value)}
                       className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono"
                     />
                   </div>

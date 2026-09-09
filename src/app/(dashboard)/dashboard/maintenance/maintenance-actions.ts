@@ -217,6 +217,8 @@ export interface OnboardingInspectionInput {
   owner_contact_name?: string
   owner_contact_phone?: string
   agreed_payout_rate?: number
+  insurance_expiry?: string
+  revenue_license_expiry?: string
 
   inspection_type?: string
   odometer_reading?: number
@@ -245,7 +247,61 @@ export async function recordVehicleOnboardingInspectionAction(onboardingData: On
     throw new Error(`A vehicle with registration number "${regNorm}" already exists.`)
   }
 
-  // 2. Insert new vehicle record with status 'pending_inspection'
+  // 2. Owner Auto-Sync Pipeline into vehicle_owners table
+  let linkedOwnerId: string | null = null
+  const ownerName = onboardingData.owner_contact_name?.trim()
+  const ownerPhone = onboardingData.owner_contact_phone?.trim()
+
+  if (ownerName || ownerPhone) {
+    const normPhone = ownerPhone ? ownerPhone.replace(/[^\d+]/g, '') : ''
+
+    // Query vehicle_owners by phone or name
+    let existingOwner: any = null
+    if (normPhone) {
+      const { data: byPhone } = await supabase
+        .from('vehicle_owners')
+        .select('id')
+        .or(`mobile.ilike.%${normPhone}%,whatsapp.ilike.%${normPhone}%`)
+        .maybeSingle()
+      existingOwner = byPhone
+    }
+
+    if (!existingOwner && ownerName) {
+      const { data: byName } = await supabase
+        .from('vehicle_owners')
+        .select('id')
+        .ilike('full_name', ownerName)
+        .maybeSingle()
+      existingOwner = byName
+    }
+
+    if (existingOwner) {
+      linkedOwnerId = existingOwner.id
+    } else {
+      // Create new vehicle owner entry in vehicle_owners table
+      const ownerNum = `OWN-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`
+      const { data: newOwner } = await supabase
+        .from('vehicle_owners')
+        .insert({
+          owner_number: ownerNum,
+          full_name: ownerName || 'Partner Owner',
+          mobile: ownerPhone || null,
+          whatsapp: ownerPhone || null,
+          owner_type: 'individual',
+          is_active: true,
+          notes: 'Auto-enrolled during vehicle onboarding pipeline',
+          created_by: user?.id || null,
+        })
+        .select('id')
+        .single()
+
+      if (newOwner) {
+        linkedOwnerId = newOwner.id
+      }
+    }
+  }
+
+  // 3. Insert new vehicle record with status 'pending_inspection'
   const vCode = `TT-V-${Math.floor(10000 + Math.random() * 90000)}`
   const brandName = onboardingData.brand?.trim() || onboardingData.vehicle_name.split(' ')[0] || 'Unknown'
   const modelName = onboardingData.model?.trim() || onboardingData.vehicle_name.split(' ').slice(1).join(' ') || 'Standard'
@@ -265,9 +321,12 @@ export async function recordVehicleOnboardingInspectionAction(onboardingData: On
       current_mileage: onboardingData.odometer_reading || 0,
       daily_rate: onboardingData.daily_rate || 10000,
       colour: onboardingData.colour?.trim() || null,
-      owner_contact_name: onboardingData.owner_contact_name?.trim() || null,
-      owner_contact_phone: onboardingData.owner_contact_phone?.trim() || null,
+      vehicle_owner_id: linkedOwnerId,
+      owner_contact_name: ownerName || null,
+      owner_contact_phone: ownerPhone || null,
       agreed_payout_rate: onboardingData.agreed_payout_rate || null,
+      insurance_expiry: onboardingData.insurance_expiry || null,
+      revenue_license_expiry: onboardingData.revenue_license_expiry || null,
       holding_type: 'owner_held',
       owner_agreement_status: 'pending_dispatch',
       status: 'pending_inspection',
@@ -280,6 +339,49 @@ export async function recordVehicleOnboardingInspectionAction(onboardingData: On
 
   if (vError || !newVehicle) {
     throw new Error(`Failed to create onboarding vehicle record: ${vError?.message || 'Unknown error'}`)
+  }
+
+  // 4. Register Reminders for Insurance & Revenue License Expiry
+  const todayStr = new Date().toISOString().slice(0, 10)
+
+  if (onboardingData.insurance_expiry) {
+    const isOverdue = onboardingData.insurance_expiry < todayStr
+    await supabase.from('reminders').upsert(
+      {
+        reminder_number: `REM-INS-${vCode}`,
+        reminder_type: 'vehicle_insurance_expiry',
+        entity_type: 'vehicle',
+        entity_id: newVehicle.id,
+        title: `Insurance Expiry: ${regNorm}`,
+        message: `Insurance for ${newVehicle.vehicle_name} (${regNorm}) expires on ${onboardingData.insurance_expiry}.`,
+        priority: isOverdue ? 'critical' : 'high',
+        due_at: `${onboardingData.insurance_expiry}T00:00:00.000Z`,
+        status: isOverdue ? 'overdue' : 'pending',
+        source: 'system',
+        dedupe_key: `vehicle_insurance_expiry:${newVehicle.id}`,
+      },
+      { onConflict: 'dedupe_key' }
+    )
+  }
+
+  if (onboardingData.revenue_license_expiry) {
+    const isOverdue = onboardingData.revenue_license_expiry < todayStr
+    await supabase.from('reminders').upsert(
+      {
+        reminder_number: `REM-LIC-${vCode}`,
+        reminder_type: 'vehicle_revenue_license_expiry',
+        entity_type: 'vehicle',
+        entity_id: newVehicle.id,
+        title: `Revenue License Expiry: ${regNorm}`,
+        message: `Revenue license for ${newVehicle.vehicle_name} (${regNorm}) expires on ${onboardingData.revenue_license_expiry}.`,
+        priority: isOverdue ? 'critical' : 'high',
+        due_at: `${onboardingData.revenue_license_expiry}T00:00:00.000Z`,
+        status: isOverdue ? 'overdue' : 'pending',
+        source: 'system',
+        dedupe_key: `vehicle_license_expiry:${newVehicle.id}`,
+      },
+      { onConflict: 'dedupe_key' }
+    )
   }
 
   // 3. Record inspection entry in vehicle_inspections

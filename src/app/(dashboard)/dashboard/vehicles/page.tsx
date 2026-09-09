@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { Plus, Search, Filter, Archive, Car, ChevronRight, AlertTriangle, CheckCircle, ShieldAlert, Wrench, ShieldCheck, Clock } from 'lucide-react'
-import { getFleetSummaryKPIs, calculateDocumentHealth } from '@/lib/fleet/fleet-service'
+import { Plus, Archive, Car } from 'lucide-react'
+import { getFleetSummaryKPIs } from '@/lib/fleet/fleet-service'
+import { VehiclesClientTable } from './vehicles-client-table'
 
 interface PageProps {
   searchParams: Promise<{
@@ -39,26 +40,11 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
   const { data: categories } = await supabase.from('vehicle_categories').select('id, name').order('name')
 
   // Build query
-  let query = supabase
+  const { data: vehicles } = await supabase
     .from('vehicles')
-    .select('*, vehicle_categories(name), vehicle_images(public_url, is_primary)', { count: 'exact' })
+    .select('*, vehicle_categories(name), vehicle_images(public_url, is_primary), owner:vehicle_owners(id, full_name, mobile, whatsapp)')
     .eq('is_archived', false)
-
-  if (search) {
-    query = query.or(`vehicle_name.ilike.%${search}%,vehicle_code.ilike.%${search}%,brand.ilike.%${search}%,model.ilike.%${search}%,registration_number.ilike.%${search}%`)
-  }
-
-  if (categoryFilter !== 'all') query = query.eq('category_id', categoryFilter)
-  if (statusFilter !== 'all') query = query.eq('status', statusFilter)
-  if (transmissionFilter !== 'all') query = query.eq('transmission', transmissionFilter)
-  if (fuelFilter !== 'all') query = query.eq('fuel_type', fuelFilter)
-
-  const from = (page - 1) * pageSize
-  const to = from + pageSize - 1
-
-  const { data: vehicles, count } = await query.order('created_at', { ascending: false }).range(from, to)
-
-  const totalPages = Math.ceil((count || 0) / pageSize)
+    .order('created_at', { ascending: false })
 
   return (
     <div className="space-y-6">
@@ -135,175 +121,12 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-3">
-        <form method="GET" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
-          <div className="relative md:col-span-2">
-            <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
-            <input
-              type="text"
-              name="search"
-              defaultValue={search}
-              placeholder="Search reg number, name, make, model..."
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
-            />
-          </div>
-
-          <select
-            name="category"
-            defaultValue={categoryFilter}
-            className="py-2 px-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
-          >
-            <option value="all">All Categories</option>
-            {categories?.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-
-          <select
-            name="status"
-            defaultValue={statusFilter}
-            className="py-2 px-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
-          >
-            <option value="all">All Statuses</option>
-            <option value="available">Available (In-House)</option>
-            <option value="available_on_call">Available On-Call</option>
-            <option value="pending_inspection">Pending Inspection</option>
-            <option value="pending_management_approval">Pending Mgmt Review</option>
-            <option value="standby_pool">Standby Pool</option>
-            <option value="inspection_failed">Inspection Failed</option>
-            <option value="reserved">Reserved</option>
-            <option value="on_trip">On Trip</option>
-            <option value="maintenance">Maintenance</option>
-            <option value="rejected">Rejected</option>
-            <option value="inactive">Inactive</option>
-          </select>
-
-          <select
-            name="transmission"
-            defaultValue={transmissionFilter}
-            className="py-2 px-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
-          >
-            <option value="all">Transmission</option>
-            <option value="automatic">Automatic</option>
-            <option value="manual">Manual</option>
-          </select>
-
-          <button
-            type="submit"
-            className="py-2 px-4 bg-slate-900 text-white dark:bg-slate-800 rounded-lg text-xs font-semibold hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-          >
-            <Filter size={14} />
-            <span>Filter</span>
-          </button>
-        </form>
-      </div>
-
-      {/* Vehicle Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
-        {vehicles && vehicles.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-850 text-slate-500 font-bold border-b border-slate-200 dark:border-slate-800 uppercase tracking-wider">
-                  <th className="py-3 px-4">Vehicle</th>
-                  <th className="py-3 px-4">Registration</th>
-                  <th className="py-3 px-4">Category</th>
-                  <th className="py-3 px-4">Odometer</th>
-                  <th className="py-3 px-4">Daily / Owner Rate</th>
-                  <th className="py-3 px-4">Document Health</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-slate-700 dark:text-slate-300">
-                {vehicles.map((v) => {
-                  const primaryImg = v.primary_photo_url || v.vehicle_images?.find((img: any) => img.is_primary)?.public_url || v.vehicle_images?.[0]?.public_url
-                  const insHealth = calculateDocumentHealth(v.insurance_expiry)
-                  const revHealth = calculateDocumentHealth(v.revenue_license_expiry)
-
-                  return (
-                    <tr key={v.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
-                            {primaryImg ? (
-                              <img src={primaryImg} alt={v.vehicle_name} className="w-full h-full object-cover" />
-                            ) : (
-                              <Car size={20} className="text-slate-400" />
-                            )}
-                          </div>
-                          <div>
-                            <div className="font-bold text-slate-900 dark:text-white">{v.vehicle_name}</div>
-                            <div className="text-[10px] text-slate-400 font-mono">{v.vehicle_code} &bull; {v.brand} {v.model} ({v.manufacture_year || 'N/A'})</div>
-                            {v.owner_contact_name && (
-                              <div className="text-[10px] text-purple-600 dark:text-purple-400 flex items-center gap-1.5 mt-0.5 font-medium">
-                                <span>Owner: <strong>{v.owner_contact_name}</strong></span>
-                                {v.owner_contact_phone && (
-                                  <a href={`tel:${v.owner_contact_phone}`} className="underline font-mono">
-                                    {v.owner_contact_phone}
-                                  </a>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200">{v.registration_number}</td>
-                      <td className="py-3 px-4">{v.vehicle_categories?.name || 'Uncategorized'}</td>
-                      <td className="py-3 px-4 font-mono font-semibold">{Number(v.current_mileage || 0).toLocaleString()} KM</td>
-                      <td className="py-3 px-4 font-mono">
-                        <div className="font-bold text-amber-600 dark:text-amber-400">LKR {Number(v.daily_rate).toLocaleString()} /day</div>
-                        {v.agreed_payout_rate ? (
-                          <div className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">
-                            Payout: LKR {Number(v.agreed_payout_rate).toLocaleString()}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${insHealth.badgeColor}`}>
-                          Insurance: {insHealth.label}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${
-                          v.status === 'available' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
-                          v.status === 'available_on_call' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' :
-                          v.status === 'pending_inspection' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' :
-                          v.status === 'pending_management_approval' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 animate-pulse' :
-                          v.status === 'standby_pool' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' :
-                          v.status === 'inspection_failed' ? 'bg-rose-500/10 text-rose-600 border-rose-500/30' :
-                          v.status === 'maintenance' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
-                          v.status === 'rejected' ? 'bg-rose-500/10 text-rose-600 border-rose-500/30' :
-                          v.status === 'on_trip' || v.status === 'rented' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
-                          'bg-slate-500/10 text-slate-400 border-slate-500/20'
-                        }`}>
-                          {v.status?.replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <Link
-                          href={`/dashboard/vehicles/${v.id}`}
-                          className="px-3 py-1 bg-amber-400/10 hover:bg-amber-400/20 text-amber-600 dark:text-amber-400 border border-amber-400/30 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1"
-                        >
-                          <span>View Profile</span>
-                          <ChevronRight size={13} />
-                        </Link>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="py-12 text-center space-y-2">
-            <Car size={32} className="mx-auto text-slate-400" />
-            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No Vehicles Found</p>
-            <p className="text-xs text-slate-400">Add a new vehicle to populate your fleet catalog.</p>
-          </div>
-        )}
-      </div>
+      {/* Roster Segment Tabs & Interactive Vehicle Table */}
+      <VehiclesClientTable
+        vehicles={vehicles || []}
+        categories={categories || []}
+        searchParams={params}
+      />
     </div>
   )
 }
