@@ -4,14 +4,15 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, ClipboardCheck } from 'lucide-react'
 import { NewInspectionModal } from '@/components/maintenance/new-inspection-modal'
-import { createVehicleInspectionAction } from '../maintenance-actions'
+import { createVehicleInspectionAction, recordVehicleOnboardingInspectionAction } from '../maintenance-actions'
 
 interface InspectionsClientWrapperProps {
   vehicles: any[]
+  categories?: any[]
   inspections: any[]
 }
 
-export function InspectionsClientWrapper({ vehicles, inspections }: InspectionsClientWrapperProps) {
+export function InspectionsClientWrapper({ vehicles, categories = [], inspections }: InspectionsClientWrapperProps) {
   const router = useRouter()
   const [isModalOpen, setIsModalOpen] = useState(false)
 
@@ -50,7 +51,7 @@ export function InspectionsClientWrapper({ vehicles, inspections }: InspectionsC
                     <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
                       {i.vehicle?.vehicle_name} ({i.vehicle?.registration_number})
                     </td>
-                    <td className="py-3 px-4 capitalize font-semibold">{i.inspection_type.replace('_', ' ')}</td>
+                    <td className="py-3 px-4 capitalize font-semibold">{i.inspection_type?.replace('_', ' ')}</td>
                     <td className="py-3 px-4 font-mono">{new Date(i.inspection_date).toLocaleDateString()}</td>
                     <td className="py-3 px-4 font-mono">{i.odometer_reading ? `${i.odometer_reading} KM` : 'N/A'}</td>
                     <td className="py-3 px-4 font-mono font-bold">{i.fuel_level_percent ? `${i.fuel_level_percent}%` : 'N/A'}</td>
@@ -60,7 +61,7 @@ export function InspectionsClientWrapper({ vehicles, inspections }: InspectionsC
                         i.overall_condition === 'attention_required' ? 'bg-amber-500/10 text-amber-500' :
                         'bg-rose-500/10 text-rose-500'
                       }`}>
-                        {i.overall_condition.replace('_', ' ')}
+                        {i.overall_condition?.replace('_', ' ')}
                       </span>
                     </td>
                     <td className="py-3 px-4">
@@ -81,9 +82,14 @@ export function InspectionsClientWrapper({ vehicles, inspections }: InspectionsC
       <NewInspectionModal
         isOpen={isModalOpen}
         vehicles={vehicles}
+        categories={categories}
         onClose={() => setIsModalOpen(false)}
         onSubmit={async (inspectionData) => {
-          await createVehicleInspectionAction(inspectionData)
+          if (inspectionData.mode === 'onboarding') {
+            await recordVehicleOnboardingInspectionAction(inspectionData)
+          } else {
+            await createVehicleInspectionAction(inspectionData)
+          }
           router.refresh()
         }}
       />

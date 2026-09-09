@@ -167,6 +167,8 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
           >
             <option value="all">All Statuses</option>
             <option value="available">Available</option>
+            <option value="pending_inspection">Pending Inspection</option>
+            <option value="inspection_failed">Inspection Failed</option>
             <option value="reserved">Reserved</option>
             <option value="on_trip">On Trip</option>
             <option value="maintenance">Maintenance</option>
@@ -245,11 +247,13 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
                       <td className="py-3 px-4">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${
                           v.status === 'available' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
+                          v.status === 'pending_inspection' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' :
+                          v.status === 'inspection_failed' ? 'bg-rose-500/10 text-rose-600 border-rose-500/30' :
                           v.status === 'maintenance' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
                           v.status === 'on_trip' || v.status === 'rented' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
                           'bg-slate-500/10 text-slate-400 border-slate-500/20'
                         }`}>
-                          {v.status.replace('_', ' ')}
+                          {v.status?.replace('_', ' ')}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">

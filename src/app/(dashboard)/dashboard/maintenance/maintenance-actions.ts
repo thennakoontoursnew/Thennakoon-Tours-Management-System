@@ -202,3 +202,141 @@ export async function completeMaintenanceTaskAction(taskId: string, completionDa
   revalidatePath(`/dashboard/vehicles/${task.vehicle_id}`)
   return { success: true }
 }
+
+export interface OnboardingInspectionInput {
+  registration_number: string
+  vehicle_name: string
+  brand?: string
+  model?: string
+  manufacture_year?: number
+  category_id: string
+  transmission?: 'automatic' | 'manual' | 'semi_automatic'
+  fuel_type?: 'petrol' | 'diesel' | 'hybrid' | 'electric' | 'plug_in_hybrid'
+  daily_rate?: number
+  colour?: string
+
+  inspection_type?: string
+  odometer_reading?: number
+  fuel_level_percent?: number
+  overall_condition: 'pass' | 'fail' | 'conditional' | 'attention_required' | 'damage_found' | 'maintenance_required'
+  general_notes?: string
+}
+
+export async function recordVehicleOnboardingInspectionAction(onboardingData: OnboardingInspectionInput) {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const regNorm = onboardingData.registration_number.toUpperCase().trim()
+
+  // 1. Check for Duplicate Registration Number
+  const { data: existing } = await supabase
+    .from('vehicles')
+    .select('id')
+    .ilike('registration_number', regNorm)
+    .maybeSingle()
+
+  if (existing) {
+    throw new Error(`A vehicle with registration number "${regNorm}" already exists.`)
+  }
+
+  // 2. Insert new vehicle record with status 'pending_inspection'
+  const vCode = `TT-V-${Math.floor(10000 + Math.random() * 90000)}`
+  const brandName = onboardingData.brand?.trim() || onboardingData.vehicle_name.split(' ')[0] || 'Unknown'
+  const modelName = onboardingData.model?.trim() || onboardingData.vehicle_name.split(' ').slice(1).join(' ') || 'Standard'
+
+  const { data: newVehicle, error: vError } = await supabase
+    .from('vehicles')
+    .insert({
+      vehicle_code: vCode,
+      registration_number: regNorm,
+      vehicle_name: onboardingData.vehicle_name.trim(),
+      brand: brandName,
+      model: modelName,
+      manufacture_year: onboardingData.manufacture_year || new Date().getFullYear(),
+      category_id: onboardingData.category_id,
+      transmission: onboardingData.transmission || 'automatic',
+      fuel_type: onboardingData.fuel_type || 'petrol',
+      current_mileage: onboardingData.odometer_reading || 0,
+      daily_rate: onboardingData.daily_rate || 10000,
+      colour: onboardingData.colour?.trim() || null,
+      status: 'pending_inspection',
+      is_archived: false,
+      created_by: user?.id || null,
+      updated_by: user?.id || null,
+    })
+    .select()
+    .single()
+
+  if (vError || !newVehicle) {
+    throw new Error(`Failed to create onboarding vehicle record: ${vError?.message || 'Unknown error'}`)
+  }
+
+  // 3. Record inspection entry in vehicle_inspections
+  const inspNum = `INS-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`
+
+  const { data: inspection, error: inspErr } = await supabase
+    .from('vehicle_inspections')
+    .insert({
+      inspection_number: inspNum,
+      vehicle_id: newVehicle.id,
+      inspector_id: user?.id || null,
+      inspection_type: onboardingData.inspection_type || 'pre_onboarding',
+      inspection_date: new Date().toISOString(),
+      odometer_reading: onboardingData.odometer_reading || null,
+      fuel_level_percent: onboardingData.fuel_level_percent || null,
+      overall_condition: onboardingData.overall_condition,
+      status: 'completed',
+      checklist_data: {},
+      general_notes: onboardingData.general_notes || 'Pre-Fleet Onboarding Audit',
+      created_by: user?.id || null,
+    })
+    .select()
+    .single()
+
+  if (inspErr) {
+    throw new Error(`Failed to record onboarding inspection: ${inspErr.message}`)
+  }
+
+  // 4. Update vehicle status based on inspection overall result
+  let finalStatus: string = 'pending_inspection'
+  if (onboardingData.overall_condition === 'pass') {
+    finalStatus = 'available'
+  } else if (['fail', 'damage_found', 'maintenance_required'].includes(onboardingData.overall_condition)) {
+    finalStatus = 'inspection_failed'
+  } else {
+    finalStatus = 'pending_inspection'
+  }
+
+  await supabase
+    .from('vehicles')
+    .update({ status: finalStatus, current_mileage: onboardingData.odometer_reading || 0 })
+    .eq('id', newVehicle.id)
+
+  if (onboardingData.odometer_reading && onboardingData.odometer_reading > 0) {
+    await supabase.from('vehicle_odometer_logs').insert({
+      vehicle_id: newVehicle.id,
+      odometer_reading: onboardingData.odometer_reading,
+      source: 'onboarding_inspection',
+      recorded_by: user?.id || null,
+    })
+  }
+
+  // 5. Audit Logging
+  await supabase.from('document_activity_logs').insert({
+    document_type: 'vehicle',
+    document_id: newVehicle.id,
+    action: 'ONBOARDING_INSPECTION_COMPLETED',
+    change_summary: `Onboarding inspection (${inspNum}) completed for ${newVehicle.registration_number}: Result=${onboardingData.overall_condition.toUpperCase()}, Status=${finalStatus}`,
+    user_id: user?.id || null,
+  })
+
+  revalidatePath('/dashboard/fleet')
+  revalidatePath('/dashboard/vehicles')
+  revalidatePath('/dashboard/maintenance/inspections')
+  revalidatePath('/dashboard/maintenance')
+
+  return { success: true, vehicle_id: newVehicle.id, inspection_id: inspection.id, status: finalStatus }
+}

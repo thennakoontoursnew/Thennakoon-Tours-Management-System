@@ -211,9 +211,9 @@ export async function getFleetSummaryKPIs(supabase: any): Promise<FleetKPIs> {
 
     if (st === 'inactive') {
       inactive++
-    } else if (st === 'maintenance') {
+    } else if (st === 'maintenance' || st === 'inspection_failed') {
       maintenance++
-    } else if (st === 'inspection_required') {
+    } else if (st === 'inspection_required' || st === 'pending_inspection') {
       inspectionRequired++
     } else if (isOnTrip) {
       onTrip++

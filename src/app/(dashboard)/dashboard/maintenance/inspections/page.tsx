@@ -25,6 +25,12 @@ export default async function InspectionsPage({ searchParams }: PageProps) {
     .select('id, vehicle_code, vehicle_name, registration_number')
     .eq('is_archived', false)
 
+  // Fetch Categories for new vehicle onboarding in inspection modal
+  const { data: categories } = await supabase
+    .from('vehicle_categories')
+    .select('id, name')
+    .order('name')
+
   // Fetch Inspections list
   let query = supabase
     .from('vehicle_inspections')
@@ -114,7 +120,7 @@ export default async function InspectionsPage({ searchParams }: PageProps) {
       </div>
 
       {/* Inspections Table Client Wrapper */}
-      <InspectionsClientWrapper vehicles={vehicles || []} inspections={inspections || []} />
+      <InspectionsClientWrapper vehicles={vehicles || []} categories={categories || []} inspections={inspections || []} />
     </div>
   )
 }
