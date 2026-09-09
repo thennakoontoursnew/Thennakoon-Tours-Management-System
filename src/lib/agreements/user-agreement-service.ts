@@ -242,9 +242,9 @@ export async function getInitialUserAgreementFormData(
     ],
 
     pickup_delivery: {
-      pickup_location: booking.pickup_location || 'Pagoda Road, Nugegoda',
+      pickup_location: booking.pickup_location || 'Kohuwala, Sri Lanka',
       pickup_time: '09:00 AM',
-      dropoff_location: booking.dropoff_location || 'Pagoda Road, Nugegoda',
+      dropoff_location: booking.dropoff_location || 'Kohuwala, Sri Lanka',
       delivery_fee_to: '',
       pickup_fee_from: '',
     },
@@ -275,7 +275,7 @@ export async function getInitialUserAgreementFormData(
       notice_period_days: companySettings?.default_notice_period_days || 30,
       allowed_km_per_day: 100,
       third_party_insurance_cover: 500000,
-      agreement_location: companySettings?.default_agreement_location || 'Nugegoda, Sri Lanka',
+      agreement_location: companySettings?.default_agreement_location || 'Kohuwala, Sri Lanka',
       company_hotline: companySettings?.default_company_hotline || '+94 112 823 723 / +94 760 080 155',
       company_bank_details: companySettings?.default_agreement_bank_info || 'Nations Trust Bank - Nugegoda Branch, Account # 100530013140, Swift Code: NTBCLKLX, Thennakoon Tours (Pvt) Ltd',
     },

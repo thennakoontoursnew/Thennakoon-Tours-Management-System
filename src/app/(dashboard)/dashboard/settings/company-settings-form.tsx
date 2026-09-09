@@ -137,7 +137,7 @@ export function CompanySettingsForm({ initialValues, invoiceCounter }: CompanySe
               label="Address"
               name="address"
               defaultValue={initialValues?.address}
-              placeholder="39 A, 1st Cross Street, Pagoda Road, Nugegoda"
+              placeholder="No. 146/5A, Dutugemunu Street, Caldera Gardens, Kohuwala."
             />
           </div>
           <FormField

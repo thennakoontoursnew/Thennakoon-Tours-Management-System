@@ -242,8 +242,8 @@ export function UserAgreementDocument({
       <div className="flex items-center justify-between border-b-2 border-slate-950 pb-3 mb-6">
         <div>
           <h1 className="text-base font-black uppercase tracking-wider text-slate-950">THENNAKOON TOURS (PVT) LTD</h1>
-          <p className="text-[10px] text-slate-800">39A, 1st cross street, Pagoda Road, Nugegoda | Reg No. <span className="font-bold text-slate-950">{USER_AGREEMENT_COMPANY_REG_NO}</span></p>
-          <p className="text-[10px] text-slate-800">Phone: +94 112 823 723 / +94 77 727 3820 | info@thennakoontours.lk</p>
+          <p className="text-[10px] text-slate-800">No. 146/5A, Dutugemunu Street, Caldera Gardens, Kohuwala. | Reg No. <span className="font-bold text-slate-950">{USER_AGREEMENT_COMPANY_REG_NO}</span></p>
+          <p className="text-[10px] text-slate-800">Phone: +94 112 823 723 / +94 777 273 820 / +94 777 474 938 | info@thennakoontours.com</p>
         </div>
         <div className="text-right">
           <h2 className="text-sm font-black text-slate-950 uppercase">VEHICLE RENTAL AGREEMENT</h2>
@@ -354,7 +354,7 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
         <p className="font-bold">Agreement No: {agreement.agreement_number || 'N/A'}</p>
         <p className="font-bold text-center my-2 text-sm uppercase tracking-wide">VEHICLE RENTAL AGREEMENT</p>
         <p>
-          <strong className="font-bold">Thennakoon Tours (Pvt) Ltd</strong> bearing registration No <strong className="font-bold font-mono">PV 00312253</strong> Having its Principal Business Place at 39A, 1st cross street, Pagoda Road, Nugegoda (hereinafter referred to as <strong className="font-bold">&quot;The Lessor&quot;</strong> which term or expression shall where the context so requires or admits be taken to mean and include the said Thennakoon Tours (Pvt) Ltd and his heirs executors and administrators of the <strong className="font-bold">First Part</strong> and (the Lessee) No <strong className="font-bold font-mono">{lesseeId}</strong> (Hereinafter referred to as <strong className="font-bold">&quot;The Lessee&quot;</strong> which term or expression shall where the context so requires or admits betaken to mean and include the said <strong className="font-bold">{lesseeName}</strong> (Name of the Lessee) and it&apos;s Successor or Successors in Office and assigns) of the <strong className="font-bold">Second Part</strong>.
+          <strong className="font-bold">Thennakoon Tours (Pvt) Ltd</strong> bearing registration No <strong className="font-bold font-mono">PV00312253</strong> Having its Principal Business Place at No. 146/5A, Dutugemunu Street, Caldera Gardens, Kohuwala. (hereinafter referred to as <strong className="font-bold">&quot;The Lessor&quot;</strong> which term or expression shall where the context so requires or admits be taken to mean and include the said Thennakoon Tours (Pvt) Ltd and his heirs executors and administrators of the <strong className="font-bold">First Part</strong> and (the Lessee) No <strong className="font-bold font-mono">{lesseeId}</strong> (Hereinafter referred to as <strong className="font-bold">&quot;The Lessee&quot;</strong> which term or expression shall where the context so requires or admits betaken to mean and include the said <strong className="font-bold">{lesseeName}</strong> (Name of the Lessee) and it&apos;s Successor or Successors in Office and assigns) of the <strong className="font-bold">Second Part</strong>.
         </p>
         <p className="mt-2">
           Whereas the Lessee is desirous of hiring from <strong className="font-bold">The Lessor</strong> a motor car belonging to <strong className="font-bold">The Lessor</strong> and described in the Schedule to this agreement (hereinafter referred to as <strong className="font-bold">&quot;The Vehicle&quot;</strong>) and <strong className="font-bold">&quot;Lessor&quot;</strong> has agreed with the <strong className="font-bold">&quot;Lessee&quot;</strong> to hire the Vehicle to The lessee subject to and upon the terms and conditions hereinafter set forth.
@@ -541,7 +541,7 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
           <p className="font-bold text-slate-950 uppercase">The Lessor/ on behalf of the Lessor</p>
           <p className="text-slate-800">NIC: {lessorRep.nic || '........................'}</p>
           <p className="text-slate-800">Name: {lessorRep.name || '........................'}</p>
-          <p className="text-slate-800">Address: 39A, 1st cross street, Pagoda Road, Nugegoda, SriLanka.</p>
+          <p className="text-slate-800">Address: No. 146/5A, Dutugemunu Street, Caldera Gardens, Kohuwala.</p>
         </div>
 
         <div className="border-t border-slate-950 pt-2 space-y-1">
@@ -575,7 +575,7 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
           </div>
         </div>
         <p className="pt-4 text-slate-950 font-bold text-xs text-center">
-          Sign before us on this {formatDateLegal(agreement.agreement_date || new Date())} at Nugegoda/Thennakoon Tours head office.
+          Sign before us on this {formatDateLegal(agreement.agreement_date || new Date())} at Kohuwala/Thennakoon Tours head office.
         </p>
       </div>
     </div>

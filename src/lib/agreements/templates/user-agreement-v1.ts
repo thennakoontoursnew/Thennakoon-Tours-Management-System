@@ -63,7 +63,7 @@ export const USER_AGREEMENT_PREAMBLE = `Agreement No: {{AGREEMENT_NUMBER}}
 
 VEHICLE RENTAL AGREEMENT
 
-Thennakoon Tours (Pvt) Ltd bearing registration No PV 00312253 Having its Principal Business Place at 39A, 1st cross street, Pagoda Road, Nugegoda (hereinafter referred to as "The Lessor" which term or expression shall where the context so requires or admits be taken to mean and include the said Thennakoon Tours (Pvt) Ltd and hisheirs’ executors and administrators of the First Part and {{LESSEE_FULL_NAME}} (the Lessee) No {{LESSEE_IDENTIFIER_NO}} (Hereinafter referred to as "The Lessee" which term or expression shall where the context so requires or admits be taken to mean and include the said {{LESSEE_FULL_NAME}} Name of the Lessee) and its Successor or Successors in Office and assigns) of the Second Part.
+Thennakoon Tours (Pvt) Ltd bearing registration No PV00312253 Having its Principal Business Place at No. 146/5A, Dutugemunu Street, Caldera Gardens, Kohuwala. (hereinafter referred to as "The Lessor" which term or expression shall where the context so requires or admits be taken to mean and include the said Thennakoon Tours (Pvt) Ltd and hisheirs’ executors and administrators of the First Part and {{LESSEE_FULL_NAME}} (the Lessee) No {{LESSEE_IDENTIFIER_NO}} (Hereinafter referred to as "The Lessee" which term or expression shall where the context so requires or admits be taken to mean and include the said {{LESSEE_FULL_NAME}} Name of the Lessee) and its Successor or Successors in Office and assigns) of the Second Part.
 
 Whereas the Lessee is desirous of hiring from The Lessor a motor car belonging to The Lessor and described in the Schedule to this agreement (hereinafter referred to as "The Vehicle") and "Lessor" has agreed with the "Lessee" to hire the Vehicle to the lessee subject to and upon the terms and conditions hereinafter set forth.
 
@@ -340,7 +340,7 @@ In proving service of any Notice, Summons, Demand, Decree of the court was prope
 
 Decision or Approval by the Lessor - A Decision or approval that has been taken by the Managing Director or Top Management of the Thennakoon Tours ( Pvt) Ltd.
 
-Posting Address of the Lessor - (Thennakoon Tours (Pvt) Ltd, 39A, 1st cross street, Pagoda Road, Nugegoda, SriLanka.)
+Posting Address of the Lessor - (Thennakoon Tours (Pvt) Ltd, No. 146/5A, Dutugemunu Street, Caldera Gardens, Kohuwala.)
 Message via WhatsApp to the Lessor - A WhatsApp message sent to the following number
 Head of Operations Ms. Rashanthi Gunasekara: +94777273820
 Marketing, Administration & Customer Relations: +94 76 676 2829
