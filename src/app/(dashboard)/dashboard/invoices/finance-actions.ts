@@ -163,6 +163,19 @@ export async function createExpenseAction(expenseData: any) {
       driver_id: expenseData.driver_id || null,
       booking_id: expenseData.booking_id || null,
       receipt_url: expenseData.receipt_url || null,
+      voucher_number: expenseData.voucher_number || expenseNum,
+      bill_name: expenseData.bill_name || null,
+      customer_name: expenseData.customer_name || null,
+      account_number: expenseData.account_number || null,
+      bank_name: expenseData.bank_name || null,
+      branch_name: expenseData.branch_name || null,
+      add_payments_breakdown: expenseData.add_payments_breakdown || null,
+      deduction_breakdown: expenseData.deduction_breakdown || null,
+      net_balance: expenseData.net_balance !== undefined && expenseData.net_balance !== null ? Number(expenseData.net_balance) : Number(expenseData.amount),
+      remark: expenseData.remark || null,
+      special_notice: expenseData.special_notice || null,
+      prepared_by: expenseData.prepared_by || null,
+      approved_by: expenseData.approved_by || null,
       status: 'approved',
       created_by: user?.id || null,
     })
@@ -184,5 +197,12 @@ export async function createExpenseAction(expenseData: any) {
 
   revalidatePath('/dashboard/expenses')
   revalidatePath('/dashboard/reports/earnings')
-  return { success: true }
+  return { success: true, data: expense }
 }
+
+export async function getCompanySettingsAction() {
+  const supabase = await createClient()
+  const { data } = await supabase.from('company_settings').select('*').limit(1).single()
+  return data || null
+}
+
