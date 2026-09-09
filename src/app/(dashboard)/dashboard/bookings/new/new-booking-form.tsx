@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBooking, checkAvailabilityAction } from '../booking-actions'
-import { ArrowLeft, Save, AlertCircle, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Save, AlertCircle, CheckCircle, Phone, FileText, ExternalLink, ShieldCheck } from 'lucide-react'
 
 interface Props {
   customers: any[]
@@ -35,6 +35,8 @@ export default function NewBookingForm({ customers, vehicles }: Props) {
   })
 
   const [selectedVehicleId, setSelectedVehicleId] = useState('')
+  const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId)
+  const isOnCallPartner = selectedVehicle?.status === 'available_on_call' || selectedVehicle?.holding_type === 'owner_held'
 
   const handleCheckAvailability = async () => {
     if (!selectedVehicleId) return
@@ -173,21 +175,62 @@ export default function NewBookingForm({ customers, vehicles }: Props) {
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
               >
                 <option value="">-- Choose Vehicle --</option>
-                {vehicles.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.vehicle_name} ({v.registration_number}) - Daily LKR {Number(v.daily_rate).toLocaleString()}
-                  </option>
-                ))}
+                {vehicles.map((v) => {
+                  const isOnCall = v.status === 'available_on_call' || v.holding_type === 'owner_held'
+                  return (
+                    <option key={v.id} value={v.id}>
+                      {v.vehicle_name} ({v.registration_number}) {isOnCall ? '[ON-CALL PARTNER]' : ''} - Daily LKR {Number(v.daily_rate).toLocaleString()}
+                    </option>
+                  )
+                })}
               </select>
             </div>
             <button
               type="button"
               onClick={handleCheckAvailability}
-              className="px-4 py-2.5 bg-slate-900 text-white dark:bg-slate-800 rounded-xl text-xs font-bold hover:bg-slate-800"
+              className="px-4 py-2.5 bg-slate-900 text-white dark:bg-slate-800 rounded-xl text-xs font-bold hover:bg-slate-800 cursor-pointer"
             >
               Check Availability
             </button>
           </div>
+
+          {/* On-Call Partner Dispatch Notice */}
+          {isOnCallPartner && selectedVehicle && (
+            <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/20 text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-bold text-purple-700 dark:text-purple-300">
+                  <Phone size={16} className="text-purple-500" />
+                  <span>On-Call Partner Vehicle Notice</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 uppercase">
+                  Owner Held
+                </span>
+              </div>
+              <p className="text-slate-600 dark:text-slate-300">
+                This vehicle is held by Owner: <strong>{selectedVehicle.owner_contact_name || 'Partner Owner'}</strong>
+                {selectedVehicle.owner_contact_phone && (
+                  <span>
+                    {' '}(<a href={`tel:${selectedVehicle.owner_contact_phone}`} className="text-purple-600 underline font-mono">{selectedVehicle.owner_contact_phone}</a>)
+                  </span>
+                )}.
+                {selectedVehicle.agreed_payout_rate ? (
+                  <span> Negotiated Payout Rate: <strong className="font-mono text-purple-700 dark:text-purple-300">LKR {Number(selectedVehicle.agreed_payout_rate).toLocaleString()} /day</strong>.</span>
+                ) : null}
+              </p>
+              <div className="pt-2 flex items-center justify-between border-t border-purple-500/20">
+                <span className="text-[11px] text-slate-500">Call owner to confirm vehicle dispatch for this booking.</span>
+                <Link
+                  href={`/dashboard/agreements/owner/new?vehicle_id=${selectedVehicle.id}`}
+                  target="_blank"
+                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <FileText size={13} />
+                  <span>Confirm Dispatch & Draft Owner Agreement</span>
+                  <ExternalLink size={11} />
+                </Link>
+              </div>
+            </div>
+          )}
 
           {availStatus && (
             <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200">

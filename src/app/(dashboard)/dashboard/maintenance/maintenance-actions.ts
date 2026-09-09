@@ -214,6 +214,9 @@ export interface OnboardingInspectionInput {
   fuel_type?: 'petrol' | 'diesel' | 'hybrid' | 'electric' | 'plug_in_hybrid'
   daily_rate?: number
   colour?: string
+  owner_contact_name?: string
+  owner_contact_phone?: string
+  agreed_payout_rate?: number
 
   inspection_type?: string
   odometer_reading?: number
@@ -262,6 +265,11 @@ export async function recordVehicleOnboardingInspectionAction(onboardingData: On
       current_mileage: onboardingData.odometer_reading || 0,
       daily_rate: onboardingData.daily_rate || 10000,
       colour: onboardingData.colour?.trim() || null,
+      owner_contact_name: onboardingData.owner_contact_name?.trim() || null,
+      owner_contact_phone: onboardingData.owner_contact_phone?.trim() || null,
+      agreed_payout_rate: onboardingData.agreed_payout_rate || null,
+      holding_type: 'owner_held',
+      owner_agreement_status: 'pending_dispatch',
       status: 'pending_inspection',
       is_archived: false,
       created_by: user?.id || null,
@@ -300,14 +308,16 @@ export async function recordVehicleOnboardingInspectionAction(onboardingData: On
     throw new Error(`Failed to record onboarding inspection: ${inspErr.message}`)
   }
 
-  // 4. Update vehicle status based on inspection overall result
+  // 4. Update vehicle status based on inspection overall result:
+  // Technical Inspection PASS -> Vehicle enters 'pending_management_approval'
+  // Technical Inspection FAIL -> Vehicle enters 'inspection_failed'
   let finalStatus: string = 'pending_inspection'
   if (onboardingData.overall_condition === 'pass') {
-    finalStatus = 'available'
+    finalStatus = 'pending_management_approval'
   } else if (['fail', 'damage_found', 'maintenance_required'].includes(onboardingData.overall_condition)) {
     finalStatus = 'inspection_failed'
   } else {
-    finalStatus = 'pending_inspection'
+    finalStatus = 'pending_management_approval'
   }
 
   await supabase
@@ -339,4 +349,92 @@ export async function recordVehicleOnboardingInspectionAction(onboardingData: On
   revalidatePath('/dashboard/maintenance')
 
   return { success: true, vehicle_id: newVehicle.id, inspection_id: inspection.id, status: finalStatus }
+}
+
+export interface ManagementDecisionInput {
+  vehicleId: string
+  decision: 'fleet_partner_on_call' | 'in_house_fleet' | 'standby_pool' | 'rejected'
+  agreedPayoutRate?: number
+  holdingType?: 'in_house' | 'owner_held'
+  managementNotes?: string
+}
+
+export async function resolveOnboardingManagementDecisionAction(input: ManagementDecisionInput) {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const { vehicleId, decision, agreedPayoutRate, holdingType, managementNotes } = input
+
+  const { data: vehicle, error: vErr } = await supabase
+    .from('vehicles')
+    .select('id, registration_number, vehicle_name')
+    .eq('id', vehicleId)
+    .single()
+
+  if (vErr || !vehicle) {
+    throw new Error(`Vehicle not found: ${vErr?.message || 'Invalid vehicle ID'}`)
+  }
+
+  let finalStatus = 'pending_management_approval'
+  let finalHoldingType = holdingType || 'owner_held'
+  let agreementStatus = 'pending_dispatch'
+
+  if (decision === 'fleet_partner_on_call') {
+    finalStatus = 'available_on_call'
+    finalHoldingType = 'owner_held'
+    agreementStatus = 'pending_dispatch'
+  } else if (decision === 'in_house_fleet') {
+    finalStatus = 'available'
+    finalHoldingType = 'in_house'
+    agreementStatus = 'exempt'
+  } else if (decision === 'standby_pool') {
+    finalStatus = 'standby_pool'
+    finalHoldingType = 'owner_held'
+    agreementStatus = 'pending_dispatch'
+  } else if (decision === 'rejected') {
+    finalStatus = 'rejected'
+    agreementStatus = 'exempt'
+  }
+
+  const updatePayload: Record<string, any> = {
+    status: finalStatus,
+    holding_type: finalHoldingType,
+    owner_agreement_status: agreementStatus,
+    management_decision: decision,
+    management_notes: managementNotes?.trim() || null,
+    management_reviewed_at: new Date().toISOString(),
+    updated_by: user?.id || null,
+  }
+
+  if (typeof agreedPayoutRate === 'number' && agreedPayoutRate >= 0) {
+    updatePayload.agreed_payout_rate = agreedPayoutRate
+  }
+
+  const { error: updateErr } = await supabase
+    .from('vehicles')
+    .update(updatePayload)
+    .eq('id', vehicleId)
+
+  if (updateErr) {
+    throw new Error(`Failed to update vehicle management decision: ${updateErr.message}`)
+  }
+
+  // Audit Log
+  await supabase.from('document_activity_logs').insert({
+    document_type: 'vehicle',
+    document_id: vehicleId,
+    action: 'MANAGEMENT_ONBOARDING_DECISION',
+    change_summary: `Management decision [${decision.toUpperCase()}] for ${vehicle.registration_number}: Status=${finalStatus}, Holding=${finalHoldingType}, Agreed Rate=LKR ${agreedPayoutRate || 0}`,
+    user_id: user?.id || null,
+  })
+
+  revalidatePath('/dashboard/fleet')
+  revalidatePath('/dashboard/vehicles')
+  revalidatePath('/dashboard/maintenance/inspections')
+  revalidatePath('/dashboard/maintenance')
+
+  return { success: true, status: finalStatus }
 }

@@ -12,7 +12,7 @@ export default async function NewBookingPage() {
 
   const { data: vehicles } = await supabase
     .from('vehicles')
-    .select('id, vehicle_code, vehicle_name, registration_number, daily_rate, refundable_deposit, status')
+    .select('id, vehicle_code, vehicle_name, registration_number, daily_rate, refundable_deposit, status, holding_type, owner_contact_name, owner_contact_phone, agreed_payout_rate')
     .eq('is_archived', false)
     .order('vehicle_name')
 

@@ -166,12 +166,16 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
             className="py-2 px-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
           >
             <option value="all">All Statuses</option>
-            <option value="available">Available</option>
+            <option value="available">Available (In-House)</option>
+            <option value="available_on_call">Available On-Call</option>
             <option value="pending_inspection">Pending Inspection</option>
+            <option value="pending_management_approval">Pending Mgmt Review</option>
+            <option value="standby_pool">Standby Pool</option>
             <option value="inspection_failed">Inspection Failed</option>
             <option value="reserved">Reserved</option>
             <option value="on_trip">On Trip</option>
             <option value="maintenance">Maintenance</option>
+            <option value="rejected">Rejected</option>
             <option value="inactive">Inactive</option>
           </select>
 
@@ -206,7 +210,7 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
                   <th className="py-3 px-4">Registration</th>
                   <th className="py-3 px-4">Category</th>
                   <th className="py-3 px-4">Odometer</th>
-                  <th className="py-3 px-4">Daily Rate</th>
+                  <th className="py-3 px-4">Daily / Owner Rate</th>
                   <th className="py-3 px-4">Document Health</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Action</th>
@@ -232,13 +236,30 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
                           <div>
                             <div className="font-bold text-slate-900 dark:text-white">{v.vehicle_name}</div>
                             <div className="text-[10px] text-slate-400 font-mono">{v.vehicle_code} &bull; {v.brand} {v.model} ({v.manufacture_year || 'N/A'})</div>
+                            {v.owner_contact_name && (
+                              <div className="text-[10px] text-purple-600 dark:text-purple-400 flex items-center gap-1.5 mt-0.5 font-medium">
+                                <span>Owner: <strong>{v.owner_contact_name}</strong></span>
+                                {v.owner_contact_phone && (
+                                  <a href={`tel:${v.owner_contact_phone}`} className="underline font-mono">
+                                    {v.owner_contact_phone}
+                                  </a>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
                       <td className="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200">{v.registration_number}</td>
                       <td className="py-3 px-4">{v.vehicle_categories?.name || 'Uncategorized'}</td>
                       <td className="py-3 px-4 font-mono font-semibold">{Number(v.current_mileage || 0).toLocaleString()} KM</td>
-                      <td className="py-3 px-4 font-bold text-amber-600 dark:text-amber-400 font-mono">LKR {Number(v.daily_rate).toLocaleString()}</td>
+                      <td className="py-3 px-4 font-mono">
+                        <div className="font-bold text-amber-600 dark:text-amber-400">LKR {Number(v.daily_rate).toLocaleString()} /day</div>
+                        {v.agreed_payout_rate ? (
+                          <div className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">
+                            Payout: LKR {Number(v.agreed_payout_rate).toLocaleString()}
+                          </div>
+                        ) : null}
+                      </td>
                       <td className="py-3 px-4">
                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${insHealth.badgeColor}`}>
                           Insurance: {insHealth.label}
@@ -247,9 +268,13 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
                       <td className="py-3 px-4">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${
                           v.status === 'available' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
+                          v.status === 'available_on_call' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' :
                           v.status === 'pending_inspection' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' :
+                          v.status === 'pending_management_approval' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 animate-pulse' :
+                          v.status === 'standby_pool' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' :
                           v.status === 'inspection_failed' ? 'bg-rose-500/10 text-rose-600 border-rose-500/30' :
                           v.status === 'maintenance' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
+                          v.status === 'rejected' ? 'bg-rose-500/10 text-rose-600 border-rose-500/30' :
                           v.status === 'on_trip' || v.status === 'rented' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
                           'bg-slate-500/10 text-slate-400 border-slate-500/20'
                         }`}>

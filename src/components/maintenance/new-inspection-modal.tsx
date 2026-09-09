@@ -27,6 +27,9 @@ export function NewInspectionModal({ isOpen, vehicles, categories = [], onClose,
   const [categoryId, setCategoryId] = useState(categories[0]?.id || '')
   const [transmission, setTransmission] = useState<'automatic' | 'manual'>('automatic')
   const [fuelType, setFuelType] = useState('petrol')
+  const [ownerContactName, setOwnerContactName] = useState('')
+  const [ownerContactPhone, setOwnerContactPhone] = useState('')
+  const [agreedPayoutRate, setAgreedPayoutRate] = useState('')
 
   // Shared inspection state
   const [inspectionType, setInspectionType] = useState('general')
@@ -57,6 +60,9 @@ export function NewInspectionModal({ isOpen, vehicles, categories = [], onClose,
           category_id: categoryId || categories[0]?.id,
           transmission,
           fuel_type: fuelType,
+          owner_contact_name: ownerContactName || undefined,
+          owner_contact_phone: ownerContactPhone || undefined,
+          agreed_payout_rate: agreedPayoutRate ? Number(agreedPayoutRate) : undefined,
           inspection_type: inspectionType || 'pre_onboarding',
           odometer_reading: odometerReading ? Number(odometerReading) : 0,
           fuel_level_percent: Number(fuelLevelPercent),
@@ -211,6 +217,45 @@ export function NewInspectionModal({ isOpen, vehicles, categories = [], onClose,
                     <option value="automatic">Automatic</option>
                     <option value="manual">Manual</option>
                   </select>
+                </div>
+              </div>
+
+              {/* Owner / Supplier & Proposed Payout Rate Section */}
+              <div className="pt-2 border-t border-purple-200/40 dark:border-purple-800/40 space-y-2">
+                <div className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">
+                  Owner / Supplier Contact & Rate Negotiation
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">Owner Contact Name</label>
+                    <input
+                      type="text"
+                      value={ownerContactName}
+                      onChange={(e) => setOwnerContactName(e.target.value)}
+                      placeholder="e.g. Bandara (Owner)"
+                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">Owner Phone / WhatsApp</label>
+                    <input
+                      type="tel"
+                      value={ownerContactPhone}
+                      onChange={(e) => setOwnerContactPhone(e.target.value)}
+                      placeholder="e.g. +94 77 123 4567"
+                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">Proposed Rate (LKR/Day)</label>
+                    <input
+                      type="number"
+                      value={agreedPayoutRate}
+                      onChange={(e) => setAgreedPayoutRate(e.target.value)}
+                      placeholder="e.g. 12000"
+                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
