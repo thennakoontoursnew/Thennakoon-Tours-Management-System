@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
 export async function createVehicleInspectionAction(inspectionData: any) {
@@ -660,11 +661,7 @@ export async function resolveOnboardingManagementDecisionAction(input: Managemen
 }
 
 export async function reconcileMissingVehicleOwnersAction() {
-  const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : await createClient()
 
   const { data: unlinkedVehicles, error: fetchErr } = await supabase
     .from('vehicles')
@@ -718,7 +715,7 @@ export async function reconcileMissingVehicleOwnersAction() {
           owner_type: 'individual',
           is_active: true,
           notes: 'Auto-reconciled legacy owner record',
-          created_by: user?.id || null,
+          created_by: null,
         })
         .select('id')
         .single()
