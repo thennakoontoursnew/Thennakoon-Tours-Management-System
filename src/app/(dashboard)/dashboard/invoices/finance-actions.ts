@@ -176,7 +176,7 @@ export async function createExpenseAction(expenseData: any) {
       special_notice: expenseData.special_notice || null,
       prepared_by: expenseData.prepared_by || null,
       approved_by: expenseData.approved_by || null,
-      status: 'approved',
+      status: expenseData.approved_by ? 'approved' : 'pending',
       created_by: user?.id || null,
     })
     .select()
@@ -198,6 +198,100 @@ export async function createExpenseAction(expenseData: any) {
   revalidatePath('/dashboard/expenses')
   revalidatePath('/dashboard/reports/earnings')
   return { success: true, data: expense }
+}
+
+export async function updateExpenseAction(expenseId: string, expenseData: any) {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const { data: expense, error } = await supabase
+    .from('expenses')
+    .update({
+      expense_date: expenseData.expense_date || new Date().toISOString().slice(0, 10),
+      category: expenseData.category,
+      description: expenseData.description,
+      amount: expenseData.amount,
+      payment_method: expenseData.payment_method || 'cash',
+      supplier_name: expenseData.supplier_name || null,
+      reference_number: expenseData.reference_number || null,
+      vehicle_id: expenseData.vehicle_id || null,
+      driver_id: expenseData.driver_id || null,
+      booking_id: expenseData.booking_id || null,
+      receipt_url: expenseData.receipt_url || null,
+      voucher_number: expenseData.voucher_number || undefined,
+      bill_name: expenseData.bill_name || null,
+      customer_name: expenseData.customer_name || null,
+      account_number: expenseData.account_number || null,
+      bank_name: expenseData.bank_name || null,
+      branch_name: expenseData.branch_name || null,
+      add_payments_breakdown: expenseData.add_payments_breakdown || null,
+      deduction_breakdown: expenseData.deduction_breakdown || null,
+      net_balance: expenseData.net_balance !== undefined && expenseData.net_balance !== null ? Number(expenseData.net_balance) : Number(expenseData.amount),
+      remark: expenseData.remark || null,
+      special_notice: expenseData.special_notice || null,
+      prepared_by: expenseData.prepared_by || null,
+      approved_by: expenseData.approved_by || null,
+      status: expenseData.approved_by ? 'approved' : 'pending',
+    })
+    .eq('id', expenseId)
+    .select()
+    .single()
+
+  if (error) {
+    throw new Error(`Failed to update expense: ${error.message}`)
+  }
+
+  // Audit log
+  await supabase.from('document_activity_logs').insert({
+    document_type: 'expense',
+    document_id: expenseId,
+    action: 'EXPENSE_UPDATED',
+    change_summary: `Updated expense ${expenseData.voucher_number || expenseId} (LKR ${expenseData.amount.toLocaleString()}) - ${expenseData.category}`,
+    user_id: user?.id || null,
+  })
+
+  revalidatePath('/dashboard/expenses')
+  revalidatePath('/dashboard/reports/earnings')
+  return { success: true, data: expense }
+}
+
+export async function approveExpenseVoucherAction(expenseId: string) {
+  const supabase = await createClient()
+
+  const profileInfo = await getCurrentUserProfilePreparedByAction()
+  const authorizer = profileInfo.formatted
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const { error } = await supabase
+    .from('expenses')
+    .update({
+      approved_by: authorizer,
+      status: 'approved',
+    })
+    .eq('id', expenseId)
+
+  if (error) {
+    throw new Error(`Failed to approve expense voucher: ${error.message}`)
+  }
+
+  // Audit log
+  await supabase.from('document_activity_logs').insert({
+    document_type: 'expense',
+    document_id: expenseId,
+    action: 'EXPENSE_APPROVED',
+    change_summary: `Approved expense voucher by ${authorizer}`,
+    user_id: user?.id || null,
+  })
+
+  revalidatePath('/dashboard/expenses')
+  revalidatePath('/dashboard/reports/earnings')
+  return { success: true, authorizer }
 }
 
 export async function getCompanySettingsAction() {
@@ -255,7 +349,6 @@ export async function getCurrentUserProfilePreparedByAction(): Promise<{ fullNam
   const formatted = `${fullName} (${roleDisplay})`
 
   return { fullName, role: roleDisplay, formatted }
-
 }
 
 

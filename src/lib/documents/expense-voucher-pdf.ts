@@ -145,11 +145,7 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
   doc.text('DISBURSEMENT TO / BENEFICIARY:', CONTENT_LEFT, currentY)
 
   let leftY = currentY + 4.8
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(PDF_TYPOGRAPHY.customerName)
-  setPdfDarkText(doc)
-  doc.text(payeeName, CONTENT_LEFT, leftY)
-  leftY += 4.5
+  leftY = drawAlignedKeyValueRow(doc, 'Beneficiary', payeeName, CONTENT_LEFT, leftY, { labelWidth: 24, maxWidth: 60 })
 
   if (hasMeaningfulValue(billParticular)) {
     leftY = drawAlignedKeyValueRow(doc, 'Particulars', billParticular, CONTENT_LEFT, leftY, { labelWidth: 24, maxWidth: 60 })

@@ -2,9 +2,14 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Printer, Loader2 } from 'lucide-react'
+import { Plus, Printer, Loader2, Check, Pencil } from 'lucide-react'
 import { NewExpenseModal } from '@/components/finance/new-expense-modal'
-import { createExpenseAction, getCompanySettingsAction } from '../invoices/finance-actions'
+import {
+  createExpenseAction,
+  updateExpenseAction,
+  approveExpenseVoucherAction,
+  getCompanySettingsAction,
+} from '../invoices/finance-actions'
 import { generateExpenseVoucherPDF, ExpenseVoucherData } from '@/lib/documents/expense-voucher-pdf'
 
 interface ExpensesClientWrapperProps {
@@ -14,7 +19,27 @@ interface ExpensesClientWrapperProps {
 export function ExpensesClientWrapper({ expenses }: ExpensesClientWrapperProps) {
   const router = useRouter()
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingExpense, setEditingExpense] = useState<Record<string, unknown> | null>(null)
   const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null)
+  const [approvingId, setApprovingId] = useState<string | null>(null)
+
+  const handleApproveVoucher = async (expenseId: string) => {
+    setApprovingId(expenseId)
+    try {
+      await approveExpenseVoucherAction(expenseId)
+      router.refresh()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to approve voucher.'
+      alert(msg)
+    } finally {
+      setApprovingId(null)
+    }
+  }
+
+  const handleEditExpense = (expense: Record<string, unknown>) => {
+    setEditingExpense(expense)
+    setIsModalOpen(true)
+  }
 
   const handlePrintVoucher = async (expense: Record<string, unknown>) => {
     const expenseId = String(expense.id || Math.random())
@@ -69,7 +94,10 @@ export function ExpensesClientWrapper({ expenses }: ExpensesClientWrapperProps) 
     <>
       <div className="flex justify-end">
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            setEditingExpense(null)
+            setIsModalOpen(true)
+          }}
           className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-500 hover:bg-rose-600 text-white transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
         >
           <Plus size={16} />
@@ -101,7 +129,14 @@ export function ExpensesClientWrapper({ expenses }: ExpensesClientWrapperProps) 
                   const amt = Number(e.amount || 0)
                   const itemKey = String(e.id || idx)
                   const isGenerating = generatingPdfId === itemKey
+                  const isApproving = approvingId === itemKey
                   const displayNo = String(e.voucher_number || e.expense_number || 'EXP')
+
+                  const isApproved = Boolean(
+                    e.approved_by &&
+                    String(e.approved_by).trim() !== '' &&
+                    String(e.approved_by) !== 'Pending Approval'
+                  )
 
                   return (
                     <tr key={itemKey} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
@@ -113,24 +148,57 @@ export function ExpensesClientWrapper({ expenses }: ExpensesClientWrapperProps) 
                       <td className="py-3 px-4 font-mono font-bold text-rose-500">LKR {amt.toLocaleString()}</td>
                       <td className="py-3 px-4 capitalize">{methodStr}</td>
                       <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-500 uppercase">
-                          {String(e.status || 'APPROVED')}
-                        </span>
+                        {isApproved ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-500 uppercase">
+                            APPROVED
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 uppercase">
+                            PENDING
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => handlePrintVoucher(e)}
-                          disabled={isGenerating}
-                          title="Print Official Voucher PDF"
-                          className="px-2.5 py-1.5 rounded-lg font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition-colors inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          {isGenerating ? (
-                            <Loader2 size={13} className="animate-spin" />
-                          ) : (
-                            <Printer size={13} />
+                        <div className="flex items-center justify-end gap-1.5">
+                          {!isApproved && (
+                            <button
+                              onClick={() => handleApproveVoucher(String(e.id))}
+                              disabled={isApproving}
+                              title="Approve Expense Voucher"
+                              className="px-2 py-1.5 rounded-lg font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              {isApproving ? (
+                                <Loader2 size={13} className="animate-spin" />
+                              ) : (
+                                <Check size={13} />
+                              )}
+                              <span className="text-[11px]">Approve</span>
+                            </button>
                           )}
-                          <span className="text-[11px]">Voucher PDF</span>
-                        </button>
+
+                          <button
+                            onClick={() => handleEditExpense(e)}
+                            title="Edit Expense / Voucher"
+                            className="px-2 py-1.5 rounded-lg font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <Pencil size={13} />
+                            <span className="text-[11px]">Edit</span>
+                          </button>
+
+                          <button
+                            onClick={() => handlePrintVoucher(e)}
+                            disabled={isGenerating}
+                            title="Print Official Voucher PDF"
+                            className="px-2.5 py-1.5 rounded-lg font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            {isGenerating ? (
+                              <Loader2 size={13} className="animate-spin" />
+                            ) : (
+                              <Printer size={13} />
+                            )}
+                            <span className="text-[11px]">Voucher PDF</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -145,9 +213,18 @@ export function ExpensesClientWrapper({ expenses }: ExpensesClientWrapperProps) 
 
       <NewExpenseModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        initialData={editingExpense}
+        onClose={() => {
+          setIsModalOpen(false)
+          setEditingExpense(null)
+        }}
         onSubmit={async (expenseData) => {
-          await createExpenseAction(expenseData)
+          if (editingExpense && editingExpense.id) {
+            await updateExpenseAction(String(editingExpense.id), expenseData)
+          } else {
+            await createExpenseAction(expenseData)
+          }
+          setEditingExpense(null)
           router.refresh()
         }}
       />

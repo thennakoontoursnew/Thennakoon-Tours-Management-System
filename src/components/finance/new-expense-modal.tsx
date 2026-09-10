@@ -15,9 +15,11 @@ export interface NewExpenseModalProps {
   onClose: () => void
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSubmit: (expenseData: any) => Promise<void>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  initialData?: any | null
 }
 
-export function NewExpenseModal({ isOpen, onClose, onSubmit }: NewExpenseModalProps) {
+export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewExpenseModalProps) {
   const [loading, setLoading] = useState(false)
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().slice(0, 10))
   const [category, setCategory] = useState('fuel')
@@ -45,20 +47,73 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit }: NewExpenseModalPr
   const [approvedBy, setApprovedBy] = useState('K. Thennakoon (Managing Director)')
   const [isAuthorized, setIsAuthorized] = useState(true)
 
-  // Auto-generate sequential voucher number (VN-10001) & load logged-in user profile on modal open
+  // Load initialData when editing or reset to defaults when creating
   useEffect(() => {
     if (isOpen) {
-      getNextVoucherNumberAction()
-        .then((vNum) => setVoucherNumber(vNum))
-        .catch(() => setVoucherNumber('VN-10001'))
+      if (initialData) {
+        setExpenseDate(initialData.expense_date || new Date().toISOString().slice(0, 10))
+        setCategory(initialData.category || 'fuel')
+        setDescription(initialData.description || '')
+        setAmount(initialData.amount ? String(initialData.amount) : '')
+        setPaymentMethod(initialData.payment_method || 'cash')
+        setSupplierName(initialData.supplier_name || '')
+        setReferenceNumber(initialData.reference_number || '')
+        setVoucherNumber(initialData.voucher_number || '')
+        setBillName(initialData.bill_name || '')
+        setCustomerName(initialData.customer_name || '')
+        setAccountNumber(initialData.account_number || '')
+        setBankName(initialData.bank_name || '')
+        setBranchName(initialData.branch_name || '')
+        setAdditions(initialData.add_payments_breakdown || [])
+        setDeductions(initialData.deduction_breakdown || [])
+        setRemark(initialData.remark || '')
+        setSpecialNotice(initialData.special_notice || '')
+        setPreparedBy(initialData.prepared_by || 'Finance Officer')
+        
+        const hasAuth = Boolean(initialData.approved_by && initialData.approved_by !== 'Pending Approval')
+        setIsAuthorized(hasAuth)
+        setApprovedBy(hasAuth ? initialData.approved_by : 'K. Thennakoon (Managing Director)')
+        
+        const isVoucher = Boolean(
+          initialData.voucher_number ||
+          initialData.bill_name ||
+          (initialData.add_payments_breakdown && initialData.add_payments_breakdown.length > 0) ||
+          (initialData.deduction_breakdown && initialData.deduction_breakdown.length > 0) ||
+          initialData.category === 'owner_statement'
+        )
+        setIsVoucherMode(isVoucher)
+      } else {
+        // Reset defaults for Create mode
+        setExpenseDate(new Date().toISOString().slice(0, 10))
+        setCategory('fuel')
+        setDescription('')
+        setAmount('')
+        setPaymentMethod('cash')
+        setSupplierName('')
+        setReferenceNumber('')
+        setBillName('')
+        setCustomerName('')
+        setAccountNumber('')
+        setBankName('')
+        setBranchName('')
+        setAdditions([])
+        setDeductions([])
+        setRemark('')
+        setSpecialNotice('')
+        setIsAuthorized(true)
 
-      getCurrentUserProfilePreparedByAction()
-        .then((prof) => {
-          if (prof.formatted) setPreparedBy(prof.formatted)
-        })
-        .catch(() => {})
+        getNextVoucherNumberAction()
+          .then((vNum) => setVoucherNumber(vNum))
+          .catch(() => setVoucherNumber('VN-10001'))
+
+        getCurrentUserProfilePreparedByAction()
+          .then((prof) => {
+            if (prof.formatted) setPreparedBy(prof.formatted)
+          })
+          .catch(() => {})
+      }
     }
-  }, [isOpen])
+  }, [isOpen, initialData])
 
   // Automatically enable voucher mode if category is owner_statement
   useEffect(() => {
@@ -163,7 +218,9 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit }: NewExpenseModalPr
               <Plus size={20} />
             </div>
             <div>
-              <h2 className="font-bold text-slate-900 dark:text-white text-sm">Record Operating Expense / Owner Statement</h2>
+              <h2 className="font-bold text-slate-900 dark:text-white text-sm">
+                {initialData ? 'Edit Operating Expense / Owner Statement' : 'Record Operating Expense / Owner Statement'}
+              </h2>
               <p className="text-[11px] text-slate-400">Log fuel, maintenance, owner payout statements, or administrative costs</p>
             </div>
           </div>
@@ -516,7 +573,7 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit }: NewExpenseModalPr
               disabled={loading}
               className="px-5 py-2 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl text-xs shadow-xs transition-all cursor-pointer"
             >
-              {loading ? 'Saving...' : 'Record Expense'}
+              {loading ? 'Saving...' : initialData ? 'Update Expense' : 'Record Expense'}
             </button>
           </div>
         </form>
