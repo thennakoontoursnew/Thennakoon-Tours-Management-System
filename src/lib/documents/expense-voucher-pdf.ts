@@ -4,9 +4,7 @@ import {
   drawLetterheadOnPage,
   drawTextWithOrdinalSuperscript,
   drawAlignedKeyValueRow,
-  drawPreparedBySection,
 } from './pdf-engine'
-import { COMPANY_CONFIG } from '../company-config'
 import { formatDateOrdinal, normalizeNewlines } from '../utils/formatters'
 import {
   PDF_COLORS,
@@ -393,39 +391,44 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
     currentY = bankY + 3.5
   }
 
-  // STEP 7: REMARKS & SPECIAL NOTICE
+  // STEP 7: REMARKS & SPECIAL NOTICE (RESTYLED MATCHING COMMERCIAL INVOICE SPECIAL NOTES)
   const remarksText = normalizeNewlines(String(voucherData.remark || ''))
   const noticeText = normalizeNewlines(String(voucherData.special_notice || ''))
 
-  if (hasMeaningfulValue(remarksText) || hasMeaningfulValue(noticeText)) {
-    checkPageOverflow(20, false)
+  if (hasMeaningfulValue(remarksText)) {
+    checkPageOverflow(15, false)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
     setPdfBrandGoldText(doc) // Brand Gold #997711
-    doc.text('REMARKS & SPECIAL NOTICE:', CONTENT_LEFT, currentY)
+    doc.text('SPECIAL REMARKS:', CONTENT_LEFT, currentY)
     currentY += 4.4
 
-    if (hasMeaningfulValue(remarksText)) {
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(PDF_TYPOGRAPHY.notes)
-      setPdfMutedText(doc)
-      const rLines = doc.splitTextToSize(`Remarks: ${remarksText}`, CONTENT_WIDTH)
-      doc.text(rLines, CONTENT_LEFT, currentY)
-      currentY += rLines.length * 3.8 + 2.5
-    }
-
-    if (hasMeaningfulValue(noticeText)) {
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(PDF_TYPOGRAPHY.notes)
-      doc.setTextColor(153, 27, 27)
-      const nLines = doc.splitTextToSize(`Notice: ${noticeText}`, CONTENT_WIDTH)
-      doc.text(nLines, CONTENT_LEFT, currentY)
-      currentY += nLines.length * 3.8 + 3.5
-    }
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(PDF_TYPOGRAPHY.notes)
+    setPdfMutedText(doc)
+    const rLines = doc.splitTextToSize(remarksText, CONTENT_WIDTH)
+    doc.text(rLines, CONTENT_LEFT, currentY)
+    currentY += rLines.length * 3.8 + 3.5
   }
 
-  // STEP 8: PREPARED BY & APPROVAL (Bottom Left)
-  checkPageOverflow(30, false)
+  if (hasMeaningfulValue(noticeText)) {
+    checkPageOverflow(15, false)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
+    setPdfBrandGoldText(doc) // Brand Gold #997711
+    doc.text('IMPORTANT NOTICE:', CONTENT_LEFT, currentY)
+    currentY += 4.4
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(PDF_TYPOGRAPHY.notes)
+    setPdfMutedText(doc)
+    const nLines = doc.splitTextToSize(noticeText, CONTENT_WIDTH)
+    doc.text(nLines, CONTENT_LEFT, currentY)
+    currentY += nLines.length * 3.8 + 3.5
+  }
+
+  // STEP 8: DUAL BALANCED EXECUTIVE AUTHORIZATION (PREPARED BY & APPROVED BY)
+  checkPageOverflow(32, false)
 
   const prepUser = voucherData.prepared_by || 'Finance Officer'
   let prepName = prepUser
@@ -437,17 +440,73 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
   }
 
   const approvedUser = voucherData.approved_by || 'Managing Director'
-  const designationStr = `${prepRole}  •  Approved By: ${approvedUser}`
+  const signatureUrl = companySettings?.signature_url || null
 
-  drawPreparedBySection(
-    doc,
-    'PREPARED BY:',
-    prepName,
-    designationStr,
-    COMPANY_CONFIG.name,
-    CONTENT_LEFT,
-    currentY
-  )
+  let authY = currentY
+
+  // COLUMN 1: PREPARED BY (Left side at CONTENT_LEFT = 18)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
+  setPdfBrandGoldText(doc) // Brand Gold #997711
+  doc.text('PREPARED BY:', CONTENT_LEFT, authY)
+
+  let prepY = authY + 4.5
+
+  // Embed Digital Signature Image if available
+  if (signatureUrl && typeof signatureUrl === 'string' && signatureUrl.trim()) {
+    try {
+      const imgWidth = 32
+      const imgHeight = 12
+      const isJpg = signatureUrl.includes('image/jpeg') || signatureUrl.includes('image/jpg')
+      doc.addImage(signatureUrl, isJpg ? 'JPEG' : 'PNG', CONTENT_LEFT, prepY, imgWidth, imgHeight)
+      prepY += imgHeight + 2
+    } catch (err) {
+      console.warn('[Expense Voucher PDF] Could not embed digital signature:', err)
+    }
+  }
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9.5)
+  setPdfDarkText(doc)
+  doc.text(prepName, CONTENT_LEFT, prepY)
+  prepY += 4.0
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setPdfMutedText(doc)
+  doc.text(prepRole, CONTENT_LEFT, prepY)
+  prepY += 3.8
+  doc.text('THENNAKOON TOURS (PVT) LTD', CONTENT_LEFT, prepY)
+
+  // COLUMN 2: APPROVED BY (Right side at rightX = 108)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
+  setPdfBrandGoldText(doc) // Brand Gold #997711
+  doc.text('APPROVED BY:', rightX, authY)
+
+  let appY = authY + 4.5
+
+  // Align vertical position if signature image was present on left
+  if (signatureUrl && typeof signatureUrl === 'string' && signatureUrl.trim()) {
+    appY += 14 // match signature height spacing
+  }
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9.5)
+  setPdfDarkText(doc)
+  doc.text(approvedUser, rightX, appY)
+  appY += 4.0
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setPdfMutedText(doc)
+  doc.text('THENNAKOON TOURS (PVT) LTD', rightX, appY)
+  appY += 3.8
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7.5)
+  doc.setTextColor(16, 185, 129) // Emerald-600 status
+  doc.text('Status: Formally Authorized & Settled', rightX, appY)
 
   return doc
 }
