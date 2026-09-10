@@ -141,15 +141,8 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
   doc.text('DISBURSEMENT TO / BENEFICIARY:', CONTENT_LEFT, currentY)
 
   let leftY = currentY + 4.8
-  leftY = drawAlignedKeyValueRow(doc, 'Beneficiary', payeeName, CONTENT_LEFT, leftY, { labelWidth: 24, maxWidth: 60 })
+  leftY = drawAlignedKeyValueRow(doc, 'Customer', payeeName, CONTENT_LEFT, leftY, { labelWidth: 24, maxWidth: 60 })
   leftY = drawAlignedKeyValueRow(doc, 'Disbursed Via', methodDisplay, CONTENT_LEFT, leftY, { labelWidth: 24, maxWidth: 60 })
-
-  if (hasMeaningfulValue(voucherData.account_number)) {
-    const accStr = hasMeaningfulValue(voucherData.bank_name)
-      ? `${voucherData.bank_name} (${voucherData.account_number})`
-      : voucherData.account_number!
-    leftY = drawAlignedKeyValueRow(doc, 'Account No', accStr, CONTENT_LEFT, leftY, { labelWidth: 24, maxWidth: 60 })
-  }
 
   // RIGHT COLUMN: VOUCHER METADATA
   const rightX = 108
