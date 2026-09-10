@@ -109,7 +109,8 @@ export default function InvoicePreviewPage({ params }: PageProps) {
   const handleDownload = async () => {
     if (!invoice) return
     const pdfDoc = await generateInvoicePDF(invoice, companySettings)
-    pdfDoc.save(`Invoice-${invoice.invoice_number || 'INV'}.pdf`)
+    const cleanDocNum = invoice.invoice_number || `INVOICE-${invoice.id.slice(0, 8)}`
+    pdfDoc.save(`${cleanDocNum}.pdf`)
   }
 
   if (loading) {

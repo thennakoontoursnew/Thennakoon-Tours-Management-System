@@ -155,7 +155,8 @@ export default function ReceiptPreviewPage({ params }: PageProps) {
     if (!receipt) return
     try {
       const pdfDoc = await generateReceiptPDF(receipt, companySettings)
-      pdfDoc.save(`Receipt-${receipt.receipt_number || 'RCPT'}.pdf`)
+      const cleanDocNum = receipt.receipt_number || `RECEIPT-${receipt.id.slice(0, 8)}`
+      pdfDoc.save(`${cleanDocNum}.pdf`)
     } catch (err) {
       console.error('Download receipt error:', err)
     }

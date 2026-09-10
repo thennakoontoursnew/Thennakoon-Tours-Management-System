@@ -584,7 +584,7 @@ export function CreateInvoiceForm({
     try {
       const snap = getInvoiceDataSnapshot()
       const doc = await generateCommercialInvoicePDF(snap, companySettings)
-      doc.save(`Invoice_${snap.invoice_number}.pdf`)
+      doc.save(`${snap.invoice_number || 'INVOICE'}.pdf`)
     } catch (err) {
       console.error('Failed to download PDF:', err)
       alert('Could not download PDF.')

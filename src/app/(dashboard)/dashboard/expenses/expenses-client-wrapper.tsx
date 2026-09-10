@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Plus, Printer, Loader2, Check, Pencil } from 'lucide-react'
 import { NewExpenseModal } from '@/components/finance/new-expense-modal'
 import {
@@ -185,19 +186,14 @@ export function ExpensesClientWrapper({ expenses }: ExpensesClientWrapperProps) 
                             <span className="text-[11px]">Edit</span>
                           </button>
 
-                          <button
-                            onClick={() => handlePrintVoucher(e)}
-                            disabled={isGenerating}
-                            title="Print Official Voucher PDF"
+                          <Link
+                            href={`/dashboard/expenses/${e.id}/preview`}
+                            title="Print & Download Official Voucher PDF"
                             className="px-2.5 py-1.5 rounded-lg font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition-colors inline-flex items-center gap-1 cursor-pointer"
                           >
-                            {isGenerating ? (
-                              <Loader2 size={13} className="animate-spin" />
-                            ) : (
-                              <Printer size={13} />
-                            )}
+                            <Printer size={13} />
                             <span className="text-[11px]">Voucher PDF</span>
-                          </button>
+                          </Link>
                         </div>
                       </td>
                     </tr>

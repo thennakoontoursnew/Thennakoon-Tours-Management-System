@@ -80,7 +80,8 @@ export default function QuotationPreviewPage({ params }: PageProps) {
     if (!quotation) return
     try {
       const pdfDoc = await generateQuotationPDF(quotation, companySettings)
-      pdfDoc.save(`Quotation-${quotation.quotation_number}.pdf`)
+      const cleanDocNum = quotation.quotation_number || `QUOTATION-${quotation.id.slice(0, 8)}`
+      pdfDoc.save(`${cleanDocNum}.pdf`)
     } catch (err: any) {
       console.error('Download PDF Error:', err)
       alert('Failed to download PDF. Please try again.')
@@ -95,7 +96,8 @@ export default function QuotationPreviewPage({ params }: PageProps) {
 
       console.log('STEP 2 - Starting PDF Download')
       const pdfDoc = await generateQuotationPDF(quotation, companySettings)
-      const filename = `Quotation-${quotation.quotation_number}.pdf`
+      const cleanDocNum = quotation.quotation_number || `QUOTATION-${quotation.id.slice(0, 8)}`
+      const filename = `${cleanDocNum}.pdf`
       pdfDoc.save(filename)
 
       console.log('STEP 3 - Building WhatsApp Message')
