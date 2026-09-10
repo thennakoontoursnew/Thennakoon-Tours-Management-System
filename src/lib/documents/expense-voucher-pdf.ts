@@ -131,10 +131,6 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
     ? voucherData.customer_name!
     : (hasMeaningfulValue(voucherData.supplier_name) ? voucherData.supplier_name! : 'Valued Payee / Beneficiary')
 
-  const billParticular = hasMeaningfulValue(voucherData.bill_name)
-    ? voucherData.bill_name!
-    : (hasMeaningfulValue(voucherData.description) ? voucherData.description! : 'Payment Settlement')
-
   const catDisplay = (voucherData.category || 'General').replace(/_/g, ' ').toUpperCase()
   const methodDisplay = (voucherData.payment_method || 'cash').replace(/_/g, ' ').toUpperCase()
 
@@ -146,14 +142,14 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
 
   let leftY = currentY + 4.8
   leftY = drawAlignedKeyValueRow(doc, 'Beneficiary', payeeName, CONTENT_LEFT, leftY, { labelWidth: 24, maxWidth: 60 })
-
-  if (hasMeaningfulValue(billParticular)) {
-    leftY = drawAlignedKeyValueRow(doc, 'Particulars', billParticular, CONTENT_LEFT, leftY, { labelWidth: 24, maxWidth: 60 })
-  }
-  if (hasMeaningfulValue(voucherData.customer_name) && hasMeaningfulValue(voucherData.supplier_name)) {
-    leftY = drawAlignedKeyValueRow(doc, 'Customer / Ref', voucherData.customer_name!, CONTENT_LEFT, leftY, { labelWidth: 24, maxWidth: 60 })
-  }
   leftY = drawAlignedKeyValueRow(doc, 'Disbursed Via', methodDisplay, CONTENT_LEFT, leftY, { labelWidth: 24, maxWidth: 60 })
+
+  if (hasMeaningfulValue(voucherData.account_number)) {
+    const accStr = hasMeaningfulValue(voucherData.bank_name)
+      ? `${voucherData.bank_name} (${voucherData.account_number})`
+      : voucherData.account_number!
+    leftY = drawAlignedKeyValueRow(doc, 'Account No', accStr, CONTENT_LEFT, leftY, { labelWidth: 24, maxWidth: 60 })
+  }
 
   // RIGHT COLUMN: VOUCHER METADATA
   const rightX = 108
