@@ -42,7 +42,8 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit }: NewExpenseModalPr
   const [remark, setRemark] = useState('')
   const [specialNotice, setSpecialNotice] = useState('')
   const [preparedBy, setPreparedBy] = useState('Finance Officer')
-  const [approvedBy, setApprovedBy] = useState('Managing Director')
+  const [approvedBy, setApprovedBy] = useState('K. Thennakoon (Managing Director)')
+  const [isAuthorized, setIsAuthorized] = useState(true)
 
   // Auto-generate sequential voucher number (VN-10001) & load logged-in user profile on modal open
   useEffect(() => {
@@ -66,7 +67,6 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit }: NewExpenseModalPr
       if (!billName) setBillName('Owner Statement & Monthly Settlement')
     }
   }, [category, billName])
-
 
   // Calculate Net Balance dynamically when additions or deductions change
   const totalAdditions = additions.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
@@ -142,8 +142,8 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit }: NewExpenseModalPr
         net_balance: isVoucherMode ? numAmount : undefined,
         remark: isVoucherMode ? remark : undefined,
         special_notice: isVoucherMode ? specialNotice : undefined,
-        prepared_by: isVoucherMode ? preparedBy : undefined,
-        approved_by: isVoucherMode ? approvedBy : undefined,
+        prepared_by: preparedBy || undefined,
+        approved_by: isAuthorized ? (approvedBy || 'K. Thennakoon (Managing Director)') : 'Pending Approval',
       })
       onClose()
     } catch (err: unknown) {
@@ -467,6 +467,18 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit }: NewExpenseModalPr
                 </div>
               </div>
 
+              <div className="pt-1">
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700 dark:text-slate-300 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={isAuthorized}
+                    onChange={(e) => setIsAuthorized(e.target.checked)}
+                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span>Authorize & Approve Voucher (Disbursement Authorized)</span>
+                </label>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 mb-1">Prepared By</label>
@@ -481,9 +493,10 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit }: NewExpenseModalPr
                   <label className="block text-[10px] font-bold text-slate-500 mb-1">Approved By</label>
                   <input
                     type="text"
-                    value={approvedBy}
+                    disabled={!isAuthorized}
+                    value={isAuthorized ? approvedBy : 'Pending Approval'}
                     onChange={(e) => setApprovedBy(e.target.value)}
-                    className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                    className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs disabled:opacity-60 disabled:bg-slate-100 dark:disabled:bg-slate-800"
                   />
                 </div>
               </div>

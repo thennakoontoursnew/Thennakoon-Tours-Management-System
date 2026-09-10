@@ -152,8 +152,12 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
   leftY += 4.5
 
   if (hasMeaningfulValue(billParticular)) {
-    leftY = drawAlignedKeyValueRow(doc, 'Particular', billParticular, CONTENT_LEFT, leftY, { labelWidth: 20, maxWidth: 65 })
+    leftY = drawAlignedKeyValueRow(doc, 'Particulars', billParticular, CONTENT_LEFT, leftY, { labelWidth: 24, maxWidth: 60 })
   }
+  if (hasMeaningfulValue(voucherData.customer_name) && hasMeaningfulValue(voucherData.supplier_name)) {
+    leftY = drawAlignedKeyValueRow(doc, 'Customer / Ref', voucherData.customer_name!, CONTENT_LEFT, leftY, { labelWidth: 24, maxWidth: 60 })
+  }
+  leftY = drawAlignedKeyValueRow(doc, 'Disbursed Via', methodDisplay, CONTENT_LEFT, leftY, { labelWidth: 24, maxWidth: 60 })
 
   // RIGHT COLUMN: VOUCHER METADATA
   const rightX = 108
@@ -427,8 +431,32 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
     currentY += nLines.length * 3.8 + 3.5
   }
 
-  // STEP 8: DUAL BALANCED EXECUTIVE AUTHORIZATION (PREPARED BY & APPROVED BY)
-  checkPageOverflow(32, false)
+  // STEP 8: STREAMLINED STACKED AUTHORIZATION (PREPARED BY & APPROVED BY ON LEFT)
+  checkPageOverflow(40, false)
+
+  let authY = currentY
+
+  // 1. PREPARED BY BLOCK (Top)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
+  setPdfBrandGoldText(doc) // Brand Gold #997711
+  doc.text('PREPARED BY:', CONTENT_LEFT, authY)
+
+  authY += 4.5
+
+  // Embed Digital Signature Image if available
+  const signatureUrl = companySettings?.signature_url || null
+  if (signatureUrl && typeof signatureUrl === 'string' && signatureUrl.trim()) {
+    try {
+      const imgWidth = 32
+      const imgHeight = 12
+      const isJpg = signatureUrl.includes('image/jpeg') || signatureUrl.includes('image/jpg')
+      doc.addImage(signatureUrl, isJpg ? 'JPEG' : 'PNG', CONTENT_LEFT, authY, imgWidth, imgHeight)
+      authY += imgHeight + 2
+    } catch (err) {
+      console.warn('[Expense Voucher PDF] Could not embed digital signature:', err)
+    }
+  }
 
   const prepUser = voucherData.prepared_by || 'Finance Officer'
   let prepName = prepUser
@@ -439,74 +467,47 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
     prepRole = parts[1].replace(')', '').trim()
   }
 
-  const approvedUser = voucherData.approved_by || 'Managing Director'
-  const signatureUrl = companySettings?.signature_url || null
-
-  let authY = currentY
-
-  // COLUMN 1: PREPARED BY (Left side at CONTENT_LEFT = 18)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
-  setPdfBrandGoldText(doc) // Brand Gold #997711
-  doc.text('PREPARED BY:', CONTENT_LEFT, authY)
-
-  let prepY = authY + 4.5
-
-  // Embed Digital Signature Image if available
-  if (signatureUrl && typeof signatureUrl === 'string' && signatureUrl.trim()) {
-    try {
-      const imgWidth = 32
-      const imgHeight = 12
-      const isJpg = signatureUrl.includes('image/jpeg') || signatureUrl.includes('image/jpg')
-      doc.addImage(signatureUrl, isJpg ? 'JPEG' : 'PNG', CONTENT_LEFT, prepY, imgWidth, imgHeight)
-      prepY += imgHeight + 2
-    } catch (err) {
-      console.warn('[Expense Voucher PDF] Could not embed digital signature:', err)
-    }
-  }
-
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
   setPdfDarkText(doc)
-  doc.text(prepName, CONTENT_LEFT, prepY)
-  prepY += 4.0
+  doc.text(prepName, CONTENT_LEFT, authY)
+  authY += 4.0
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setPdfMutedText(doc)
-  doc.text(prepRole, CONTENT_LEFT, prepY)
-  prepY += 3.8
-  doc.text('THENNAKOON TOURS (PVT) LTD', CONTENT_LEFT, prepY)
+  doc.text(prepRole, CONTENT_LEFT, authY)
+  authY += 6.5 // 6.5mm clean gap before APPROVED BY
 
-  // COLUMN 2: APPROVED BY (Right side at rightX = 108)
+  // 2. APPROVED BY BLOCK (Stacked Directly Below)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
   setPdfBrandGoldText(doc) // Brand Gold #997711
-  doc.text('APPROVED BY:', rightX, authY)
+  doc.text('APPROVED BY:', CONTENT_LEFT, authY)
 
-  let appY = authY + 4.5
+  authY += 4.5
 
-  // Align vertical position if signature image was present on left
-  if (signatureUrl && typeof signatureUrl === 'string' && signatureUrl.trim()) {
-    appY += 14 // match signature height spacing
+  const rawApproved = voucherData.approved_by || ''
+  const isUnapproved = !rawApproved || rawApproved.toLowerCase().includes('pending') || rawApproved.toLowerCase().includes('unapproved')
+
+  if (isUnapproved) {
+    doc.setFont('helvetica', 'bolditalic')
+    doc.setFontSize(8.5)
+    setPdfMutedText(doc)
+    doc.text('[ Pending Final Management Approval ]', CONTENT_LEFT, authY)
+  } else {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    setPdfDarkText(doc)
+    doc.text(rawApproved, CONTENT_LEFT, authY)
+    authY += 4.0
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    setPdfMutedText(doc)
+    doc.text('Thennakoon Tours (Pvt) Ltd', CONTENT_LEFT, authY)
   }
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9.5)
-  setPdfDarkText(doc)
-  doc.text(approvedUser, rightX, appY)
-  appY += 4.0
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setPdfMutedText(doc)
-  doc.text('THENNAKOON TOURS (PVT) LTD', rightX, appY)
-  appY += 3.8
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(7.5)
-  doc.setTextColor(16, 185, 129) // Emerald-600 status
-  doc.text('Status: Formally Authorized & Settled', rightX, appY)
 
   return doc
 }
+
