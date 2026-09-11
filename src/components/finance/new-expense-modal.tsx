@@ -143,19 +143,79 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
     }
   }, [isOpen, initialData])
 
+function formatOrdinalMonthYear(d: Date): string {
+  const day = d.getDate()
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const month = monthNames[d.getMonth()]
+  const year = d.getFullYear()
+  return `${day} ${month} ${year}`
+}
+
+function parseDateLocal(dateStr?: string | null): Date | null {
+  if (!dateStr) return null
+  const parts = String(dateStr).split('T')[0].split('-')
+  if (parts.length === 3) {
+    const y = parseInt(parts[0], 10)
+    const m = parseInt(parts[1], 10) - 1
+    const d = parseInt(parts[2], 10)
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      return new Date(y, m, d)
+    }
+  }
+  const d = new Date(dateStr)
+  return isNaN(d.getTime()) ? null : d
+}
+
+function generateDefaultOneMonthPeriod(refDateStr?: string): string {
+  const ref = refDateStr ? parseDateLocal(refDateStr) : new Date()
+  const endD = ref || new Date()
+  const startD = new Date(endD)
+  startD.setMonth(startD.getMonth() - 1)
+  return `${formatOrdinalMonthYear(startD)} - ${formatOrdinalMonthYear(endD)}`
+}
+
   const handleVehicleChange = (vId: string) => {
     setVehicleId(vId)
     if (!vId) return
     const found = vehicles.find((v) => v.id === vId)
-    if (found && found.owner) {
-      const o = found.owner
-      if (o.full_name) setCustomerName(o.full_name)
-      if (o.mobile) setCustomerPhone(o.mobile)
-      if (o.address) setOwnerAddress(o.address)
-      if (o.bank_name) setBankName(o.bank_name)
-      if (o.bank_branch) setBranchName(o.bank_branch)
-      if (o.bank_account_number) setAccountNumber(o.bank_account_number)
-      if (o.full_name) setAccountName(o.full_name)
+    if (found) {
+      if (found.owner) {
+        const o = found.owner
+        if (o.full_name) setCustomerName(o.full_name)
+        if (o.mobile) setCustomerPhone(o.mobile)
+
+        // 1. Owner Address Auto-Fill
+        const addr = o.address || o.registered_address || o.owner_address || ''
+        if (addr) setOwnerAddress(addr)
+
+        if (o.bank_name) setBankName(o.bank_name)
+        if (o.bank_branch) setBranchName(o.bank_branch)
+        if (o.bank_account_number) setAccountNumber(o.bank_account_number)
+        if (o.full_name) setAccountName(o.full_name)
+
+        // 2. Rental Period Auto-Fill (Smart Date Generation)
+        let computedPeriod = ''
+        const rawAgreements = Array.isArray(o.agreements) ? o.agreements : []
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const activeAg = rawAgreements.find((a: any) => a.status === 'active' || a.status === 'signed') || rawAgreements[0]
+
+        if (activeAg && activeAg.agreement_start_date && activeAg.agreement_end_date) {
+          const s = parseDateLocal(activeAg.agreement_start_date)
+          const e = parseDateLocal(activeAg.agreement_end_date)
+          if (s && e) {
+            computedPeriod = `${formatOrdinalMonthYear(s)} - ${formatOrdinalMonthYear(e)}`
+          }
+        }
+
+        if (!computedPeriod) {
+          computedPeriod = generateDefaultOneMonthPeriod(expenseDate)
+        }
+
+        setRentalPeriod(computedPeriod)
+      } else {
+        setRentalPeriod(generateDefaultOneMonthPeriod(expenseDate))
+      }
+
       setIsVoucherMode(true)
     }
   }
@@ -287,6 +347,7 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
                   if (val === 'owner_statement') {
                     setIsVoucherMode(true)
                     if (!billName) setBillName('Owner Statement & Monthly Settlement')
+                    if (!rentalPeriod) setRentalPeriod(generateDefaultOneMonthPeriod(expenseDate))
                   }
                 }}
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-semibold"

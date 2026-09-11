@@ -365,7 +365,7 @@ export async function getVehiclesWithOwnerAction() {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('vehicles')
-    .select('id, vehicle_name, registration_number, vehicle_owner_id, owner:vehicle_owners(id, full_name, mobile, address, bank_name, bank_branch, bank_account_number)')
+    .select('id, vehicle_name, registration_number, vehicle_owner_id, owner:vehicle_owners(id, full_name, mobile, address, bank_name, bank_branch, bank_account_number, agreements:owner_agreements(agreement_start_date, agreement_end_date, status))')
     .order('registration_number', { ascending: true })
 
   if (error) {
