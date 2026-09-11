@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, X, Trash2, FileText, ChevronDown, ChevronUp } from 'lucide-react'
 
-import { getNextVoucherNumberAction, getCurrentUserProfilePreparedByAction } from '@/app/(dashboard)/dashboard/invoices/finance-actions'
+import { getNextVoucherNumberAction, getCurrentUserProfilePreparedByAction, getVehiclesWithOwnerAction } from '@/app/(dashboard)/dashboard/invoices/finance-actions'
 
 export interface ExpenseBreakdownRow {
   description: string
@@ -29,6 +29,15 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
   const [supplierName, setSupplierName] = useState('')
   const [referenceNumber, setReferenceNumber] = useState('')
 
+  // Vehicle & Owner Auto-Populate State
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [vehicles, setVehicles] = useState<any[]>([])
+  const [vehicleId, setVehicleId] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [ownerAddress, setOwnerAddress] = useState('')
+  const [accountName, setAccountName] = useState('')
+  const [rentalPeriod, setRentalPeriod] = useState('')
+
   // Structured Voucher & Owner Statement fields
   const [isVoucherMode, setIsVoucherMode] = useState(false)
   const [voucherNumber, setVoucherNumber] = useState('')
@@ -47,6 +56,15 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
   const [approvedBy, setApprovedBy] = useState('K. Thennakoon (Managing Director)')
   const [isAuthorized, setIsAuthorized] = useState(true)
 
+  // Load vehicles list on modal open
+  useEffect(() => {
+    if (isOpen) {
+      getVehiclesWithOwnerAction()
+        .then((data) => setVehicles(data || []))
+        .catch(() => {})
+    }
+  }, [isOpen])
+
   // Load initialData when editing or reset to defaults when creating
   useEffect(() => {
     if (isOpen) {
@@ -58,6 +76,11 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
         setPaymentMethod(initialData.payment_method || 'cash')
         setSupplierName(initialData.supplier_name || '')
         setReferenceNumber(initialData.reference_number || '')
+        setVehicleId(initialData.vehicle_id || '')
+        setCustomerPhone(initialData.customer_phone || initialData.vehicle?.owner?.mobile || '')
+        setOwnerAddress(initialData.owner_address || initialData.vehicle?.owner?.address || '')
+        setAccountName(initialData.account_name || initialData.customer_name || '')
+        setRentalPeriod(initialData.rental_period || '')
         setVoucherNumber(initialData.voucher_number || '')
         setBillName(initialData.bill_name || '')
         setCustomerName(initialData.customer_name || '')
@@ -91,6 +114,11 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
         setPaymentMethod('cash')
         setSupplierName('')
         setReferenceNumber('')
+        setVehicleId('')
+        setCustomerPhone('')
+        setOwnerAddress('')
+        setAccountName('')
+        setRentalPeriod('')
         setBillName('')
         setCustomerName('')
         setAccountNumber('')
@@ -114,6 +142,23 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
       }
     }
   }, [isOpen, initialData])
+
+  const handleVehicleChange = (vId: string) => {
+    setVehicleId(vId)
+    if (!vId) return
+    const found = vehicles.find((v) => v.id === vId)
+    if (found && found.owner) {
+      const o = found.owner
+      if (o.full_name) setCustomerName(o.full_name)
+      if (o.mobile) setCustomerPhone(o.mobile)
+      if (o.address) setOwnerAddress(o.address)
+      if (o.bank_name) setBankName(o.bank_name)
+      if (o.bank_branch) setBranchName(o.bank_branch)
+      if (o.bank_account_number) setAccountNumber(o.bank_account_number)
+      if (o.full_name) setAccountName(o.full_name)
+      setIsVoucherMode(true)
+    }
+  }
 
   // Calculate Net Balance dynamically when additions or deductions change
   const totalAdditions = additions.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
@@ -171,12 +216,17 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
         payment_method: paymentMethod,
         supplier_name: supplierName || customerName || undefined,
         reference_number: referenceNumber || undefined,
+        vehicle_id: vehicleId || undefined,
         voucher_number: isVoucherMode ? voucherNumber : undefined,
         bill_name: isVoucherMode ? billName : undefined,
         customer_name: isVoucherMode ? customerName : undefined,
+        customer_phone: customerPhone || undefined,
+        owner_address: ownerAddress || undefined,
+        account_name: accountName || undefined,
         account_number: isVoucherMode ? accountNumber : undefined,
         bank_name: isVoucherMode ? bankName : undefined,
         branch_name: isVoucherMode ? branchName : undefined,
+        rental_period: rentalPeriod || undefined,
         add_payments_breakdown: isVoucherMode && additions.length > 0 ? additions : undefined,
         deduction_breakdown: isVoucherMode && deductions.length > 0 ? deductions : undefined,
         net_balance: isVoucherMode ? numAmount : undefined,
@@ -300,14 +350,30 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">Vehicle (Auto-Fills Owner)</label>
+              <select
+                value={vehicleId}
+                onChange={(e) => handleVehicleChange(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium"
+              >
+                <option value="">-- Select Vehicle --</option>
+                {vehicles.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.registration_number} {v.vehicle_name ? `(${v.vehicle_name})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">Supplier / Payee</label>
               <input
                 type="text"
                 value={supplierName}
                 onChange={(e) => setSupplierName(e.target.value)}
-                placeholder="e.g. Ceypetco Filling Station or Vehicle Owner"
+                placeholder="e.g. Ceypetco Station"
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
               />
             </div>
@@ -367,19 +433,63 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 mb-1">Customer / Payee</label>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">Customer / Payee Name</label>
                   <input
                     type="text"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     placeholder="e.g. K. A. Perera"
+                    className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold"
+                  />
+                </div>
+              </div>
+
+              {/* Owner / Beneficiary Contact & Rental Period */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">Mobile / Phone</label>
+                  <input
+                    type="text"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="e.g. 0771234567"
+                    className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">Rental Period</label>
+                  <input
+                    type="text"
+                    value={rentalPeriod}
+                    onChange={(e) => setRentalPeriod(e.target.value)}
+                    placeholder="e.g. 10 Aug 2026 - 10 Sep 2026"
+                    className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">Owner Address</label>
+                  <input
+                    type="text"
+                    value={ownerAddress}
+                    onChange={(e) => setOwnerAddress(e.target.value)}
+                    placeholder="e.g. No. 45, High Level Rd, Colombo"
                     className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
                   />
                 </div>
               </div>
 
               {/* Bank Account Info */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-4 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">Account Name</label>
+                  <input
+                    type="text"
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
+                    placeholder="K. A. Perera"
+                    className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                  />
+                </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 mb-1">Bank Name</label>
                   <input

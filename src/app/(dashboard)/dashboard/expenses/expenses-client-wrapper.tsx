@@ -48,6 +48,9 @@ export function ExpensesClientWrapper({ expenses }: ExpensesClientWrapperProps) 
     try {
       const companySettings = await getCompanySettingsAction()
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const vObj = expense.vehicle as any
+
       const voucherData: ExpenseVoucherData = {
         id: String(expense.id || ''),
         expense_number: String(expense.expense_number || ''),
@@ -60,10 +63,16 @@ export function ExpensesClientWrapper({ expenses }: ExpensesClientWrapperProps) 
         supplier_name: expense.supplier_name ? String(expense.supplier_name) : undefined,
         reference_number: expense.reference_number ? String(expense.reference_number) : undefined,
         bill_name: expense.bill_name ? String(expense.bill_name) : undefined,
-        customer_name: expense.customer_name ? String(expense.customer_name) : undefined,
-        account_number: expense.account_number ? String(expense.account_number) : undefined,
-        bank_name: expense.bank_name ? String(expense.bank_name) : undefined,
-        branch_name: expense.branch_name ? String(expense.branch_name) : undefined,
+        customer_name: expense.customer_name ? String(expense.customer_name) : (vObj?.owner?.full_name ? String(vObj.owner.full_name) : undefined),
+        customer_phone: expense.customer_phone ? String(expense.customer_phone) : (vObj?.owner?.mobile ? String(vObj.owner.mobile) : undefined),
+        owner_address: expense.owner_address ? String(expense.owner_address) : (vObj?.owner?.address ? String(vObj.owner.address) : undefined),
+        account_name: expense.account_name ? String(expense.account_name) : undefined,
+        account_number: expense.account_number ? String(expense.account_number) : (vObj?.owner?.bank_account_number ? String(vObj.owner.bank_account_number) : undefined),
+        bank_name: expense.bank_name ? String(expense.bank_name) : (vObj?.owner?.bank_name ? String(vObj.owner.bank_name) : undefined),
+        branch_name: expense.branch_name ? String(expense.branch_name) : (vObj?.owner?.bank_branch ? String(vObj.owner.bank_branch) : undefined),
+        vehicle_name: vObj?.vehicle_name ? String(vObj.vehicle_name) : undefined,
+        vehicle_reg_no: vObj?.registration_number ? String(vObj.registration_number) : undefined,
+        rental_period: expense.rental_period ? String(expense.rental_period) : undefined,
         add_payments_breakdown: Array.isArray(expense.add_payments_breakdown)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ? (expense.add_payments_breakdown as any[])

@@ -26,7 +26,10 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
   const kpis = await getFinanceSummaryKPIs(supabase, 'this_month')
 
   // Build query
-  let query = supabase.from('expenses').select('*').order('expense_date', { ascending: false })
+  let query = supabase
+    .from('expenses')
+    .select('*, vehicle:vehicles(id, vehicle_name, registration_number, owner:vehicle_owners(id, full_name, mobile, address, bank_name, bank_branch, bank_account_number))')
+    .order('expense_date', { ascending: false })
 
   if (search) {
     query = query.or(`description.ilike.%${search}%,expense_number.ilike.%${search}%,supplier_name.ilike.%${search}%`)

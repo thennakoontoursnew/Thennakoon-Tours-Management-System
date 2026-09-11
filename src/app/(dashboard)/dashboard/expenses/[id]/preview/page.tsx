@@ -31,10 +31,10 @@ export default function ExpenseVoucherPreviewPage({ params }: PageProps) {
 
         const supabase = createClient()
 
-        // Fetch Expense by ID
+        // Fetch Expense by ID with Vehicle & Owner
         const { data: exp, error: eErr } = await supabase
           .from('expenses')
-          .select('*')
+          .select('*, vehicle:vehicles(id, vehicle_name, registration_number, owner:vehicle_owners(id, full_name, mobile, address, bank_name, bank_branch, bank_account_number))')
           .eq('id', id)
           .maybeSingle()
 
@@ -50,6 +50,8 @@ export default function ExpenseVoucherPreviewPage({ params }: PageProps) {
         setExpense(exp)
         setCompanySettings(settings)
 
+        const vObj = exp.vehicle as any
+
         // Prepare Voucher PDF Data
         const voucherData: ExpenseVoucherData = {
           id: String(exp.id || ''),
@@ -63,10 +65,16 @@ export default function ExpenseVoucherPreviewPage({ params }: PageProps) {
           supplier_name: exp.supplier_name ? String(exp.supplier_name) : undefined,
           reference_number: exp.reference_number ? String(exp.reference_number) : undefined,
           bill_name: exp.bill_name ? String(exp.bill_name) : undefined,
-          customer_name: exp.customer_name ? String(exp.customer_name) : undefined,
-          account_number: exp.account_number ? String(exp.account_number) : undefined,
-          bank_name: exp.bank_name ? String(exp.bank_name) : undefined,
-          branch_name: exp.branch_name ? String(exp.branch_name) : undefined,
+          customer_name: exp.customer_name ? String(exp.customer_name) : (vObj?.owner?.full_name ? String(vObj.owner.full_name) : undefined),
+          customer_phone: exp.customer_phone ? String(exp.customer_phone) : (vObj?.owner?.mobile ? String(vObj.owner.mobile) : undefined),
+          owner_address: exp.owner_address ? String(exp.owner_address) : (vObj?.owner?.address ? String(vObj.owner.address) : undefined),
+          account_name: exp.account_name ? String(exp.account_name) : undefined,
+          account_number: exp.account_number ? String(exp.account_number) : (vObj?.owner?.bank_account_number ? String(vObj.owner.bank_account_number) : undefined),
+          bank_name: exp.bank_name ? String(exp.bank_name) : (vObj?.owner?.bank_name ? String(vObj.owner.bank_name) : undefined),
+          branch_name: exp.branch_name ? String(exp.branch_name) : (vObj?.owner?.bank_branch ? String(vObj.owner.bank_branch) : undefined),
+          vehicle_name: vObj?.vehicle_name ? String(vObj.vehicle_name) : undefined,
+          vehicle_reg_no: vObj?.registration_number ? String(vObj.registration_number) : undefined,
+          rental_period: exp.rental_period ? String(exp.rental_period) : undefined,
           add_payments_breakdown: Array.isArray(exp.add_payments_breakdown)
             ? (exp.add_payments_breakdown as any[])
             : null,

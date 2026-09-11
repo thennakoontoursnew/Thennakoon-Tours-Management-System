@@ -36,9 +36,15 @@ export interface ExpenseVoucherData {
   reference_number?: string
   bill_name?: string
   customer_name?: string
+  customer_phone?: string
+  owner_address?: string
+  account_name?: string
   account_number?: string
   bank_name?: string
   branch_name?: string
+  vehicle_name?: string
+  vehicle_reg_no?: string
+  rental_period?: string
   add_payments_breakdown?: ExpenseVoucherBreakdownItem[] | null
   deduction_breakdown?: ExpenseVoucherBreakdownItem[] | null
   net_balance?: number
@@ -126,6 +132,11 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
   let currentY = CONTENT_TOP + 17.0
 
   // STEP 2: 2-Column Metadata Block
+  const isOwnerStatement =
+    voucherData.category === 'owner_statement' ||
+    hasMeaningfulValue(voucherData.vehicle_reg_no) ||
+    hasMeaningfulValue(voucherData.rental_period)
+
   const payeeName = hasMeaningfulValue(voucherData.customer_name)
     ? voucherData.customer_name!
     : (hasMeaningfulValue(voucherData.supplier_name) ? voucherData.supplier_name! : 'Valued Payee / Beneficiary')
@@ -133,15 +144,40 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
   const catDisplay = (voucherData.category || 'General').replace(/_/g, ' ').toUpperCase()
   const methodDisplay = (voucherData.payment_method || 'cash').replace(/_/g, ' ').toUpperCase()
 
-  // LEFT COLUMN: DISBURSEMENT TO / BENEFICIARY
+  // LEFT COLUMN: DISBURSEMENT TO / BENEFICIARY or OWNER STATEMENT & VEHICLE METADATA
+  const leftSectionTitle = isOwnerStatement ? 'OWNER STATEMENT & VEHICLE METADATA:' : 'DISBURSEMENT TO / BENEFICIARY:'
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
   setPdfBrandGoldText(doc) // Brand Gold #997711
-  doc.text('DISBURSEMENT TO / BENEFICIARY:', CONTENT_LEFT, currentY)
+  doc.text(leftSectionTitle, CONTENT_LEFT, currentY)
 
   let leftY = currentY + 4.8
-  leftY = drawAlignedKeyValueRow(doc, 'Customer', payeeName, CONTENT_LEFT, leftY, { labelWidth: 24, maxWidth: 60 })
-  leftY = drawAlignedKeyValueRow(doc, 'Disbursed Via', methodDisplay, CONTENT_LEFT, leftY, { labelWidth: 24, maxWidth: 60 })
+  const leftLabelWidth = isOwnerStatement ? 26 : 24
+
+  // 1. Customer / Owner Name
+  const nameLabel = isOwnerStatement ? 'Owner Name' : 'Customer'
+  leftY = drawAlignedKeyValueRow(doc, nameLabel, payeeName, CONTENT_LEFT, leftY, { labelWidth: leftLabelWidth, maxWidth: 60 })
+
+  // 2. Mobile (ONLY if available)
+  if (hasMeaningfulValue(voucherData.customer_phone)) {
+    leftY = drawAlignedKeyValueRow(doc, 'Mobile', voucherData.customer_phone!, CONTENT_LEFT, leftY, { labelWidth: leftLabelWidth, maxWidth: 60 })
+  }
+
+  // 3. Vehicle (if available)
+  const vehicleStr = [voucherData.vehicle_reg_no, voucherData.vehicle_name].filter(hasMeaningfulValue).join(' - ')
+  if (hasMeaningfulValue(vehicleStr)) {
+    leftY = drawAlignedKeyValueRow(doc, 'Vehicle', vehicleStr, CONTENT_LEFT, leftY, { labelWidth: leftLabelWidth, maxWidth: 60 })
+  }
+
+  // 4. Rental Period (if available)
+  if (hasMeaningfulValue(voucherData.rental_period)) {
+    leftY = drawAlignedKeyValueRow(doc, 'Rental Period', voucherData.rental_period!, CONTENT_LEFT, leftY, { labelWidth: leftLabelWidth, maxWidth: 60 })
+  }
+
+  // 5. Owner Address (if available)
+  if (hasMeaningfulValue(voucherData.owner_address)) {
+    leftY = drawAlignedKeyValueRow(doc, 'Owner Address', voucherData.owner_address!, CONTENT_LEFT, leftY, { labelWidth: leftLabelWidth, maxWidth: 60 })
+  }
 
   // RIGHT COLUMN: VOUCHER METADATA
   const rightX = 108
@@ -322,7 +358,12 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
   currentY += 4.5
 
   // STEP 6: BANKING & DISBURSEMENT DETAILS
-  if (voucherData.account_number || voucherData.bank_name) {
+  const hasBankingInfo =
+    hasMeaningfulValue(voucherData.account_number) ||
+    hasMeaningfulValue(voucherData.bank_name) ||
+    hasMeaningfulValue(voucherData.account_name)
+
+  if (hasBankingInfo) {
     checkPageOverflow(25, false)
     let bankY = currentY
     doc.setFont('helvetica', 'bold')
@@ -332,14 +373,22 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
     bankY += 4.4
 
     doc.setFontSize(PDF_TYPOGRAPHY.body)
-    const bName = voucherData.bank_name || 'N/A'
-    const bBranch = voucherData.branch_name ? ` (${voucherData.branch_name})` : ''
 
-    const bankLabels = [
-      { label: 'Account Name', val: payeeName, boldVal: false },
-      { label: 'Bank', val: `${bName}${bBranch}`, boldVal: false },
-      { label: 'Account No', val: voucherData.account_number || 'N/A', boldVal: true },
-    ]
+    const bankLabels: Array<{ label: string; val: string; boldVal?: boolean }> = []
+
+    const accName = voucherData.account_name || payeeName
+    if (hasMeaningfulValue(accName)) {
+      bankLabels.push({ label: 'Account Name', val: accName, boldVal: false })
+    }
+
+    if (hasMeaningfulValue(voucherData.bank_name)) {
+      const bBranch = hasMeaningfulValue(voucherData.branch_name) ? ` (${voucherData.branch_name})` : ''
+      bankLabels.push({ label: 'Bank', val: `${voucherData.bank_name}${bBranch}`, boldVal: false })
+    }
+
+    if (hasMeaningfulValue(voucherData.account_number)) {
+      bankLabels.push({ label: 'Account No', val: voucherData.account_number!, boldVal: true })
+    }
 
     for (const b of bankLabels) {
       doc.setFont('helvetica', 'normal')

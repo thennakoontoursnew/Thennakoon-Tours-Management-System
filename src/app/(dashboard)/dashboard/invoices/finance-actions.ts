@@ -166,9 +166,13 @@ export async function createExpenseAction(expenseData: any) {
       voucher_number: expenseData.voucher_number || expenseNum,
       bill_name: expenseData.bill_name || null,
       customer_name: expenseData.customer_name || null,
+      customer_phone: expenseData.customer_phone || null,
+      owner_address: expenseData.owner_address || null,
+      account_name: expenseData.account_name || null,
       account_number: expenseData.account_number || null,
       bank_name: expenseData.bank_name || null,
       branch_name: expenseData.branch_name || null,
+      rental_period: expenseData.rental_period || null,
       add_payments_breakdown: expenseData.add_payments_breakdown || null,
       deduction_breakdown: expenseData.deduction_breakdown || null,
       net_balance: expenseData.net_balance !== undefined && expenseData.net_balance !== null ? Number(expenseData.net_balance) : Number(expenseData.amount),
@@ -224,9 +228,13 @@ export async function updateExpenseAction(expenseId: string, expenseData: any) {
       voucher_number: expenseData.voucher_number || undefined,
       bill_name: expenseData.bill_name || null,
       customer_name: expenseData.customer_name || null,
+      customer_phone: expenseData.customer_phone || null,
+      owner_address: expenseData.owner_address || null,
+      account_name: expenseData.account_name || null,
       account_number: expenseData.account_number || null,
       bank_name: expenseData.bank_name || null,
       branch_name: expenseData.branch_name || null,
+      rental_period: expenseData.rental_period || null,
       add_payments_breakdown: expenseData.add_payments_breakdown || null,
       deduction_breakdown: expenseData.deduction_breakdown || null,
       net_balance: expenseData.net_balance !== undefined && expenseData.net_balance !== null ? Number(expenseData.net_balance) : Number(expenseData.amount),
@@ -351,6 +359,20 @@ export async function getCurrentUserProfilePreparedByAction(): Promise<{ fullNam
   const formatted = `${fullName} (${roleDisplay})`
 
   return { fullName, role: roleDisplay, formatted }
+}
+
+export async function getVehiclesWithOwnerAction() {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('vehicles')
+    .select('id, vehicle_name, registration_number, vehicle_owner_id, owner:vehicle_owners(id, full_name, mobile, address, bank_name, bank_branch, bank_account_number)')
+    .order('registration_number', { ascending: true })
+
+  if (error) {
+    console.error('Failed to fetch vehicles with owners:', error)
+    return []
+  }
+  return data || []
 }
 
 
