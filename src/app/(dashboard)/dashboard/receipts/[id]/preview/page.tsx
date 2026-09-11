@@ -111,10 +111,21 @@ export default function ReceiptPreviewPage({ params }: PageProps) {
         setReceipt(fullReceiptData)
         setCompanySettings(settings)
 
+        const rNum = r.receipt_number ? String(r.receipt_number).trim().toUpperCase() : ''
+        let pdfFilename = `CR-${r.id.slice(0, 5).toUpperCase()}.pdf`
+        if (rNum) {
+          const digitsMatch = rNum.match(/(\d+)/g)
+          pdfFilename = digitsMatch && digitsMatch.length > 0 ? `CR-${digitsMatch[digitsMatch.length - 1]}.pdf` : `CR-${rNum.replace(/^(RCT|RECEIPT|CR)-?/i, '')}.pdf`
+        }
+        if (typeof document !== 'undefined') {
+          document.title = pdfFilename
+        }
+
         // STEP 7: Render PDF Blob
         console.log('STEP 7 Rendering Receipt PDF Blob')
         const pdfDoc = await generateReceiptPDF(fullReceiptData, settings)
-        const pdfBlob = pdfDoc.output('blob')
+        const rawBlob = pdfDoc.output('blob')
+        const pdfBlob = new Blob([rawBlob], { type: 'application/pdf' })
         const blobUrl = URL.createObjectURL(pdfBlob)
         setPdfBlobUrl(blobUrl)
       } catch (err: any) {
@@ -140,7 +151,8 @@ export default function ReceiptPreviewPage({ params }: PageProps) {
       setReceipt(updatedReceipt)
 
       const pdfDoc = await generateReceiptPDF(updatedReceipt, companySettings)
-      const pdfBlob = pdfDoc.output('blob')
+      const rawBlob = pdfDoc.output('blob')
+      const pdfBlob = new Blob([rawBlob], { type: 'application/pdf' })
       if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl)
       setPdfBlobUrl(URL.createObjectURL(pdfBlob))
 
@@ -167,8 +179,18 @@ export default function ReceiptPreviewPage({ params }: PageProps) {
   const handleDownload = async () => {
     if (!receipt) return
     try {
-      const pdfDoc = await generateReceiptPDF(receipt, companySettings)
-      pdfDoc.save(getReceiptFilename())
+      const filename = getReceiptFilename()
+      if (pdfBlobUrl) {
+        const a = document.createElement('a')
+        a.href = pdfBlobUrl
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      } else {
+        const pdfDoc = await generateReceiptPDF(receipt, companySettings)
+        pdfDoc.save(filename)
+      }
     } catch (err) {
       console.error('Download receipt error:', err)
     }

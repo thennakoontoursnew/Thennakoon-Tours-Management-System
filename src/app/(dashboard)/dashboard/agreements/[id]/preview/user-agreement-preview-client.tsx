@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -104,6 +104,12 @@ export function UserAgreementPreviewClient({
         special_notes: selectedVersion.special_notes ?? agreement.special_notes,
       }
     : agreement
+
+  useEffect(() => {
+    if (typeof document !== 'undefined' && activeAgreementData?.agreement_number) {
+      document.title = `${activeAgreementData.agreement_number}.pdf`
+    }
+  }, [activeAgreementData?.agreement_number])
 
   const handlePrint = () => {
     if (typeof window !== 'undefined') {

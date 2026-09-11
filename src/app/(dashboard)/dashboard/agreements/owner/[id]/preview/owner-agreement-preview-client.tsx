@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
 
 interface OwnerAgreementPreviewClientProps {
@@ -13,6 +14,12 @@ export function OwnerAgreementPreviewClient({
   owner,
   vehicles = [],
 }: OwnerAgreementPreviewClientProps) {
+  useEffect(() => {
+    if (typeof document !== 'undefined' && agreement?.agreement_number) {
+      document.title = `${agreement.agreement_number}.pdf`
+    }
+  }, [agreement?.agreement_number])
+
   const handlePrint = () => {
     if (typeof window !== 'undefined') {
       window.print()

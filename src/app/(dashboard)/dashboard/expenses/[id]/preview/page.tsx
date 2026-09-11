@@ -88,9 +88,16 @@ export default function ExpenseVoucherPreviewPage({ params }: PageProps) {
           approved_by: exp.approved_by ? String(exp.approved_by) : undefined,
         }
 
+        const cleanDocNum = exp.voucher_number || exp.expense_number || `EXPENSE-${exp.id.slice(0, 8)}`
+        const pdfFilename = `${cleanDocNum}.pdf`
+        if (typeof document !== 'undefined') {
+          document.title = pdfFilename
+        }
+
         // Generate PDF
         const pdfDoc = await generateExpenseVoucherPDF(voucherData, settings)
-        const pdfBlob = pdfDoc.output('blob')
+        const rawBlob = pdfDoc.output('blob')
+        const pdfBlob = new Blob([rawBlob], { type: 'application/pdf' })
         const blobUrl = URL.createObjectURL(pdfBlob)
         setPdfBlobUrl(blobUrl)
       } catch (err: any) {
@@ -109,10 +116,12 @@ export default function ExpenseVoucherPreviewPage({ params }: PageProps) {
     const cleanDocNum = expense.voucher_number || expense.expense_number || `EXPENSE-${expense.id.slice(0, 8)}`
     const filename = `${cleanDocNum}.pdf`
     
-    const link = document.createElement('a')
-    link.href = pdfBlobUrl
-    link.download = filename
-    link.click()
+    const a = document.createElement('a')
+    a.href = pdfBlobUrl
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
   }
 
   if (loading) {

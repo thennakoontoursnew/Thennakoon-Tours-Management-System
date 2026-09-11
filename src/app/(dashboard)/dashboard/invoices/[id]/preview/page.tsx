@@ -89,10 +89,17 @@ export default function InvoicePreviewPage({ params }: PageProps) {
         setInvoice(fullInvoiceData)
         setCompanySettings(settings)
 
+        const cleanDocNum = inv.invoice_number || `INVOICE-${inv.id.slice(0, 8)}`
+        const pdfFilename = `${cleanDocNum}.pdf`
+        if (typeof document !== 'undefined') {
+          document.title = pdfFilename
+        }
+
         // STEP 6: Render PDF
         console.log('STEP 6 Rendering PDF')
         const pdfDoc = await generateInvoicePDF(fullInvoiceData, settings)
-        const pdfBlob = pdfDoc.output('blob')
+        const rawBlob = pdfDoc.output('blob')
+        const pdfBlob = new Blob([rawBlob], { type: 'application/pdf' })
         const blobUrl = URL.createObjectURL(pdfBlob)
         setPdfBlobUrl(blobUrl)
       } catch (err: any) {
@@ -108,9 +115,19 @@ export default function InvoicePreviewPage({ params }: PageProps) {
 
   const handleDownload = async () => {
     if (!invoice) return
-    const pdfDoc = await generateInvoicePDF(invoice, companySettings)
     const cleanDocNum = invoice.invoice_number || `INVOICE-${invoice.id.slice(0, 8)}`
-    pdfDoc.save(`${cleanDocNum}.pdf`)
+    const filename = `${cleanDocNum}.pdf`
+    if (pdfBlobUrl) {
+      const a = document.createElement('a')
+      a.href = pdfBlobUrl
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    } else {
+      const pdfDoc = await generateInvoicePDF(invoice, companySettings)
+      pdfDoc.save(filename)
+    }
   }
 
   if (loading) {

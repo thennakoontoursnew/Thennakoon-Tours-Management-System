@@ -48,16 +48,27 @@ export default function QuotationPreviewPage({ params }: PageProps) {
         setQuotation(q)
         setCompanySettings(settings)
 
-        const pdfDoc = await generateQuotationPDF(q, settings)
-        const blob = pdfDoc.output('blob')
+        const qNum = q.quotation_number ? String(q.quotation_number).trim().toUpperCase() : ''
+        let pdfFilename = `QT-${q.id.slice(0, 5).toUpperCase()}.pdf`
+        if (qNum) {
+          const digitsMatch = qNum.match(/(\d+)/g)
+          pdfFilename = digitsMatch && digitsMatch.length > 0 ? `QT-${digitsMatch[digitsMatch.length - 1]}.pdf` : `${qNum}.pdf`
+        }
+        if (typeof document !== 'undefined') {
+          document.title = pdfFilename
+        }
 
-        if (blob.size < 5000) {
+        const pdfDoc = await generateQuotationPDF(q, settings)
+        const rawBlob = pdfDoc.output('blob')
+        const pdfBlob = new Blob([rawBlob], { type: 'application/pdf' })
+
+        if (pdfBlob.size < 5000) {
           setRenderError('PDF generation produced an incomplete document.')
           setLoading(false)
           return
         }
 
-        objectUrl = URL.createObjectURL(blob)
+        objectUrl = URL.createObjectURL(pdfBlob)
         setPdfUrl(objectUrl)
       } catch (err: any) {
         console.error('Error generating PDF preview:', err)
@@ -92,8 +103,18 @@ export default function QuotationPreviewPage({ params }: PageProps) {
   const handleDownload = async () => {
     if (!quotation) return
     try {
-      const pdfDoc = await generateQuotationPDF(quotation, companySettings)
-      pdfDoc.save(getQuotationFilename())
+      const filename = getQuotationFilename()
+      if (pdfUrl) {
+        const a = document.createElement('a')
+        a.href = pdfUrl
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      } else {
+        const pdfDoc = await generateQuotationPDF(quotation, companySettings)
+        pdfDoc.save(filename)
+      }
     } catch (err: any) {
       console.error('Download PDF Error:', err)
       alert('Failed to download PDF. Please try again.')
@@ -107,9 +128,18 @@ export default function QuotationPreviewPage({ params }: PageProps) {
       setSharing(true)
 
       console.log('STEP 2 - Starting PDF Download')
-      const pdfDoc = await generateQuotationPDF(quotation, companySettings)
       const filename = getQuotationFilename()
-      pdfDoc.save(filename)
+      if (pdfUrl) {
+        const a = document.createElement('a')
+        a.href = pdfUrl
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      } else {
+        const pdfDoc = await generateQuotationPDF(quotation, companySettings)
+        pdfDoc.save(filename)
+      }
 
       console.log('STEP 3 - Building WhatsApp Message')
       const companyName = quotation.company_name_snapshot || companySettings?.company_name || 'Thennakoon Tours'
