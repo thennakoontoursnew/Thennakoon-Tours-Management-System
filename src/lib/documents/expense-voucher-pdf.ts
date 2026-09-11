@@ -242,49 +242,12 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
     doc.line(CONTENT_LEFT, currentY, CONTENT_RIGHT, currentY)
   })
 
-  // Deductions Table Section (If present)
+  // Deductions calculation (If present)
   const rawDeductions = voucherData.deduction_breakdown && Array.isArray(voucherData.deduction_breakdown)
     ? voucherData.deduction_breakdown
     : []
 
   const totalDeductions = rawDeductions.reduce((acc, curr) => acc + Number(curr.amount || 0), 0)
-
-  if (rawDeductions.length > 0) {
-    currentY += 4.0
-    checkPageOverflow(15, true)
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(PDF_TYPOGRAPHY.sectionHeading)
-    doc.setTextColor(153, 27, 27) // Burgundy #991b1b
-    doc.text('DEDUCTIONS & ADJUSTMENTS (-):', CONTENT_LEFT, currentY)
-    currentY += 4.5
-
-    rawDeductions.forEach((it, idx) => {
-      const rawDesc = String(it.description || 'Deduction Line Item')
-      const descLines = doc.splitTextToSize(rawDesc, 120)
-      const rowHeight = Math.max(6.8, descLines.length * 3.6 + 2.2)
-
-      checkPageOverflow(rowHeight, true)
-
-      if (idx % 2 === 1) {
-        doc.setFillColor(254, 242, 242) // subtle crimson tint
-        doc.rect(CONTENT_LEFT, currentY, CONTENT_WIDTH, rowHeight, 'F')
-      }
-
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(PDF_TYPOGRAPHY.tableBody)
-      doc.setTextColor(153, 27, 27)
-      doc.text(String(idx + 1), 22, currentY + 4.5, { align: 'center' })
-      doc.text(descLines, 28, currentY + 4.5)
-      doc.text(`- LKR ${formatNumberSafe(it.amount)}`, 189, currentY + 4.5, { align: 'right' })
-
-      currentY += rowHeight
-
-      doc.setLineWidth(0.15)
-      doc.setDrawColor(PDF_COLORS.border.rgb[0], PDF_COLORS.border.rgb[1], PDF_COLORS.border.rgb[2])
-      doc.line(CONTENT_LEFT, currentY, CONTENT_RIGHT, currentY)
-    })
-  }
 
   // STEP 4: TOTALS SUMMARY CARD (Right-Aligned, Matching Commercial Invoice)
   currentY += 4.5
@@ -305,13 +268,13 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
   doc.text(`LKR ${formatNumberSafe(totalAdditions)}`, 189, sumY, { align: 'right' })
   sumY += finRowHeight
 
-  // Itemized Deductions (Render EACH deduction row cleanly with negative values)
+  // Itemized Deductions (Render EACH deduction row cleanly in Dark Slate / Black)
   if (rawDeductions.length > 0) {
     rawDeductions.forEach((it) => {
       const rawDesc = String(it.description || 'Deduction')
       const labelStr = rawDesc.length > 30 ? rawDesc.slice(0, 28) + '...' : rawDesc
       doc.setFont('helvetica', 'normal')
-      doc.setTextColor(185, 28, 28) // Muted Red #b91c1c
+      setPdfBodyText(doc) // Slate-800 Dark Text
       doc.text(labelStr, sumLabelX, sumY)
       doc.text(`- LKR ${formatNumberSafe(it.amount)}`, 189, sumY, { align: 'right' })
       sumY += finRowHeight
@@ -319,7 +282,7 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
 
     if (rawDeductions.length > 1) {
       doc.setFont('helvetica', 'bold')
-      doc.setTextColor(153, 27, 27) // Burgundy #991b1b
+      setPdfDarkText(doc) // Slate-900 Crisp Black
       doc.text('Total Deductions', sumLabelX, sumY)
       doc.text(`- LKR ${formatNumberSafe(totalDeductions)}`, 189, sumY, { align: 'right' })
       sumY += finRowHeight
