@@ -37,6 +37,8 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
   const [ownerAddress, setOwnerAddress] = useState('')
   const [accountName, setAccountName] = useState('')
   const [rentalPeriod, setRentalPeriod] = useState('')
+  const [rentalStartDate, setRentalStartDate] = useState('')
+  const [rentalEndDate, setRentalEndDate] = useState('')
 
   // Structured Voucher & Owner Statement fields
   const [isVoucherMode, setIsVoucherMode] = useState(false)
@@ -80,7 +82,13 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
         setCustomerPhone(initialData.customer_phone || initialData.vehicle?.owner?.mobile || '')
         setOwnerAddress(initialData.owner_address || initialData.vehicle?.owner?.address || '')
         setAccountName(initialData.account_name || initialData.customer_name || '')
-        setRentalPeriod(initialData.rental_period || '')
+        
+        const rawPeriod = initialData.rental_period || ''
+        const { startIso, endIso } = parseRangeToIso(rawPeriod, initialData.expense_date)
+        setRentalStartDate(startIso)
+        setRentalEndDate(endIso)
+        setRentalPeriod(rawPeriod || formatRangeFromIso(startIso, endIso))
+
         setVoucherNumber(initialData.voucher_number || '')
         setBillName(initialData.bill_name || '')
         setCustomerName(initialData.customer_name || '')
@@ -107,7 +115,8 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
         setIsVoucherMode(isVoucher)
       } else {
         // Reset defaults for Create mode
-        setExpenseDate(new Date().toISOString().slice(0, 10))
+        const defaultExpDate = new Date().toISOString().slice(0, 10)
+        setExpenseDate(defaultExpDate)
         setCategory('fuel')
         setDescription('')
         setAmount('')
@@ -118,7 +127,12 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
         setCustomerPhone('')
         setOwnerAddress('')
         setAccountName('')
-        setRentalPeriod('')
+        
+        const { startIso, endIso } = parseRangeToIso('', defaultExpDate)
+        setRentalStartDate(startIso)
+        setRentalEndDate(endIso)
+        setRentalPeriod(formatRangeFromIso(startIso, endIso))
+
         setBillName('')
         setCustomerName('')
         setAccountNumber('')
@@ -143,6 +157,13 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
     }
   }, [isOpen, initialData])
 
+function toIsoDateString(d: Date): string {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function formatOrdinalMonthYear(d: Date): string {
   const day = d.getDate()
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -166,12 +187,37 @@ function parseDateLocal(dateStr?: string | null): Date | null {
   return isNaN(d.getTime()) ? null : d
 }
 
-function generateDefaultOneMonthPeriod(refDateStr?: string): string {
-  const ref = refDateStr ? parseDateLocal(refDateStr) : new Date()
-  const endD = ref || new Date()
-  const startD = new Date(endD)
-  startD.setMonth(startD.getMonth() - 1)
-  return `${formatOrdinalMonthYear(startD)} - ${formatOrdinalMonthYear(endD)}`
+function parseRangeToIso(rangeStr?: string | null, fallbackRefDateStr?: string): { startIso: string; endIso: string } {
+  const ref = fallbackRefDateStr ? parseDateLocal(fallbackRefDateStr) : new Date()
+  const defaultEnd = ref || new Date()
+  const defaultStart = new Date(defaultEnd)
+  defaultStart.setMonth(defaultStart.getMonth() - 1)
+
+  let startIso = toIsoDateString(defaultStart)
+  let endIso = toIsoDateString(defaultEnd)
+
+  if (rangeStr && typeof rangeStr === 'string' && rangeStr.trim()) {
+    const parts = rangeStr.split(/\s+[-—to]+\s+/i)
+    if (parts.length >= 2) {
+      const sDate = parseDateLocal(parts[0].trim())
+      const eDate = parseDateLocal(parts[1].trim())
+      if (sDate && eDate) {
+        startIso = toIsoDateString(sDate)
+        endIso = toIsoDateString(eDate)
+      }
+    }
+  }
+
+  return { startIso, endIso }
+}
+
+function formatRangeFromIso(startIso: string, endIso: string): string {
+  const sDate = parseDateLocal(startIso)
+  const eDate = parseDateLocal(endIso)
+  if (sDate && eDate) {
+    return `${formatOrdinalMonthYear(sDate)} - ${formatOrdinalMonthYear(eDate)}`
+  }
+  return ''
 }
 
   const handleVehicleChange = (vId: string) => {
@@ -194,7 +240,8 @@ function generateDefaultOneMonthPeriod(refDateStr?: string): string {
         if (o.full_name) setAccountName(o.full_name)
 
         // 2. Rental Period Auto-Fill (Smart Date Generation)
-        let computedPeriod = ''
+        let startIso = ''
+        let endIso = ''
         const rawAgreements = Array.isArray(o.agreements) ? o.agreements : []
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const activeAg = rawAgreements.find((a: any) => a.status === 'active' || a.status === 'signed') || rawAgreements[0]
@@ -203,17 +250,25 @@ function generateDefaultOneMonthPeriod(refDateStr?: string): string {
           const s = parseDateLocal(activeAg.agreement_start_date)
           const e = parseDateLocal(activeAg.agreement_end_date)
           if (s && e) {
-            computedPeriod = `${formatOrdinalMonthYear(s)} - ${formatOrdinalMonthYear(e)}`
+            startIso = toIsoDateString(s)
+            endIso = toIsoDateString(e)
           }
         }
 
-        if (!computedPeriod) {
-          computedPeriod = generateDefaultOneMonthPeriod(expenseDate)
+        if (!startIso || !endIso) {
+          const fallbackIso = parseRangeToIso('', expenseDate)
+          startIso = fallbackIso.startIso
+          endIso = fallbackIso.endIso
         }
 
-        setRentalPeriod(computedPeriod)
+        setRentalStartDate(startIso)
+        setRentalEndDate(endIso)
+        setRentalPeriod(formatRangeFromIso(startIso, endIso))
       } else {
-        setRentalPeriod(generateDefaultOneMonthPeriod(expenseDate))
+        const fallbackIso = parseRangeToIso('', expenseDate)
+        setRentalStartDate(fallbackIso.startIso)
+        setRentalEndDate(fallbackIso.endIso)
+        setRentalPeriod(formatRangeFromIso(fallbackIso.startIso, fallbackIso.endIso))
       }
 
       setIsVoucherMode(true)
@@ -347,7 +402,12 @@ function generateDefaultOneMonthPeriod(refDateStr?: string): string {
                   if (val === 'owner_statement') {
                     setIsVoucherMode(true)
                     if (!billName) setBillName('Owner Statement & Monthly Settlement')
-                    if (!rentalPeriod) setRentalPeriod(generateDefaultOneMonthPeriod(expenseDate))
+                    if (!rentalPeriod || !rentalStartDate || !rentalEndDate) {
+                      const { startIso, endIso } = parseRangeToIso(rentalPeriod, expenseDate)
+                      setRentalStartDate(startIso)
+                      setRentalEndDate(endIso)
+                      setRentalPeriod(formatRangeFromIso(startIso, endIso))
+                    }
                   }
                 }}
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-semibold"
@@ -505,8 +565,8 @@ function generateDefaultOneMonthPeriod(refDateStr?: string): string {
                 </div>
               </div>
 
-              {/* Owner / Beneficiary Contact & Rental Period */}
-              <div className="grid grid-cols-3 gap-3">
+              {/* Owner / Beneficiary Contact & Address */}
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 mb-1">Mobile / Phone</label>
                   <input
@@ -514,17 +574,7 @@ function generateDefaultOneMonthPeriod(refDateStr?: string): string {
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
                     placeholder="e.g. 0771234567"
-                    className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 mb-1">Rental Period</label>
-                  <input
-                    type="text"
-                    value={rentalPeriod}
-                    onChange={(e) => setRentalPeriod(e.target.value)}
-                    placeholder="e.g. 10 Aug 2026 - 10 Sep 2026"
-                    className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                    className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
@@ -534,7 +584,41 @@ function generateDefaultOneMonthPeriod(refDateStr?: string): string {
                     value={ownerAddress}
                     onChange={(e) => setOwnerAddress(e.target.value)}
                     placeholder="e.g. No. 45, High Level Rd, Colombo"
-                    className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                    className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              {/* Dual Interactive Date Pickers for Rental Period */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">Rental Period: From</label>
+                  <input
+                    type="date"
+                    value={rentalStartDate}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setRentalStartDate(val)
+                      if (val && rentalEndDate) {
+                        setRentalPeriod(formatRangeFromIso(val, rentalEndDate))
+                      }
+                    }}
+                    className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">Rental Period: To</label>
+                  <input
+                    type="date"
+                    value={rentalEndDate}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setRentalEndDate(val)
+                      if (rentalStartDate && val) {
+                        setRentalPeriod(formatRangeFromIso(rentalStartDate, val))
+                      }
+                    }}
+                    className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white font-medium"
                   />
                 </div>
               </div>
