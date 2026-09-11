@@ -151,12 +151,24 @@ export default function ReceiptPreviewPage({ params }: PageProps) {
     setSavingTerms(false)
   }
 
+  const getReceiptFilename = () => {
+    if (!receipt) return 'CR-10001.pdf'
+    const rNum = receipt.receipt_number ? String(receipt.receipt_number).trim().toUpperCase() : ''
+    if (rNum) {
+      const digitsMatch = rNum.match(/(\d+)/g)
+      if (digitsMatch && digitsMatch.length > 0) {
+        return `CR-${digitsMatch[digitsMatch.length - 1]}.pdf`
+      }
+      return `CR-${rNum.replace(/^(RCT|RECEIPT|CR)-?/i, '')}.pdf`
+    }
+    return `CR-${receipt.id.slice(0, 5).toUpperCase()}.pdf`
+  }
+
   const handleDownload = async () => {
     if (!receipt) return
     try {
       const pdfDoc = await generateReceiptPDF(receipt, companySettings)
-      const cleanDocNum = receipt.receipt_number || `RECEIPT-${receipt.id.slice(0, 8)}`
-      pdfDoc.save(`${cleanDocNum}.pdf`)
+      pdfDoc.save(getReceiptFilename())
     } catch (err) {
       console.error('Download receipt error:', err)
     }

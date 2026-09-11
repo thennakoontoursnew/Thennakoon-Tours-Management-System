@@ -76,12 +76,24 @@ export default function QuotationPreviewPage({ params }: PageProps) {
     }
   }, [id])
 
+  const getQuotationFilename = () => {
+    if (!quotation) return 'QT-10001.pdf'
+    const qNum = quotation.quotation_number ? String(quotation.quotation_number).trim().toUpperCase() : ''
+    if (qNum) {
+      const digitsMatch = qNum.match(/(\d+)/g)
+      if (digitsMatch && digitsMatch.length > 0) {
+        return `QT-${digitsMatch[digitsMatch.length - 1]}.pdf`
+      }
+      return `${qNum}.pdf`
+    }
+    return `QT-${quotation.id.slice(0, 5).toUpperCase()}.pdf`
+  }
+
   const handleDownload = async () => {
     if (!quotation) return
     try {
       const pdfDoc = await generateQuotationPDF(quotation, companySettings)
-      const cleanDocNum = quotation.quotation_number || `QUOTATION-${quotation.id.slice(0, 8)}`
-      pdfDoc.save(`${cleanDocNum}.pdf`)
+      pdfDoc.save(getQuotationFilename())
     } catch (err: any) {
       console.error('Download PDF Error:', err)
       alert('Failed to download PDF. Please try again.')
@@ -96,8 +108,7 @@ export default function QuotationPreviewPage({ params }: PageProps) {
 
       console.log('STEP 2 - Starting PDF Download')
       const pdfDoc = await generateQuotationPDF(quotation, companySettings)
-      const cleanDocNum = quotation.quotation_number || `QUOTATION-${quotation.id.slice(0, 8)}`
-      const filename = `${cleanDocNum}.pdf`
+      const filename = getQuotationFilename()
       pdfDoc.save(filename)
 
       console.log('STEP 3 - Building WhatsApp Message')

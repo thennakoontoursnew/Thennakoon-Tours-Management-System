@@ -90,13 +90,12 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
   }
 
   // STEP 1: SPLIT HEADER (Left: VOUCHER Title & Date | Right: VOUCHER NO Label & Number)
-  const isOwnerStatement = voucherData.category === 'owner_statement' || voucherData.category === 'Owner Statement'
-  const docTitle = isOwnerStatement ? 'OWNER STATEMENT & PAYMENT VOUCHER' : 'PAYMENT VOUCHER'
+  const docTitle = 'PAYMENT VOUCHER'
   const vNum = voucherData.voucher_number || voucherData.expense_number || 'VN-10001'
 
   // LEFT SIDE: VOUCHER Title & Date
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(isOwnerStatement ? 13 : PDF_TYPOGRAPHY.documentTitle)
+  doc.setFontSize(PDF_TYPOGRAPHY.documentTitle)
   setPdfBrandGoldText(doc) // Brand Gold #997711
   doc.text(docTitle, CONTENT_LEFT, CONTENT_TOP)
 
@@ -289,44 +288,63 @@ export async function generateExpenseVoucherPDF(voucherData: ExpenseVoucherData,
 
   // STEP 4: TOTALS SUMMARY CARD (Right-Aligned, Matching Commercial Invoice)
   currentY += 4.5
-  checkPageOverflow(35, false)
+  const summaryNeededHeight = 25 + (rawDeductions.length * 4.5)
+  checkPageOverflow(summaryNeededHeight, false)
 
   let sumY = currentY
-  const sumLabelX = 108
+  const sumLabelX = 102
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(PDF_TYPOGRAPHY.financialRow)
   setPdfBodyText(doc)
 
-  const finRowHeight = 4.2
+  const finRowHeight = 4.4
 
   // Total Additions / Gross Earnings
   doc.text('Gross Earnings / Additions', sumLabelX, sumY)
   doc.text(`LKR ${formatNumberSafe(totalAdditions)}`, 189, sumY, { align: 'right' })
   sumY += finRowHeight
 
-  // Total Deductions (Render ONLY if > 0)
-  if (totalDeductions > 0) {
-    doc.setTextColor(153, 27, 27)
-    doc.text('Total Deductions', sumLabelX, sumY)
-    doc.text(`- LKR ${formatNumberSafe(totalDeductions)}`, 189, sumY, { align: 'right' })
-    setPdfBodyText(doc)
-    sumY += finRowHeight
+  // Itemized Deductions (Render EACH deduction row cleanly with negative values)
+  if (rawDeductions.length > 0) {
+    rawDeductions.forEach((it) => {
+      const rawDesc = String(it.description || 'Deduction')
+      const labelStr = rawDesc.length > 30 ? rawDesc.slice(0, 28) + '...' : rawDesc
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(185, 28, 28) // Muted Red #b91c1c
+      doc.text(labelStr, sumLabelX, sumY)
+      doc.text(`- LKR ${formatNumberSafe(it.amount)}`, 189, sumY, { align: 'right' })
+      sumY += finRowHeight
+    })
+
+    if (rawDeductions.length > 1) {
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(153, 27, 27) // Burgundy #991b1b
+      doc.text('Total Deductions', sumLabelX, sumY)
+      doc.text(`- LKR ${formatNumberSafe(totalDeductions)}`, 189, sumY, { align: 'right' })
+      sumY += finRowHeight
+    }
   }
+
+  // Thin dividing border above NET BALANCE PAYABLE bar
+  doc.setLineWidth(0.15)
+  doc.setDrawColor(PDF_COLORS.border.rgb[0], PDF_COLORS.border.rgb[1], PDF_COLORS.border.rgb[2])
+  doc.line(sumLabelX, sumY - 1.0, 189, sumY - 1.0)
+  sumY += 2.0
 
   const calcNetBalance = voucherData.net_balance !== undefined && voucherData.net_balance !== null
     ? voucherData.net_balance
     : totalAdditions - totalDeductions
 
-  // NET BALANCE PAYABLE HIGHLIGHT BAR (Matching Balance Due Bar)
-  const barWidth = 192 - 105
+  // NET BALANCE PAYABLE HIGHLIGHT BAR
+  const barWidth = 192 - 100
   const barHeight = 8.2
   setPdfDarkFill(doc) // Black Bar #17171A
-  doc.rect(105, sumY - 3.2, barWidth, barHeight, 'F')
+  doc.rect(100, sumY - 3.2, barWidth, barHeight, 'F')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(PDF_TYPOGRAPHY.balanceDue)
   setPdfBrandGoldText(doc) // Brand Gold #997711
-  doc.text('NET BALANCE PAYABLE', 108, sumY + 2.3)
+  doc.text('NET BALANCE PAYABLE', 103, sumY + 2.3)
   doc.text(`LKR ${formatNumberSafe(calcNetBalance)}`, 189, sumY + 2.3, { align: 'right' })
   sumY += barHeight
 
