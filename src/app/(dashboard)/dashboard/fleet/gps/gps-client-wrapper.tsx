@@ -59,22 +59,20 @@ export function GPSClientWrapper({
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'vehicle_telemetry' },
-        (payload) => {
+        (payload: any) => {
           console.log('[Realtime Telemetry Insert]', payload.new)
           setLastPingTime(new Date().toLocaleTimeString())
-          router.refresh()
         }
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'vehicles' },
-        (payload) => {
+        (payload: any) => {
           console.log('[Realtime Vehicle Update]', payload.new)
           setLastPingTime(new Date().toLocaleTimeString())
-          router.refresh()
         }
       )
-      .subscribe((status) => {
+      .subscribe((status: any) => {
         if (status === 'SUBSCRIBED') {
           setRealtimeConnected(true)
         }
@@ -83,7 +81,7 @@ export function GPSClientWrapper({
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [router])
+  }, [])
 
   const handleSendTelemetryPing = async (e: React.FormEvent) => {
     e.preventDefault()

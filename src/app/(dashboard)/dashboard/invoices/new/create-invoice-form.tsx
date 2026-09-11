@@ -145,7 +145,7 @@ export function CreateInvoiceForm({
         .from('customers')
         .select('*')
         .order('created_at', { ascending: false })
-        .then(({ data, error }) => {
+        .then(({ data, error }: any) => {
           if (!error && data && data.length > 0) {
             const active = data.filter((c: any) => !c.is_archived)
             setCustomerList(active.length > 0 ? active : data)
@@ -195,7 +195,7 @@ export function CreateInvoiceForm({
         .from('vehicles')
         .select('*')
         .order('created_at', { ascending: false })
-        .then(({ data, error }) => {
+        .then(({ data, error }: any) => {
           if (!error && data && data.length > 0) {
             const active = data.filter((v: any) => !v.is_archived)
             setVehicleList(active.length > 0 ? active : data)

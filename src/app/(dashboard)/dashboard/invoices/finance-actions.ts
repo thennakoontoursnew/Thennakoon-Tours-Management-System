@@ -307,6 +307,8 @@ export async function getNextVoucherNumberAction(): Promise<string> {
     .from('expenses')
     .select('voucher_number')
     .ilike('voucher_number', 'VN-%')
+    .order('created_at', { ascending: false })
+    .limit(20)
 
   let maxNum = 10000
 

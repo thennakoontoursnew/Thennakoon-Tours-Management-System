@@ -115,25 +115,10 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
     }
   }, [isOpen, initialData])
 
-  // Automatically enable voucher mode if category is owner_statement
-  useEffect(() => {
-    if (category === 'owner_statement') {
-      setIsVoucherMode(true)
-      if (!billName) setBillName('Owner Statement & Monthly Settlement')
-    }
-  }, [category, billName])
-
   // Calculate Net Balance dynamically when additions or deductions change
   const totalAdditions = additions.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
   const totalDeductions = deductions.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
   const calculatedNet = totalAdditions - totalDeductions
-
-  // Sync main amount if in voucher mode with itemized breakdown
-  useEffect(() => {
-    if (isVoucherMode && (additions.length > 0 || deductions.length > 0)) {
-      setAmount(String(calculatedNet >= 0 ? calculatedNet : 0))
-    }
-  }, [isVoucherMode, calculatedNet, additions.length, deductions.length])
 
   if (!isOpen) return null
 
@@ -246,7 +231,14 @@ export function NewExpenseModal({ isOpen, onClose, onSubmit, initialData }: NewE
               <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">Category <span className="text-rose-500">*</span></label>
               <select
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setCategory(val)
+                  if (val === 'owner_statement') {
+                    setIsVoucherMode(true)
+                    if (!billName) setBillName('Owner Statement & Monthly Settlement')
+                  }
+                }}
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-semibold"
               >
                 <option value="fuel">Fuel / Petrol / Diesel</option>
