@@ -1,7 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
 import { CreateInvoiceForm } from './create-invoice-form'
 
-export default async function NewInvoicePage() {
+interface PageProps {
+  searchParams: Promise<{
+    booking_id?: string
+    quotation_id?: string
+  }>
+}
+
+export default async function NewInvoicePage({ searchParams }: PageProps) {
+  const params = await searchParams
   const supabase = await createClient()
 
   // Get current user profile
@@ -50,11 +58,23 @@ export default async function NewInvoicePage() {
   }
 
   // Fetch Active Bookings
-  const { data: bookings } = await supabase
+  const { data: rawBookings } = await supabase
     .from('bookings')
     .select('*, booking_vehicles(*, vehicle:vehicles(vehicle_name, registration_number))')
     .order('created_at', { ascending: false })
     .limit(50)
+
+  let bookings = rawBookings || []
+  if (params.booking_id && !bookings.some((b: any) => b.id === params.booking_id)) {
+    const { data: specificBooking } = await supabase
+      .from('bookings')
+      .select('*, booking_vehicles(*, vehicle:vehicles(vehicle_name, registration_number))')
+      .eq('id', params.booking_id)
+      .maybeSingle()
+    if (specificBooking) {
+      bookings = [specificBooking, ...bookings]
+    }
+  }
 
   // Fetch Vehicles (All active registered fleet vehicles)
   let vehicles: any[] = []
@@ -78,12 +98,24 @@ export default async function NewInvoicePage() {
   }
 
   // Fetch Recent Quotations
-  const { data: quotations } = await supabase
+  const { data: rawQuotations } = await supabase
     .from('quotations')
     .select('id, quotation_number, customer_id, items:quotation_items(*)')
     .neq('status', 'cancelled')
     .order('created_at', { ascending: false })
     .limit(50)
+
+  let quotations = rawQuotations || []
+  if (params.quotation_id && !quotations.some((q: any) => q.id === params.quotation_id)) {
+    const { data: specificQuotation } = await supabase
+      .from('quotations')
+      .select('id, quotation_number, customer_id, items:quotation_items(*)')
+      .eq('id', params.quotation_id)
+      .maybeSingle()
+    if (specificQuotation) {
+      quotations = [specificQuotation, ...quotations]
+    }
+  }
 
   // Generate Next Invoice Number
   let defaultInvoiceNo = 'TT-IN-10001'
@@ -112,6 +144,8 @@ export default async function NewInvoicePage() {
       defaultInvoiceNumber={defaultInvoiceNo}
       currentUser={currentUserProfile}
       companySettings={companySettings || undefined}
+      initialBookingId={params.booking_id}
+      initialQuotationId={params.quotation_id}
     />
   )
 }

@@ -322,6 +322,12 @@ export async function convertQuotationToBooking(id: string) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated.' }
 
+    // If quotation is not yet accepted, mark as accepted so conversion proceeds seamlessly
+    const { data: qt } = await supabase.from('quotations').select('status').eq('id', id).single()
+    if (qt && qt.status !== 'accepted') {
+      await supabase.from('quotations').update({ status: 'accepted', updated_at: new Date().toISOString() }).eq('id', id)
+    }
+
     const { data: res, error: rpcErr } = await supabase.rpc('convert_quotation_to_booking_rpc', {
       p_quotation_id: id,
       p_user_id: user.id,

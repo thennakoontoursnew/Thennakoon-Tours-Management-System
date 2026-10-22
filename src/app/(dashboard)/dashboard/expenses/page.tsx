@@ -12,6 +12,8 @@ interface PageProps {
   searchParams: Promise<{
     search?: string
     category?: string
+    vehicle_id?: string
+    booking_number?: string
   }>
 }
 
@@ -19,6 +21,8 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
   const params = await searchParams
   const search = params.search || ''
   const categoryFilter = params.category || 'all'
+  const vehicleIdParam = params.vehicle_id || ''
+  const bookingNumberParam = params.booking_number || ''
 
   const supabase = await createClient()
 
@@ -102,7 +106,11 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
       </div>
 
       {/* Expenses Table Client Wrapper */}
-      <ExpensesClientWrapper expenses={expenses || []} />
+      <ExpensesClientWrapper
+        expenses={expenses || []}
+        initialVehicleId={vehicleIdParam || undefined}
+        initialBookingNumber={bookingNumberParam || undefined}
+      />
     </div>
   )
 }

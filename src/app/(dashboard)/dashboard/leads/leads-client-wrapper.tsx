@@ -165,6 +165,14 @@ export function LeadsClientWrapper({ leads }: LeadsClientWrapperProps) {
                             <FileText size={13} />
                             <span>Create Quotation</span>
                           </Link>
+                          <Link
+                            href={`/dashboard/bookings/new?lead_id=${l.id}&customer_id=${l.customer_id || ''}`}
+                            className="h-8 px-2.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 rounded-lg transition-colors inline-flex items-center gap-1.5 whitespace-nowrap"
+                            title="Directly convert Lead into a Booking"
+                          >
+                            <CheckCircle2 size={13} />
+                            <span>Convert to Booking</span>
+                          </Link>
                         </div>
                       </td>
                     </tr>

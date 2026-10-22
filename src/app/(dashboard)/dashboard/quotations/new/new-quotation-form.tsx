@@ -30,9 +30,11 @@ interface Props {
   vehicles: any[]
   template?: any
   userProfile?: any
+  initialCustomerId?: string
+  initialLead?: any
 }
 
-export default function NewQuotationForm({ customers: initialCustomers, vehicles, template, userProfile }: Props) {
+export default function NewQuotationForm({ customers: initialCustomers, vehicles, template, userProfile, initialCustomerId, initialLead }: Props) {
   const router = useRouter()
   const [customersList, setCustomersList] = useState<any[]>(initialCustomers || [])
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false)
@@ -41,21 +43,21 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
   const [error, setError] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
-    customer_id: '',
+    customer_id: initialCustomerId || initialLead?.customer_id || '',
     quotation_date: new Date().toISOString().split('T')[0],
-    rental_start_date: new Date().toISOString().split('T')[0],
-    rental_end_date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    rental_start_date: initialLead?.pickup_date || new Date().toISOString().split('T')[0],
+    rental_end_date: initialLead?.return_date || new Date(Date.now() + 86400000).toISOString().split('T')[0],
     pickup_location: '',
     dropoff_location: '',
     destination: '',
     passenger_count: 1,
-    purpose: '',
+    purpose: initialLead?.interested_vehicle_name ? `Rental for ${initialLead.interested_vehicle_name}` : '',
     discount_type: 'none',
     discount_value: 0,
     tax_rate: 0,
     refundable_deposit: 0,
     additional_charges: 0,
-    notes: '',
+    notes: initialLead?.notes || '',
     // 12 Explicit Snapshot Fields (pre-normalized)
     special_notes: normalizeNewlines(template?.special_notes) || '• 700km allowed.\n• This quotation is valid for 24 hours only.',
     important_message: normalizeNewlines(template?.important_message) || 'Please find the account details below. Kindly ensure payment is completed on or before due date.',

@@ -113,7 +113,10 @@ export default async function BookingDetailPage({ params }: PageProps) {
   let vehicleMap = new Map()
   const vehicleIds = bookingVehicles.map((bv: any) => bv.vehicle_id).filter(Boolean)
   if (vehicleIds.length > 0) {
-    const { data: vData } = await supabase.from('vehicles').select('*').in('id', vehicleIds)
+    const { data: vData } = await supabase
+      .from('vehicles')
+      .select('*, owner:vehicle_owners(id, full_name, mobile, address, bank_name, bank_branch, bank_account_number)')
+      .in('id', vehicleIds)
     vehicleMap = new Map((vData || []).map((v: any) => [v.id, v]))
   }
 
@@ -271,12 +274,39 @@ export default async function BookingDetailPage({ params }: PageProps) {
             existingInvoiceNumber={primaryInvoice ? String(primaryInvoice.invoice_number) : null}
             existingAgreementId={primaryAgreement ? String(primaryAgreement.id) : null}
             existingAgreementNumber={primaryAgreement ? String(primaryAgreement.agreement_number) : null}
+            vehicleId={firstVeh?.id ? String(firstVeh.id) : null}
+            ownerName={firstVeh?.owner?.full_name || null}
+            ownerPhone={firstVeh?.owner?.mobile || null}
           />
         </div>
       </div>
 
       {/* Booking Lifecycle Progress Component */}
       <BookingLifecycleProgress status={booking.status as BookingStatus} />
+
+      {/* Trip Completed: Owner Settlement Ready Banner */}
+      {booking.status === 'completed' && (
+        <div className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+              <Receipt className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="font-bold text-purple-900 dark:text-purple-200">Trip Completed: Ready for Owner Settlement</p>
+              <p className="text-xs text-purple-700/80 dark:text-purple-300/80">
+                Generate an Expense Voucher / Owner Statement for {firstVehName} to settle trip earnings and deductions.
+              </p>
+            </div>
+          </div>
+          <Link
+            href={`/dashboard/expenses?vehicle_id=${firstVeh?.id || ''}&booking_number=${booking.booking_number || ''}`}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all whitespace-nowrap self-start sm:self-auto cursor-pointer"
+          >
+            <Receipt className="w-4 h-4" />
+            <span>Record Owner Payout / Expense Voucher</span>
+          </Link>
+        </div>
+      )}
 
       {/* Linked Sales Documents Bar */}
       {(linkedQuotation || linkedInvoices.length > 0 || activeAgreements.length > 0 || linkedPayments.length > 0) && (

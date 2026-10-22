@@ -83,6 +83,8 @@ interface CreateInvoiceFormProps {
   currentUser: CurrentUser
   initialInvoice?: Record<string, unknown>
   companySettings?: Record<string, unknown>
+  initialBookingId?: string
+  initialQuotationId?: string
 }
 
 export function CreateInvoiceForm({
@@ -94,6 +96,8 @@ export function CreateInvoiceForm({
   currentUser,
   initialInvoice,
   companySettings,
+  initialBookingId,
+  initialQuotationId,
 }: CreateInvoiceFormProps) {
   const router = useRouter()
   const isEditing = Boolean(initialInvoice && initialInvoice.id)
@@ -126,11 +130,11 @@ export function CreateInvoiceForm({
   })
 
   const [quotationId, setQuotationId] = useState<string>(() => {
-    return String(initialInvoice?.quotation_id || '')
+    return String(initialInvoice?.quotation_id || initialQuotationId || '')
   })
 
   const [bookingId, setBookingId] = useState<string>(() => {
-    return String(initialInvoice?.booking_id || '')
+    return String(initialInvoice?.booking_id || initialBookingId || '')
   })
 
   // SECTION 2: CUSTOMER DETAILS
@@ -442,14 +446,25 @@ export function CreateInvoiceForm({
     setBookingId(bId)
     if (!bId) return
 
-    const b = bookings.find((bk) => bk.id === bId)
+    const b = bookings.find((bk) => bk.id === bId) as any
     if (b) {
-      handleCustomerSelect(b.customer_id)
+      if (b.customer_id) handleCustomerSelect(b.customer_id)
       setDiscountAmount(Number(b.discount_amount || 0))
       setRefundableDeposit(Number(b.refundable_deposit || 0))
       setAdvancePayment(Number(b.advance_paid || 0))
 
+      if (b.rental_start_at) setRentalStartDate(String(b.rental_start_at).slice(0, 10))
+      if (b.rental_end_at) setRentalEndDate(String(b.rental_end_at).slice(0, 10))
+      if (b.pickup_location) setPickupLocation(String(b.pickup_location))
+      if (b.dropoff_location) setDropoffLocation(String(b.dropoff_location))
+      if (b.destination) setDestination(String(b.destination))
+
       if (b.booking_vehicles && b.booking_vehicles.length > 0) {
+        const firstBv = b.booking_vehicles[0] as Record<string, unknown>
+        if (firstBv?.vehicle_id) {
+          handleVehicleSelect(String(firstBv.vehicle_id))
+        }
+
         const vehicleItems = b.booking_vehicles.map((bv: Record<string, unknown>) => {
           const vObj = bv.vehicle && typeof bv.vehicle === 'object' ? (bv.vehicle as Record<string, unknown>) : null
           const vName = vObj && typeof vObj.vehicle_name === 'string' ? vObj.vehicle_name : 'Vehicle'
@@ -465,6 +480,17 @@ export function CreateInvoiceForm({
       }
     }
   }
+
+  // Auto-fill from initial booking or quotation ID if passed via URL parameters
+  useEffect(() => {
+    if (!initialInvoice) {
+      if (initialBookingId && bookings.length > 0) {
+        handleBookingSelect(initialBookingId)
+      } else if (initialQuotationId && quotations.length > 0) {
+        handleQuotationSelect(initialQuotationId)
+      }
+    }
+  }, [initialBookingId, initialQuotationId, bookings, quotations, initialInvoice])
 
   // Item Modifications
   const handleAddItem = () => {

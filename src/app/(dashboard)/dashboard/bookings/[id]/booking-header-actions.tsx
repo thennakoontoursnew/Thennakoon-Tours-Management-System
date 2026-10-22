@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Edit3,
   RefreshCw,
+  ReceiptText,
 } from 'lucide-react'
 import { updateBookingStatus, archiveBookingAction } from '../booking-actions'
 import { createInvoiceFromBooking } from '../../invoices/invoice-actions'
@@ -34,6 +35,9 @@ interface BookingHeaderActionsProps {
   existingInvoiceNumber?: string | null
   existingAgreementId?: string | null
   existingAgreementNumber?: string | null
+  vehicleId?: string | null
+  ownerName?: string | null
+  ownerPhone?: string | null
 }
 
 function normalizeSriLankanPhone(phone: string): string {
@@ -70,6 +74,9 @@ export default function BookingHeaderActions({
   existingInvoiceNumber,
   existingAgreementId,
   existingAgreementNumber,
+  vehicleId,
+  ownerName,
+  ownerPhone,
 }: BookingHeaderActionsProps) {
   const router = useRouter()
   const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false)
@@ -259,8 +266,20 @@ export default function BookingHeaderActions({
           className="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
         >
           {loadingAction === 'AGREEMENT' ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
-          <span>Generate Agreement</span>
+          <span>Create Agreement</span>
         </button>
+      )}
+
+      {/* Trip Completion: Record Owner Settlement Button */}
+      {currentStatus === 'completed' && (
+        <Link
+          href={`/dashboard/expenses?vehicle_id=${vehicleId || ''}&booking_number=${bookingNumber}`}
+          className="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer whitespace-nowrap"
+          title="Record Owner Payout / Expense Voucher for completed trip"
+        >
+          <ReceiptText size={14} />
+          <span>Record Owner Payout / Expense Voucher</span>
+        </Link>
       )}
 
       {/* Print Button */}

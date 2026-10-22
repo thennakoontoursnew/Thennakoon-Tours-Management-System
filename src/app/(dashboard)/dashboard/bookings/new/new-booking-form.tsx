@@ -9,24 +9,26 @@ import { ArrowLeft, Save, AlertCircle, CheckCircle, Phone, FileText, ExternalLin
 interface Props {
   customers: any[]
   vehicles: any[]
+  initialCustomerId?: string
+  initialLead?: any
 }
 
-export default function NewBookingForm({ customers, vehicles }: Props) {
+export default function NewBookingForm({ customers, vehicles, initialCustomerId, initialLead }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [availStatus, setAvailStatus] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
-    customer_id: '',
+    customer_id: initialCustomerId || initialLead?.customer_id || '',
     booking_date: new Date().toISOString().split('T')[0],
-    rental_start_at: `${new Date().toISOString().split('T')[0]}T09:00`,
-    rental_end_at: `${new Date(Date.now() + 86400000).toISOString().split('T')[0]}T18:00`,
+    rental_start_at: initialLead?.pickup_date ? `${initialLead.pickup_date}T09:00` : `${new Date().toISOString().split('T')[0]}T09:00`,
+    rental_end_at: initialLead?.return_date ? `${initialLead.return_date}T18:00` : `${new Date(Date.now() + 86400000).toISOString().split('T')[0]}T18:00`,
     pickup_location: '',
     dropoff_location: '',
-    destination: '',
+    destination: initialLead?.interested_vehicle_name ? `Requested: ${initialLead.interested_vehicle_name}` : '',
     passenger_count: 1,
-    special_requests: '',
+    special_requests: initialLead?.notes || '',
     discount_amount: 0,
     tax_amount: 0,
     refundable_deposit: 0,
@@ -34,7 +36,14 @@ export default function NewBookingForm({ customers, vehicles }: Props) {
     status: 'confirmed',
   })
 
-  const [selectedVehicleId, setSelectedVehicleId] = useState('')
+  const matchedVehicle = initialLead?.interested_vehicle_name
+    ? vehicles.find((v) =>
+        v.vehicle_name.toLowerCase().includes(String(initialLead.interested_vehicle_name).toLowerCase()) ||
+        v.registration_number.toLowerCase().includes(String(initialLead.interested_vehicle_name).toLowerCase())
+      )
+    : null
+
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>(matchedVehicle?.id || '')
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId)
   const isOnCallPartner = selectedVehicle?.status === 'available_on_call' || selectedVehicle?.holding_type === 'owner_held'
 

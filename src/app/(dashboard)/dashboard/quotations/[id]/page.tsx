@@ -82,9 +82,9 @@ export default async function QuotationDetailPage({ params }: PageProps) {
               <CheckCircle size={15} />
               <span>View Booking ({existingBooking.booking_number})</span>
             </Link>
-          ) : quotation.status === 'accepted' ? (
+          ) : (
             <ConvertBookingButton quotationId={quotation.id} quotationNumber={quotation.quotation_number} />
-          ) : null}
+          )}
         </div>
       </div>
 

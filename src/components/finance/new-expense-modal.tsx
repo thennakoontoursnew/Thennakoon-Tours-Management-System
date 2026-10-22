@@ -275,6 +275,13 @@ function formatRangeFromIso(startIso: string, endIso: string): string {
     }
   }
 
+  // Auto-populate vehicle/owner details if vehicleId is pre-set via initialData
+  useEffect(() => {
+    if (isOpen && vehicleId && vehicles.length > 0 && !customerName) {
+      handleVehicleChange(vehicleId)
+    }
+  }, [isOpen, vehicleId, vehicles, customerName])
+
   // Calculate Net Balance dynamically when additions or deductions change
   const totalAdditions = additions.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
   const totalDeductions = deductions.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)

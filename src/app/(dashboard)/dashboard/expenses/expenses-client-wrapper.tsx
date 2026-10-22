@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, Printer, Loader2, Check, Pencil } from 'lucide-react'
@@ -15,12 +15,40 @@ import { generateExpenseVoucherPDF, ExpenseVoucherData } from '@/lib/documents/e
 
 interface ExpensesClientWrapperProps {
   expenses: Record<string, unknown>[]
+  initialVehicleId?: string
+  initialBookingNumber?: string
 }
 
-export function ExpensesClientWrapper({ expenses }: ExpensesClientWrapperProps) {
+export function ExpensesClientWrapper({
+  expenses,
+  initialVehicleId,
+  initialBookingNumber,
+}: ExpensesClientWrapperProps) {
   const router = useRouter()
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingExpense, setEditingExpense] = useState<Record<string, unknown> | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(() => Boolean(initialVehicleId))
+  const [editingExpense, setEditingExpense] = useState<Record<string, unknown> | null>(() => {
+    if (initialVehicleId) {
+      return {
+        vehicle_id: initialVehicleId,
+        category: 'owner_statement',
+        description: initialBookingNumber ? `Owner Settlement - Booking #${initialBookingNumber}` : 'Owner Settlement',
+        bill_name: initialBookingNumber ? `Settlement for Trip ${initialBookingNumber}` : 'Owner Payout',
+      }
+    }
+    return null
+  })
+
+  useEffect(() => {
+    if (initialVehicleId) {
+      setEditingExpense({
+        vehicle_id: initialVehicleId,
+        category: 'owner_statement',
+        description: initialBookingNumber ? `Owner Settlement - Booking #${initialBookingNumber}` : 'Owner Settlement',
+        bill_name: initialBookingNumber ? `Settlement for Trip ${initialBookingNumber}` : 'Owner Payout',
+      })
+      setIsModalOpen(true)
+    }
+  }, [initialVehicleId, initialBookingNumber])
   const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null)
   const [approvingId, setApprovingId] = useState<string | null>(null)
 
