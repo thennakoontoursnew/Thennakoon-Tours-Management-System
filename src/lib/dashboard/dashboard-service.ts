@@ -502,12 +502,14 @@ export async function getTodayOperations(): Promise<TodayOperationsData> {
   }
 }
 
-export async function getBookingCalendar(year: number, month: number): Promise<CalendarEvent[]> {
+export async function getBookingCalendar(year?: number, month?: number): Promise<CalendarEvent[]> {
   const supabase = await createClient()
+  const targetYear = year ?? new Date().getFullYear()
+  const targetMonth = month ?? (new Date().getMonth() + 1)
 
-  const lastDay = new Date(year, month, 0).getDate()
-  const monthStartIso = `${year}-${String(month).padStart(2, '0')}-01T00:00:00.000+05:30`
-  const monthEndIso = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59.999+05:30`
+  const lastDay = new Date(targetYear, targetMonth, 0).getDate()
+  const monthStartIso = `${targetYear}-${String(targetMonth).padStart(2, '0')}-01T00:00:00.000+05:30`
+  const monthEndIso = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59.999+05:30`
 
   const { data: bookings } = await supabase
     .from('bookings')

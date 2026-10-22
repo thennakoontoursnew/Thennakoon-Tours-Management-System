@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import {
@@ -22,6 +23,7 @@ import { AlertsPanel } from '@/components/dashboard/alerts-panel'
 import { RecentBookingsTable } from '@/components/dashboard/recent-bookings-table'
 import { RecentActivityTimeline } from '@/components/dashboard/recent-activity-timeline'
 import { ManagementIntelligenceWidget } from '@/components/dashboard/management-intelligence-widget'
+import { DashboardSkeleton } from '@/components/dashboard/dashboard-skeleton'
 import {
   TrendingUp,
   CalendarCheck,
@@ -38,6 +40,38 @@ export const metadata = {
   title: 'Executive & Operations Dashboard — Thennakoon Tours',
 }
 
+async function ManagementIntelligenceSection({ criticalAlertCount }: { criticalAlertCount: number }) {
+  const supabase = await createClient()
+  const aiData = await getSanitizedContextForPeriod(supabase, 'this_month').catch(() => null)
+  const sanitizedContext = aiData?.sanitized
+  const brief = sanitizedContext ? generateDeterministicExecutiveBrief(sanitizedContext, aiData.comparisons) : null
+  const topInsights = brief?.recommendedActions || []
+
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const d30Future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+  const forecast30d = sanitizedContext
+    ? calculateDeterministicForecast({
+        forecastType: 'revenue_30d',
+        periodStart: todayStr,
+        periodEnd: d30Future,
+        historicalCompletedRevenue: sanitizedContext.finance.collectedRevenue,
+        knownFutureBookingRevenue: 0,
+        completedRentalsCount: sanitizedContext.bookings.completedRentals,
+        totalBookingsCount: sanitizedContext.bookings.totalBookings,
+        historicalDays: 30,
+      }).forecast_value
+    : 0
+
+  return (
+    <ManagementIntelligenceWidget
+      insights={topInsights}
+      forecast30d={forecast30d}
+      criticalAlertCount={criticalAlertCount}
+    />
+  )
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient()
 
@@ -48,7 +82,7 @@ export default async function DashboardPage() {
   // Fetch Header Data
   const headerData = await getDashboardHeaderData(user?.id)
 
-  // Safe Isolated Data Fetching
+  // Safe Isolated Data Fetching (Only essential operational and KPI promises)
   const [
     kpis,
     revenueData,
@@ -58,7 +92,6 @@ export default async function DashboardPage() {
     alertsData,
     recentBookings,
     recentActivity,
-    aiData,
   ] = await Promise.all([
     getDashboardKPIs(headerData.role).catch((err) => {
       console.error('Error fetching KPIs:', err)
@@ -95,7 +128,7 @@ export default async function DashboardPage() {
       return { pickups: [], returns: [], activeTrips: [], driverMissing: [] }
     }),
 
-    getBookingCalendar(2026, 8).catch((err) => {
+    getBookingCalendar().catch((err) => {
       console.error('Error fetching booking calendar:', err)
       return []
     }),
@@ -114,33 +147,10 @@ export default async function DashboardPage() {
       console.error('Error fetching recent activity:', err)
       return []
     }),
-
-    getSanitizedContextForPeriod(supabase, 'this_month').catch(() => null),
   ])
 
   const isFinanceAuthorized = ['owner', 'admin', 'manager', 'finance_staff'].includes(headerData.role)
-
-  // AI Widget calculations
-  const sanitizedContext = aiData?.sanitized
-  const brief = sanitizedContext ? generateDeterministicExecutiveBrief(sanitizedContext, aiData.comparisons) : null
-  const topInsights = brief?.recommendedActions || []
   const criticalCount = (alertsData || []).filter((a: any) => a.severity === 'high' || a.severity === 'critical').length
-
-  const todayStr = new Date().toISOString().slice(0, 10)
-  const d30Future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-
-  const forecast30d = sanitizedContext
-    ? calculateDeterministicForecast({
-        forecastType: 'revenue_30d',
-        periodStart: todayStr,
-        periodEnd: d30Future,
-        historicalCompletedRevenue: sanitizedContext.finance.collectedRevenue,
-        knownFutureBookingRevenue: 0,
-        completedRentalsCount: sanitizedContext.bookings.completedRentals,
-        totalBookingsCount: sanitizedContext.bookings.totalBookings,
-        historicalDays: 30,
-      }).forecast_value
-    : 0
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-16">
@@ -335,58 +345,66 @@ export default async function DashboardPage() {
       </div>
 
       {/* 2.5 Stage 12: Compact Management Intelligence Widget */}
-      <ManagementIntelligenceWidget
-        insights={topInsights}
-        forecast30d={forecast30d}
-        criticalAlertCount={criticalCount}
-      />
+      <Suspense fallback={<DashboardSkeleton />}>
+        <ManagementIntelligenceSection criticalAlertCount={criticalCount} />
+      </Suspense>
 
       {/* 3. Revenue Overview & Fleet Status Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <RevenueOverviewChart
-            initialSeries={revenueData.series}
-            initialSummary={revenueData.summary}
-          />
+      <Suspense fallback={<DashboardSkeleton />}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <RevenueOverviewChart
+              initialSeries={revenueData.series}
+              initialSummary={revenueData.summary}
+            />
+          </div>
+          <div>
+            <FleetStatusChart
+              items={fleetData.items}
+              totalFleet={fleetData.totalFleet}
+            />
+          </div>
         </div>
-        <div>
-          <FleetStatusChart
-            items={fleetData.items}
-            totalFleet={fleetData.totalFleet}
-          />
-        </div>
-      </div>
+      </Suspense>
 
       {/* 4. Booking Calendar & Today's Operations Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <BookingCalendarWidget initialEvents={calendarEvents} />
+      <Suspense fallback={<DashboardSkeleton />}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <BookingCalendarWidget initialEvents={calendarEvents} />
+          </div>
+          <div>
+            <TodaysOperationsWidget operations={operationsData} />
+          </div>
         </div>
-        <div>
-          <TodaysOperationsWidget operations={operationsData} />
-        </div>
-      </div>
+      </Suspense>
 
       {/* 5. Financial Overview & Alerts Panel Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {isFinanceAuthorized ? (
-          <FinancialOverviewCard summary={revenueData.summary} />
-        ) : (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 flex flex-col items-center justify-center text-center text-slate-400 space-y-2">
-            <WalletCards size={32} className="opacity-50" />
-            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">Financial Overview Restricted</h3>
-            <p className="text-xs max-w-xs">Detailed cash flow metrics are restricted to authorized finance roles.</p>
-          </div>
-        )}
+      <Suspense fallback={<DashboardSkeleton />}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {isFinanceAuthorized ? (
+            <FinancialOverviewCard summary={revenueData.summary} />
+          ) : (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 flex flex-col items-center justify-center text-center text-slate-400 space-y-2">
+              <WalletCards size={32} className="opacity-50" />
+              <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">Financial Overview Restricted</h3>
+              <p className="text-xs max-w-xs">Detailed cash flow metrics are restricted to authorized finance roles.</p>
+            </div>
+          )}
 
-        <AlertsPanel alerts={alertsData} />
-      </div>
+          <AlertsPanel alerts={alertsData} />
+        </div>
+      </Suspense>
 
       {/* 6. Recent Bookings Table */}
-      <RecentBookingsTable bookings={recentBookings} />
+      <Suspense fallback={<DashboardSkeleton />}>
+        <RecentBookingsTable bookings={recentBookings} />
+      </Suspense>
 
       {/* 7. Recent Activity Timeline Stream */}
-      <RecentActivityTimeline activities={recentActivity} />
+      <Suspense fallback={<DashboardSkeleton />}>
+        <RecentActivityTimeline activities={recentActivity} />
+      </Suspense>
     </div>
   )
 }

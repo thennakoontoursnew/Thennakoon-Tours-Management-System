@@ -12,9 +12,33 @@ export default async function BookingsPage({ searchParams }: PageProps) {
 
   let query = supabase
     .from('bookings')
-    .select('*')
+    .select(`
+      id,
+      booking_number,
+      status,
+      rental_start_at,
+      rental_end_at,
+      destination,
+      grand_total,
+      created_at,
+      is_archived,
+      customer:customers (
+        id,
+        full_name,
+        mobile
+      ),
+      booking_vehicles (
+        id,
+        vehicle:vehicles (
+          id,
+          vehicle_name,
+          registration_number
+        )
+      )
+    `)
     .eq('is_archived', false)
     .order('created_at', { ascending: false })
+    .limit(25)
 
   if (status) {
     query = query.eq('status', status)
@@ -30,32 +54,6 @@ export default async function BookingsPage({ searchParams }: PageProps) {
   }
 
   const bookings = rawBookings || []
-  const customerIds = bookings.map((b: any) => b.customer_id).filter(Boolean)
-  const bookingIds = bookings.map((b: any) => b.id)
-
-  const { data: customersList } = customerIds.length > 0
-    ? await supabase.from('customers').select('id, full_name, mobile').in('id', customerIds)
-    : { data: [] }
-
-  const { data: bookingVehiclesList } = bookingIds.length > 0
-    ? await supabase.from('booking_vehicles').select('id, booking_id, vehicle_id').in('booking_id', bookingIds)
-    : { data: [] }
-
-  const vehicleIds = (bookingVehiclesList || []).map((bv: any) => bv.vehicle_id).filter(Boolean)
-
-  const { data: vehiclesList } = vehicleIds.length > 0
-    ? await supabase.from('vehicles').select('id, vehicle_name, registration_number').in('id', vehicleIds)
-    : { data: [] }
-
-  const customerMap = new Map((customersList || []).map((c: any) => [c.id, c]))
-  const vehicleMap = new Map((vehiclesList || []).map((v: any) => [v.id, v]))
-
-  const bvMap = new Map<string, any[]>()
-  for (const bv of bookingVehiclesList || []) {
-    const list = bvMap.get(bv.booking_id) || []
-    list.push(bv)
-    bvMap.set(bv.booking_id, list)
-  }
 
   const getStatusBadge = (st: string) => {
     switch (st) {
@@ -115,8 +113,8 @@ export default async function BookingsPage({ searchParams }: PageProps) {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-slate-700 dark:text-slate-300">
                 {bookings.map((item: any) => {
-                  const cust = customerMap.get(item.customer_id)
-                  const bvs = bvMap.get(item.id) || []
+                  const cust = Array.isArray(item.customer) ? item.customer[0] : item.customer
+                  const bvs = item.booking_vehicles || []
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
                       <td className="py-3.5 px-4 font-mono font-bold text-amber-500">
@@ -133,10 +131,10 @@ export default async function BookingsPage({ searchParams }: PageProps) {
                         <div className="text-slate-400">{item.destination || 'Standard Route'}</div>
                       </td>
                       <td className="py-3.5 px-4 text-[11px]">
-                        {bvs.map((bv: any) => {
-                          const veh = vehicleMap.get(bv.vehicle_id)
+                        {bvs.map((bv: any, idx: number) => {
+                          const veh = Array.isArray(bv.vehicle) ? bv.vehicle[0] : bv.vehicle
                           return (
-                            <div key={bv.id} className="font-semibold text-slate-800 dark:text-slate-200">
+                            <div key={bv.id || idx} className="font-semibold text-slate-800 dark:text-slate-200">
                               {veh ? `${veh.vehicle_name} (${veh.registration_number})` : 'Vehicle Assigned'}
                             </div>
                           )
