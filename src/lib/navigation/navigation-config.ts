@@ -500,6 +500,16 @@ export const NAVIGATION_CONFIG: NavigationSection[] = [
         enabled: true,
         keywords: ['audit', 'logs', 'activity', 'history', 'security'],
       },
+      {
+        id: 'test_data_reset',
+        label: 'Reset Testing Data',
+        href: '/dashboard/go-live-reset',
+        iconName: 'RotateCcw',
+        sectionId: 'system',
+        requiredRoles: ['owner'],
+        enabled: true,
+        keywords: ['reset', 'clear', 'wipe', 'test data'],
+      },
     ],
   },
 ]

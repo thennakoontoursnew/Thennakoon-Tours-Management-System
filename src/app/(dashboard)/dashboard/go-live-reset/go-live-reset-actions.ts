@@ -36,6 +36,8 @@ export async function getGoLiveResetSummary() {
       { count: cntPayments },
       { count: cntReceipts },
       { count: cntAgreements },
+      { count: cntExpenses },
+      { count: cntLeads },
       { count: cntDocumentLogs },
     ] = await Promise.all([
       supabase.from('customers').select('*', { count: 'exact', head: true }),
@@ -50,6 +52,8 @@ export async function getGoLiveResetSummary() {
       supabase.from('payments').select('*', { count: 'exact', head: true }),
       supabase.from('receipts').select('*', { count: 'exact', head: true }),
       supabase.from('rental_agreements').select('*', { count: 'exact', head: true }),
+      supabase.from('expenses').select('*', { count: 'exact', head: true }),
+      supabase.from('crm_leads').select('*', { count: 'exact', head: true }),
       supabase.from('document_activity_logs').select('*', { count: 'exact', head: true }),
     ])
 
@@ -94,6 +98,8 @@ export async function getGoLiveResetSummary() {
         payments: cntPayments || 0,
         receipts: cntReceipts || 0,
         rentalAgreements: cntAgreements || 0,
+        expenses: cntExpenses || 0,
+        leads: cntLeads || 0,
         documentActivityLogs: cntDocumentLogs || 0,
       },
       expectedNextNumbers: {
@@ -184,14 +190,15 @@ export async function executeGoLiveResetAction(input: {
       return { success: false, error: 'Permission denied. Only the System Owner may execute Go Live Reset.' }
     }
 
-    if (input.confirmation !== 'GO LIVE RESET') {
-      return { success: false, error: 'Invalid confirmation phrase. You must type GO LIVE RESET.' }
+    const trimmed = input.confirmation?.trim()
+    if (trimmed !== 'GO LIVE RESET' && trimmed !== 'RESET TEST DATA') {
+      return { success: false, error: 'Invalid confirmation phrase. You must type "RESET TEST DATA" or "GO LIVE RESET".' }
     }
 
     // Invoke RPC perform_go_live_reset
     const { data: result, error: rpcErr } = await supabase.rpc('perform_go_live_reset', {
-      p_confirmation: input.confirmation,
-      p_reason: input.reason || 'Preparing system for production use.',
+      p_confirmation: trimmed,
+      p_reason: input.reason || 'Clearing test data during testing phase.',
       p_delete_vehicle_categories: Boolean(input.deleteCategories),
     })
 
@@ -210,6 +217,9 @@ export async function executeGoLiveResetAction(input: {
     revalidatePath('/dashboard/invoices')
     revalidatePath('/dashboard/receipts')
     revalidatePath('/dashboard/agreements')
+    revalidatePath('/dashboard/expenses')
+    revalidatePath('/dashboard/leads')
+    revalidatePath('/dashboard/settings')
 
     return { success: true, result }
   } catch (err: any) {
