@@ -1,4 +1,4 @@
--- Migration: 20261023090000_allow_repeatable_testing_reset.sql
+-- Migration: 20261023054140_allow_repeatable_testing_reset.sql
 -- Description: Allow repeatable test data reset for Owner during testing phase without one-time lockout.
 
 CREATE OR REPLACE FUNCTION public.perform_go_live_reset(
