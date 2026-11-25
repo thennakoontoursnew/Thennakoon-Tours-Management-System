@@ -2,8 +2,10 @@ import { z } from 'zod'
 
 export const documentTemplateSchema = z.object({
   id: z.string().uuid().optional(),
-  document_type: z.enum(['quotation', 'invoice', 'receipt', 'rental_agreement']),
+  document_type: z.enum(['quotation', 'invoice', 'receipt', 'rental_agreement', 'owner_agreement', 'user_agreement']),
+  template_type: z.string().optional().nullable(),
   display_name: z.string().optional().nullable(),
+  body_content: z.string().optional().nullable(),
   special_notes: z.string().optional().nullable(),
   important_message: z.string().optional().nullable(),
   bank_account_name: z.string().optional().nullable(),

@@ -4,6 +4,10 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { documentTemplateSchema } from '@/lib/validations/templates'
 import { normalizeNewlines } from '@/lib/utils/formatters'
+import {
+  DEFAULT_OWNER_AGREEMENT_TEMPLATE_BODY,
+  DEFAULT_USER_AGREEMENT_TEMPLATE_BODY,
+} from '@/lib/agreements/template-renderer'
 import { z } from 'zod'
 
 type TemplateInput = z.infer<typeof documentTemplateSchema>
@@ -83,6 +87,26 @@ const DEFAULT_AGREEMENT_TEMPLATE = {
   is_active: true,
 }
 
+const DEFAULT_OWNER_AGREEMENT_TEMPLATE = {
+  document_type: 'owner_agreement',
+  template_type: 'owner_agreement',
+  display_name: 'Master Vehicle Owner Agreement Template',
+  title: 'Master Vehicle Owner Rental Agreement',
+  body_content: DEFAULT_OWNER_AGREEMENT_TEMPLATE_BODY,
+  special_notes: 'Vehicle owner rental agreement master template with dynamic merge tags.',
+  is_active: true,
+}
+
+const DEFAULT_USER_AGREEMENT_TEMPLATE = {
+  document_type: 'user_agreement',
+  template_type: 'user_agreement',
+  display_name: 'Master User Rental Agreement Template',
+  title: 'Master User Rental Agreement',
+  body_content: DEFAULT_USER_AGREEMENT_TEMPLATE_BODY,
+  special_notes: 'Customer vehicle rental agreement master template with dynamic merge tags.',
+  is_active: true,
+}
+
 async function verifyTemplateWritePermission(supabase: any, userId: string) {
   const { data: profile } = await supabase
     .from('profiles')
@@ -99,6 +123,8 @@ function cleanTemplateRecord(raw: any) {
   if (!raw) return null
   return {
     ...raw,
+    body_content: raw.body_content || '',
+    template_type: raw.template_type || raw.document_type || '',
     special_notes: normalizeNewlines(raw.special_notes),
     important_message: normalizeNewlines(raw.important_message),
     payment_instructions: normalizeNewlines(raw.payment_instructions),
@@ -137,6 +163,8 @@ export async function getDocumentTemplateByType(type: string) {
     if (type === 'invoice') defaultObj = DEFAULT_INVOICE_TEMPLATE
     if (type === 'receipt') defaultObj = DEFAULT_RECEIPT_TEMPLATE
     if (type === 'rental_agreement') defaultObj = DEFAULT_AGREEMENT_TEMPLATE
+    if (type === 'owner_agreement') defaultObj = DEFAULT_OWNER_AGREEMENT_TEMPLATE
+    if (type === 'user_agreement') defaultObj = DEFAULT_USER_AGREEMENT_TEMPLATE
 
     return { success: true, template: cleanTemplateRecord({ id: 'default', ...defaultObj }) }
   } catch (err: any) {
@@ -155,8 +183,9 @@ export async function updateDocumentTemplate(type: string, values: Partial<Templ
       return { success: false, error: 'Unauthorized: Only owner, admin, or manager roles can edit document templates.' }
     }
 
-    const payload = {
+    const payload: any = {
       document_type: type,
+      template_type: type,
       display_name: values.display_name?.trim() || `${type.toUpperCase()} Template`,
       special_notes: normalizeNewlines(values.special_notes),
       important_message: normalizeNewlines(values.important_message),
@@ -171,6 +200,10 @@ export async function updateDocumentTemplate(type: string, values: Partial<Templ
       default_terms_and_conditions: normalizeNewlines(values.default_terms_and_conditions),
       updated_by: user.id,
       updated_at: new Date().toISOString(),
+    }
+
+    if (values.body_content !== undefined) {
+      payload.body_content = values.body_content
     }
 
     const { error } = await supabase
@@ -208,6 +241,8 @@ export async function resetDocumentTemplateToDefault(type: string) {
     if (type === 'invoice') defaultObj = DEFAULT_INVOICE_TEMPLATE
     if (type === 'receipt') defaultObj = DEFAULT_RECEIPT_TEMPLATE
     if (type === 'rental_agreement') defaultObj = DEFAULT_AGREEMENT_TEMPLATE
+    if (type === 'owner_agreement') defaultObj = DEFAULT_OWNER_AGREEMENT_TEMPLATE
+    if (type === 'user_agreement') defaultObj = DEFAULT_USER_AGREEMENT_TEMPLATE
 
     const { error } = await supabase
       .from('document_templates')

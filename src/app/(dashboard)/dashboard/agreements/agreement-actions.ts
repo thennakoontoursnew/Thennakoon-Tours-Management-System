@@ -4,6 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getInitialUserAgreementFormData } from '@/lib/agreements/user-agreement-service'
 import { USER_AGREEMENT_VERSION, USER_AGREEMENT_COMPANY_REG_NO } from '@/lib/agreements/templates/user-agreement-v1'
+import {
+  renderAgreementTemplate,
+  DEFAULT_OWNER_AGREEMENT_TEMPLATE_BODY,
+  DEFAULT_USER_AGREEMENT_TEMPLATE_BODY,
+} from '@/lib/agreements/template-renderer'
 
 export async function createAgreementFromBooking(bookingId: string) {
   try {
@@ -75,6 +80,45 @@ export async function createAgreementFromBooking(bookingId: string) {
     // 4. Generate complete USER_AGREEMENT_V1 Form Data & Snapshots
     const initialForm = await getInitialUserAgreementFormData(supabase, bookingId)
 
+    // Fetch active user_agreement master template from document_templates
+    let masterUserTemplateBody = DEFAULT_USER_AGREEMENT_TEMPLATE_BODY
+    try {
+      const { data: tmpl } = await supabase
+        .from('document_templates')
+        .select('body_content')
+        .eq('document_type', 'user_agreement')
+        .maybeSingle()
+      if (tmpl?.body_content) {
+        masterUserTemplateBody = tmpl.body_content
+      }
+    } catch (_) {}
+
+    const rentalPeriodText = `${initialForm.rental_period_days} Days`
+    const userVariables: Record<string, any> = {
+      agreement_number: initialForm.agreement_number,
+      agreement_date: initialForm.agreement_date,
+      rental_start: b.rental_start_at,
+      rental_end: b.rental_end_at,
+      rental_period: rentalPeriodText,
+      lessee_name: initialForm.lessee?.full_name || '',
+      lessee_nic: initialForm.lessee?.identifier_no || initialForm.lessee?.nic || '',
+      lessee_address: initialForm.lessee?.address || '',
+      lessee_phone: initialForm.lessee?.mobile || '',
+      vehicle_model: initialForm.vehicle?.make_model || initialForm.vehicle?.vehicle_name || '',
+      vehicle_reg_no: initialForm.vehicle?.registration_number || '',
+      daily_rate: initialForm.rental?.daily_rental_rate ? String(initialForm.rental.daily_rental_rate) : '',
+      monthly_rental: initialForm.rental?.monthly_rental_rate ? String(initialForm.rental.monthly_rental_rate) : '',
+      total_rental: initialForm.rental?.daily_rental_rate ? String(initialForm.rental.daily_rental_rate * initialForm.rental_period_days) : '',
+      deposit_amount: initialForm.rental?.security_deposit ? String(initialForm.rental.security_deposit) : '',
+      km_limit: initialForm.rental?.allowed_km_per_day ? String(initialForm.rental.allowed_km_per_day * initialForm.rental_period_days) : '',
+      excess_km_rate: initialForm.rental?.extra_km_rate ? String(initialForm.rental.extra_km_rate) : '',
+      company_rep_name: initialForm.lessor_representative?.name || 'HBNK Dissanayaka',
+      company_rep_designation: initialForm.lessor_representative?.position || 'Technical Officer',
+      special_notes: initialForm.special_notes || '',
+    }
+
+    const renderedUserSnapshot = renderAgreementTemplate(masterUserTemplateBody, userVariables)
+
     const payload: any = {
       booking_id: b.id,
       customer_id: b.customer_id,
@@ -95,6 +139,7 @@ export async function createAgreementFromBooking(bookingId: string) {
       special_notes: initialForm.special_notes || null,
       inventory_remarks: initialForm.inventory_remarks || null,
       terms_snapshot: `Standard User Agreement V1 terms applied for ${initialForm.agreement_number}`,
+      rendered_content_snapshot: renderedUserSnapshot,
       status: 'generated',
       prepared_by: user.id,
     }
@@ -218,6 +263,59 @@ export async function createOwnerAgreementAction(data: {
       if (generated) oagNumber = generated
     } catch (_) {}
 
+    // Fetch active owner_agreement master template from document_templates
+    let masterOwnerTemplateBody = DEFAULT_OWNER_AGREEMENT_TEMPLATE_BODY
+    try {
+      const { data: tmpl } = await supabase
+        .from('document_templates')
+        .select('body_content')
+        .eq('document_type', 'owner_agreement')
+        .maybeSingle()
+      if (tmpl?.body_content) {
+        masterOwnerTemplateBody = tmpl.body_content
+      }
+    } catch (_) {}
+
+    const agrData = data.agreement_data || {}
+    const ownerTemplateVariables: Record<string, any> = {
+      agreement_date: agrData.execution_date_formatted || agrData.execution_date || data.agreement_start_date,
+      term_duration: agrData.term_duration || '01 MONTH',
+      start_date: agrData.start_date_formatted || data.agreement_start_date,
+      end_date: agrData.end_date_formatted || data.agreement_end_date || 'Open-ended',
+      handover_date: agrData.handover_date_formatted || agrData.handover_date || data.agreement_start_date,
+      owner_name: agrData.owner?.full_name || '',
+      owner_nic: agrData.owner?.national_id || '',
+      owner_address: agrData.owner?.address || '',
+      owner_phone: agrData.owner?.phone || '',
+      owner_email: agrData.owner?.email || '',
+      vehicle_model: agrData.vehicle?.make_model || '',
+      vehicle_reg_no: agrData.vehicle?.registration_number || '',
+      chassis_no: agrData.vehicle?.chassis_number || '',
+      engine_no: agrData.vehicle?.engine_number || '',
+      monthly_rental: (agrData.financials?.monthly_rental ?? data.fixed_monthly_amount ?? 350000).toLocaleString(),
+      payment_day: agrData.financials?.payment_day_of_month || '30th',
+      monthly_km_quota: (agrData.financials?.monthly_mileage_quota_km ?? 3000).toLocaleString(),
+      excess_km_rate: agrData.financials?.excess_mileage_rate_per_km ?? 117,
+      service_km: (agrData.financials?.service_interval_km ?? 5000).toLocaleString(),
+      renewal_charge: (agrData.financials?.renewal_charge ?? 3000).toLocaleString(),
+      bank_account_name: agrData.bank_details?.account_holder_name || agrData.owner?.full_name || '',
+      bank_name: agrData.bank_details?.bank_name || '',
+      bank_branch: agrData.bank_details?.bank_branch || '',
+      bank_account_no: agrData.bank_details?.bank_account_number || '',
+      company_rep_name: agrData.signatories?.company_rep_name || 'HBNK Dissanayaka',
+      company_rep_designation: agrData.signatories?.company_rep_designation || 'Technical Officer',
+      company_rep_nic: agrData.signatories?.company_rep_nic || '881843935V',
+      company_witness_name: agrData.signatories?.company_witness_name || '',
+      company_witness_nic: agrData.signatories?.company_witness_nic || '',
+      owner_witness_name: agrData.signatories?.owner_witness_name || '',
+      owner_witness_nic: agrData.signatories?.owner_witness_nic || '',
+      owner_witness_address: agrData.signatories?.owner_witness_address || '',
+      owner_witness_phone: agrData.signatories?.owner_witness_contact || '',
+      special_remarks: agrData.special_remarks || data.special_conditions || '',
+    }
+
+    const renderedOwnerSnapshot = renderAgreementTemplate(masterOwnerTemplateBody, ownerTemplateVariables)
+
     // Insert Owner Agreement
     const { data: agreement, error: aErr } = await supabase
       .from('owner_agreements')
@@ -240,6 +338,7 @@ export async function createOwnerAgreementAction(data: {
         terms_and_conditions: data.terms_and_conditions || null,
         special_conditions: data.special_conditions || null,
         agreement_data: data.agreement_data || {},
+        rendered_content_snapshot: renderedOwnerSnapshot,
         status: 'active',
         activated_at: new Date().toISOString(),
         created_by: user.id,
@@ -328,6 +427,7 @@ export async function updateOwnerAgreementDetailsAction(
     settlement_rule?: string
     fixed_monthly_amount?: number
     agreement_data?: Record<string, any>
+    rendered_content_snapshot?: string
     special_conditions?: string
     terms_and_conditions?: string
   }
@@ -348,6 +448,7 @@ export async function updateOwnerAgreementDetailsAction(
     if (data.special_conditions !== undefined) updatePayload.special_conditions = data.special_conditions
     if (data.terms_and_conditions !== undefined) updatePayload.terms_and_conditions = data.terms_and_conditions
     if (data.agreement_data !== undefined) updatePayload.agreement_data = data.agreement_data
+    if (data.rendered_content_snapshot !== undefined) updatePayload.rendered_content_snapshot = data.rendered_content_snapshot
 
     const { error } = await supabase
       .from('owner_agreements')

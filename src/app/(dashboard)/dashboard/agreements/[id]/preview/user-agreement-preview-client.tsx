@@ -27,6 +27,7 @@ import {
 } from '@/lib/agreements/templates/user-agreement-v1'
 import { UserAgreementFormData, validateUserAgreementData } from '@/lib/agreements/user-agreement-service'
 import { amendUserAgreementAction } from '@/app/(dashboard)/dashboard/agreements/user-agreement-actions'
+import { LegalDocumentViewer } from '@/lib/agreements/legal-document-viewer'
 
 interface UserAgreementPreviewClientProps {
   agreement: any
@@ -151,6 +152,11 @@ export function UserAgreementPreviewClient({
           <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
             Revision {activeAgreementData.version_number || 1}
           </span>
+          {activeAgreementData.rendered_content_snapshot && (
+            <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 font-mono">
+              <Lock size={10} /> Locked Legal Snapshot
+            </span>
+          )}
           {selectedVersion && (
             <button
               onClick={() => setSelectedVersion(null)}
@@ -257,7 +263,9 @@ export function UserAgreementDocument({
         </div>
       </div>
 
-      {isV1 ? (
+      {agreement.rendered_content_snapshot ? (
+        <LegalDocumentViewer content={agreement.rendered_content_snapshot} />
+      ) : isV1 ? (
         <V1UserAgreementContent agreement={agreement} customer={customer} vehicle={vehicle} />
       ) : (
         <LegacyUserAgreementContent agreement={agreement} booking={booking} customer={customer} vehicle={vehicle} companySettings={companySettings} />

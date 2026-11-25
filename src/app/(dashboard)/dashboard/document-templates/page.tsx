@@ -2,14 +2,14 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import TemplateForm from './template-form'
 import { getDocumentTemplateByType } from './template-actions'
-import { FileSpreadsheet, Receipt, FileText, CheckCircle2, ShieldAlert, Lock } from 'lucide-react'
+import { FileSpreadsheet, Receipt, FileText, CheckCircle2, ShieldAlert, Lock, FileCheck } from 'lucide-react'
 
 interface PageProps {
   searchParams: Promise<{ type?: string }>
 }
 
 export default async function DocumentTemplatesPage({ searchParams }: PageProps) {
-  const { type = 'quotation' } = await searchParams
+  const { type = 'owner_agreement' } = await searchParams
   const supabase = await createClient()
 
   // 1. Authenticated User & Profile Role Verification
@@ -53,24 +53,27 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
   const activeTemplate = res.template
 
   const tabs = [
+    { type: 'owner_agreement', label: 'Owner Agreement Template', icon: FileText },
+    { type: 'user_agreement', label: 'User Agreement Template', icon: FileCheck },
     { type: 'quotation', label: 'Quotation Template', icon: FileSpreadsheet },
     { type: 'invoice', label: 'Invoice Template', icon: Receipt },
     { type: 'receipt', label: 'Receipt Template', icon: CheckCircle2 },
-    { type: 'rental_agreement', label: 'Rental Agreement Template', icon: FileText },
   ]
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto pb-16">
       <div>
-        <h1 className="text-2xl font-black text-slate-900 dark:text-white">Document Templates</h1>
-        <p className="text-xs text-slate-500">Configure global default special notes, messages, bank instructions, and prepared-by signatures.</p>
+        <h1 className="text-2xl font-black text-slate-900 dark:text-white">Document & Agreement Templates</h1>
+        <p className="text-xs text-slate-500">
+          Configure master legal agreement templates with auto-fill merge tags, as well as global billing defaults, messages, and bank details.
+        </p>
       </div>
 
       {/* Tabs */}
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
         {tabs.map((tab) => {
           const Icon = tab.icon
-          const isActive = (type || 'quotation') === tab.type
+          const isActive = (type || 'owner_agreement') === tab.type
           return (
             <Link
               key={tab.type}
@@ -92,7 +95,9 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
       <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 flex items-center gap-2">
         <ShieldAlert size={18} className="shrink-0" />
         <span>
-          <strong>Template Safety Rules:</strong> Saved template settings auto-fill new document forms. Saving a document stores an immutable snapshot in the document record. Updating templates here will <strong>never</strong> modify previously issued documents.
+          <strong>Template Safety & Snapshot Locking:</strong> Saved template settings auto-fill new agreements and documents.
+          Once generated, each agreement permanently locks an immutable snapshot (`rendered_content_snapshot`).
+          Future edits to master templates here will <strong>never</strong> alter previously issued or signed agreements.
         </span>
       </div>
 

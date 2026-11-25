@@ -2,7 +2,8 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Printer, ShieldCheck, FileText } from 'lucide-react'
+import { ArrowLeft, Printer, ShieldCheck, FileText, Lock } from 'lucide-react'
+import { LegalDocumentViewer } from '@/lib/agreements/legal-document-viewer'
 
 interface OwnerAgreementPreviewClientProps {
   agreement: any
@@ -169,9 +170,15 @@ export function OwnerAgreementPreviewClient({
         </Link>
         <div className="flex items-center gap-3">
           <span className="font-mono text-xs text-amber-400 font-bold">{agreement.agreement_number}</span>
-          <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-            Official 10-Clause Legal Contract (A4/Legal)
-          </span>
+          {agreement.rendered_content_snapshot ? (
+            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+              <Lock size={11} /> Immutable Legal Snapshot Locked
+            </span>
+          ) : (
+            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              Official 10-Clause Legal Contract (A4/Legal)
+            </span>
+          )}
           <button
             onClick={handlePrint}
             className="px-5 py-2 rounded-xl bg-amber-400 text-slate-950 font-black text-xs hover:bg-amber-300 transition-all cursor-pointer flex items-center gap-1.5 shadow-md"
@@ -214,8 +221,12 @@ export function OwnerAgreementPreviewClient({
           </div>
         </div>
 
-        {/* Preamble */}
-        <div className="text-justify space-y-3">
+        {agreement.rendered_content_snapshot ? (
+          <LegalDocumentViewer content={agreement.rendered_content_snapshot} />
+        ) : (
+          <>
+            {/* Preamble */}
+            <div className="text-justify space-y-3">
           <p>
             This <strong>VEHICLE RENTAL AGREEMENT</strong> (hereinafter referred to as the <strong>&quot;Agreement&quot;</strong>) is
             made and entered into on this <strong>{executionDateFormatted}</strong> by and between:
@@ -668,6 +679,8 @@ export function OwnerAgreementPreviewClient({
             </div>
           </div>
         </div>
+        </>
+        )}
 
         {/* Formal Document Footer */}
         <div className="pt-6 border-t border-slate-300 text-[10px] font-sans text-slate-500 flex items-center justify-between">
