@@ -178,6 +178,7 @@ export async function createOwnerAgreementAction(data: {
   termination_notice_days?: number
   terms_and_conditions?: string
   special_conditions?: string
+  agreement_data?: Record<string, any>
 }) {
   try {
     const supabase = await createClient()
@@ -238,6 +239,7 @@ export async function createOwnerAgreementAction(data: {
         termination_notice_days: data.termination_notice_days || 30,
         terms_and_conditions: data.terms_and_conditions || null,
         special_conditions: data.special_conditions || null,
+        agreement_data: data.agreement_data || {},
         status: 'active',
         activated_at: new Date().toISOString(),
         created_by: user.id,
@@ -312,5 +314,60 @@ export async function updateOwnerAgreementStatusAction(id: string, status: strin
     return { success: true }
   } catch (err: any) {
     return { success: false, error: err.message || 'Status update failed.' }
+  }
+}
+
+// =============================================
+// UPDATE OWNER AGREEMENT DETAILS
+// =============================================
+export async function updateOwnerAgreementDetailsAction(
+  id: string,
+  data: {
+    agreement_start_date?: string
+    agreement_end_date?: string
+    settlement_rule?: string
+    fixed_monthly_amount?: number
+    agreement_data?: Record<string, any>
+    special_conditions?: string
+    terms_and_conditions?: string
+  }
+) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Not authenticated.' }
+
+    const updatePayload: any = {
+      updated_at: new Date().toISOString(),
+    }
+
+    if (data.agreement_start_date !== undefined) updatePayload.agreement_start_date = data.agreement_start_date
+    if (data.agreement_end_date !== undefined) updatePayload.agreement_end_date = data.agreement_end_date
+    if (data.settlement_rule !== undefined) updatePayload.settlement_rule = data.settlement_rule
+    if (data.fixed_monthly_amount !== undefined) updatePayload.fixed_monthly_amount = data.fixed_monthly_amount
+    if (data.special_conditions !== undefined) updatePayload.special_conditions = data.special_conditions
+    if (data.terms_and_conditions !== undefined) updatePayload.terms_and_conditions = data.terms_and_conditions
+    if (data.agreement_data !== undefined) updatePayload.agreement_data = data.agreement_data
+
+    const { error } = await supabase
+      .from('owner_agreements')
+      .update(updatePayload)
+      .eq('id', id)
+
+    if (error) return { success: false, error: error.message }
+
+    await supabase.rpc('log_audit_action_internal', {
+      p_action: 'OWNER_AGREEMENT_UPDATED',
+      p_entity_type: 'owner_agreement',
+      p_entity_id: id,
+      p_description: `Updated details for Owner Agreement`,
+    })
+
+    revalidatePath('/dashboard/agreements')
+    revalidatePath(`/dashboard/agreements/owner/${id}`)
+    revalidatePath(`/dashboard/agreements/owner/${id}/preview`)
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Details update failed.' }
   }
 }
