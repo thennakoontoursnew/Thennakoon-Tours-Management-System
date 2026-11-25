@@ -27,6 +27,7 @@ export function GoLiveResetClient({ summary: initialSummary }: Props) {
   const [reason, setReason] = useState('Clearing test data during testing phase.')
   const [confirmationInput, setConfirmationInput] = useState('')
   const [deleteCategories, setDeleteCategories] = useState(false)
+  const [deleteMasterData, setDeleteMasterData] = useState(false)
 
   const [showModal, setShowModal] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -88,12 +89,15 @@ export function GoLiveResetClient({ summary: initialSummary }: Props) {
         confirmation: trimmedConfirm,
         reason: reason.trim(),
         deleteCategories,
+        deleteMasterData,
       })
 
       if (res.success) {
         setFeedback({
           type: 'success',
-          message: 'Test data cleared successfully! All transactional records wiped and sequence counters reset.',
+          message: deleteMasterData
+            ? 'Test data & Master records cleared successfully! All transactional records, vehicles, drivers, customers, and owners wiped and sequence counters reset.'
+            : 'Test data cleared successfully! All transactional records wiped and sequence counters reset.',
         })
         setShowModal(false)
         setConfirmationInput('')
@@ -114,6 +118,14 @@ export function GoLiveResetClient({ summary: initialSummary }: Props) {
             expenses: 0,
             leads: 0,
             documentActivityLogs: 0,
+            ...(deleteMasterData
+              ? {
+                  vehicles: 0,
+                  drivers: 0,
+                  customers: 0,
+                  owners: 0,
+                }
+              : {}),
           },
         }))
       } else {
@@ -196,9 +208,10 @@ export function GoLiveResetClient({ summary: initialSummary }: Props) {
             { label: 'Receipts', count: counts.receipts || 0, isTransactional: true },
             { label: 'Expenses & Statements', count: counts.expenses || 0, isTransactional: true },
             { label: 'Leads & Inquiries', count: counts.leads || 0, isTransactional: true },
-            { label: 'Vehicles (Preserved)', count: counts.vehicles || 0, isTransactional: false },
-            { label: 'Drivers (Preserved)', count: counts.drivers || 0, isTransactional: false },
-            { label: 'Customers (CRM)', count: counts.customers || 0, isTransactional: false },
+            { label: 'Vehicles', count: counts.vehicles || 0, isTransactional: false },
+            { label: 'Drivers', count: counts.drivers || 0, isTransactional: false },
+            { label: 'Customers', count: counts.customers || 0, isTransactional: false },
+            { label: 'Vehicle Owners', count: counts.owners || 0, isTransactional: false },
             { label: 'Activity Logs', count: counts.documentActivityLogs || 0, isTransactional: true },
           ].map((item, idx) => (
             <div
@@ -298,7 +311,7 @@ export function GoLiveResetClient({ summary: initialSummary }: Props) {
         </div>
 
         <div className="space-y-4">
-          {/* Step 1: Checkbox */}
+          {/* Step 1: Confirmation Checkbox */}
           <label className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 cursor-pointer">
             <input
               type="checkbox"
@@ -307,8 +320,29 @@ export function GoLiveResetClient({ summary: initialSummary }: Props) {
               className="mt-0.5 w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500 cursor-pointer"
             />
             <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 leading-relaxed">
-              I confirm wiping all transactional test records ({totalTransactionalRecordsCount} records) and resetting sequence numbering to 000001. Master records (vehicles, drivers, company info) will remain intact.
+              I confirm wiping all transactional test records ({totalTransactionalRecordsCount} records) and resetting sequence numbering to 000001. Company settings, user profiles, and document templates will always remain intact.
             </span>
+          </label>
+
+          {/* Optional: Master Data Wipe Toggle */}
+          <label className="flex items-start gap-3 p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/20 cursor-pointer hover:bg-amber-500/10 transition-colors">
+            <input
+              type="checkbox"
+              checked={deleteMasterData}
+              onChange={(e) => setDeleteMasterData(e.target.checked)}
+              className="mt-0.5 w-4 h-4 text-rose-600 rounded border-amber-400 focus:ring-rose-500 cursor-pointer"
+            />
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <span>Also wipe Master Test Data (Vehicles, Drivers, Customers, Vehicle Owners)</span>
+                <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                  Optional
+                </span>
+              </span>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                Permanently wipes all registered test fleet vehicles, drivers, customer profiles, and vehicle owners (including inspections, images, and documents), and restarts code sequence counters (<code className="font-mono text-slate-700 dark:text-slate-300">CUS-000001</code>, <code className="font-mono text-slate-700 dark:text-slate-300">VEH-000001</code>, <code className="font-mono text-slate-700 dark:text-slate-300">DRV-000001</code>). Leave unchecked to preserve master records.
+              </p>
+            </div>
           </label>
 
           {/* Step 2: Reason Input */}
@@ -377,12 +411,22 @@ export function GoLiveResetClient({ summary: initialSummary }: Props) {
 
               <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800/60 space-y-1 font-mono text-[11px]">
                 <p>• Test Records To Clear: <strong className="text-rose-500">{totalTransactionalRecordsCount}</strong></p>
-                <p>• Sequences To Restart: <strong className="text-emerald-500">Number Counters</strong></p>
-                <p>• Master Records: <strong className="text-emerald-500">Vehicles, Drivers, Company Settings Kept</strong></p>
+                <p>• Sequences To Restart: <strong className="text-emerald-500">Number Counters (Quotations, Invoices, Bookings)</strong></p>
+                <p>
+                  • Master Test Records:{' '}
+                  {deleteMasterData ? (
+                    <strong className="text-rose-500">Vehicles, Drivers, Customers, Owners WIPED</strong>
+                  ) : (
+                    <strong className="text-emerald-500">Vehicles, Drivers, Customers PRESERVED</strong>
+                  )}
+                </p>
+                <p>• System Core: <strong className="text-emerald-500">Company Settings, Profiles, Templates KEPT</strong></p>
               </div>
 
               <p className="text-rose-500 font-semibold">
-                Are you sure you want to proceed with clearing all transactional test records?
+                {deleteMasterData
+                  ? 'Are you sure you want to proceed with clearing all transactional AND master test records?'
+                  : 'Are you sure you want to proceed with clearing all transactional test records?'}
               </p>
             </div>
 

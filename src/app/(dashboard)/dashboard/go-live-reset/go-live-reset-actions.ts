@@ -39,6 +39,7 @@ export async function getGoLiveResetSummary() {
       { count: cntExpenses },
       { count: cntLeads },
       { count: cntDocumentLogs },
+      { count: cntOwners },
     ] = await Promise.all([
       supabase.from('customers').select('*', { count: 'exact', head: true }),
       supabase.from('vehicles').select('*', { count: 'exact', head: true }),
@@ -55,6 +56,7 @@ export async function getGoLiveResetSummary() {
       supabase.from('expenses').select('*', { count: 'exact', head: true }),
       supabase.from('crm_leads').select('*', { count: 'exact', head: true }),
       supabase.from('document_activity_logs').select('*', { count: 'exact', head: true }),
+      supabase.from('vehicle_owners').select('*', { count: 'exact', head: true }),
     ])
 
     // Fetch Company Settings Go Live Status
@@ -89,6 +91,7 @@ export async function getGoLiveResetSummary() {
         customers: cntCustomers || 0,
         vehicles: cntVehicles || 0,
         drivers: cntDrivers || 0,
+        owners: cntOwners || 0,
         quotations: cntQuotations || 0,
         quotationItems: cntQuotationItems || 0,
         bookings: cntBookings || 0,
@@ -106,6 +109,7 @@ export async function getGoLiveResetSummary() {
         customerCode: 'CUS-000001',
         vehicleCode: 'VEH-000001',
         driverCode: 'DRV-000001',
+        ownerCode: 'OWN-000001',
         quotationNumber: `QT-${currentYear}-000001`,
         bookingNumber: `BK-${currentYear}-000001`,
         invoiceNumber: `INV-${currentYear}-000001`,
@@ -173,6 +177,7 @@ export async function executeGoLiveResetAction(input: {
   confirmation: string
   reason: string
   deleteCategories: boolean
+  deleteMasterData?: boolean
 }) {
   try {
     const supabase = await createClient()
@@ -200,6 +205,7 @@ export async function executeGoLiveResetAction(input: {
       p_confirmation: trimmed,
       p_reason: input.reason || 'Clearing test data during testing phase.',
       p_delete_vehicle_categories: Boolean(input.deleteCategories),
+      p_delete_master_data: Boolean(input.deleteMasterData),
     })
 
     if (rpcErr) {
@@ -212,6 +218,7 @@ export async function executeGoLiveResetAction(input: {
     revalidatePath('/dashboard/customers')
     revalidatePath('/dashboard/vehicles')
     revalidatePath('/dashboard/drivers')
+    revalidatePath('/dashboard/fleet/owners')
     revalidatePath('/dashboard/quotations')
     revalidatePath('/dashboard/bookings')
     revalidatePath('/dashboard/invoices')
