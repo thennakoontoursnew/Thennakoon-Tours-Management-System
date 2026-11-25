@@ -22,6 +22,7 @@ import {
   Eye,
   Check,
 } from 'lucide-react'
+import SectionCardBuilder from './section-card-builder'
 
 interface Props {
   template: any
@@ -30,6 +31,10 @@ interface Props {
 export default function TemplateForm({ template }: Props) {
   const isAgreementTemplate =
     template.document_type === 'owner_agreement' || template.document_type === 'user_agreement'
+
+  if (isAgreementTemplate) {
+    return <SectionCardBuilder template={template} />
+  }
 
   const [loading, setLoading] = useState(false)
   const [resetting, setResetting] = useState(false)

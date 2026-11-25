@@ -8,6 +8,12 @@ import {
   DEFAULT_OWNER_AGREEMENT_TEMPLATE_BODY,
   DEFAULT_USER_AGREEMENT_TEMPLATE_BODY,
 } from '@/lib/agreements/template-renderer'
+import {
+  AgreementSection,
+  DEFAULT_OWNER_AGREEMENT_SECTIONS,
+  DEFAULT_USER_AGREEMENT_SECTIONS,
+  sectionsToMarkdown,
+} from '@/lib/agreements/section-template-renderer'
 import { z } from 'zod'
 
 type TemplateInput = z.infer<typeof documentTemplateSchema>
@@ -93,6 +99,7 @@ const DEFAULT_OWNER_AGREEMENT_TEMPLATE = {
   display_name: 'Master Vehicle Owner Agreement Template',
   title: 'Master Vehicle Owner Rental Agreement',
   body_content: DEFAULT_OWNER_AGREEMENT_TEMPLATE_BODY,
+  sections_json: DEFAULT_OWNER_AGREEMENT_SECTIONS,
   special_notes: 'Vehicle owner rental agreement master template with dynamic merge tags.',
   is_active: true,
 }
@@ -103,6 +110,7 @@ const DEFAULT_USER_AGREEMENT_TEMPLATE = {
   display_name: 'Master User Rental Agreement Template',
   title: 'Master User Rental Agreement',
   body_content: DEFAULT_USER_AGREEMENT_TEMPLATE_BODY,
+  sections_json: DEFAULT_USER_AGREEMENT_SECTIONS,
   special_notes: 'Customer vehicle rental agreement master template with dynamic merge tags.',
   is_active: true,
 }
@@ -124,6 +132,7 @@ function cleanTemplateRecord(raw: any) {
   return {
     ...raw,
     body_content: raw.body_content || '',
+    sections_json: Array.isArray(raw.sections_json) ? raw.sections_json : [],
     template_type: raw.template_type || raw.document_type || '',
     special_notes: normalizeNewlines(raw.special_notes),
     important_message: normalizeNewlines(raw.important_message),
@@ -156,7 +165,17 @@ export async function getDocumentTemplateByType(type: string) {
       .eq('document_type', type)
       .maybeSingle()
 
-    if (data) return { success: true, template: cleanTemplateRecord(data) }
+    if (data) {
+      const cleaned = cleanTemplateRecord(data)
+      if (cleaned) {
+        if (type === 'owner_agreement' && (!cleaned.sections_json || cleaned.sections_json.length === 0)) {
+          cleaned.sections_json = DEFAULT_OWNER_AGREEMENT_SECTIONS
+        } else if (type === 'user_agreement' && (!cleaned.sections_json || cleaned.sections_json.length === 0)) {
+          cleaned.sections_json = DEFAULT_USER_AGREEMENT_SECTIONS
+        }
+      }
+      return { success: true, template: cleaned }
+    }
 
     // Fallback: Return safe system default template without crashing
     let defaultObj: any = DEFAULT_QUOTATION_TEMPLATE
@@ -172,7 +191,7 @@ export async function getDocumentTemplateByType(type: string) {
   }
 }
 
-export async function updateDocumentTemplate(type: string, values: Partial<TemplateInput>) {
+export async function updateDocumentTemplate(type: string, values: Partial<TemplateInput> & { sections_json?: AgreementSection[] }) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -204,6 +223,13 @@ export async function updateDocumentTemplate(type: string, values: Partial<Templ
 
     if (values.body_content !== undefined) {
       payload.body_content = values.body_content
+    }
+
+    if (values.sections_json !== undefined) {
+      payload.sections_json = values.sections_json
+      if (!values.body_content && values.sections_json.length > 0) {
+        payload.body_content = sectionsToMarkdown(values.sections_json)
+      }
     }
 
     const { error } = await supabase

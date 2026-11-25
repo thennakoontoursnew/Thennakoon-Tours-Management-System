@@ -1,16 +1,48 @@
 'use client'
 
 import React from 'react'
+import { AgreementSection } from './section-template-renderer'
 
 interface LegalDocumentViewerProps {
-  content: string
+  content?: string
+  sections?: AgreementSection[]
 }
 
 /**
- * Parses and renders legal markdown text into elegant, print-ready legal document sections.
+ * Parses and renders legal markdown text or structured sections into elegant, print-ready legal document sections.
  * Automatically styles headings, bold terms, bullet schedules, and preserves avoid-break on signature blocks.
  */
-export function LegalDocumentViewer({ content }: LegalDocumentViewerProps) {
+export function LegalDocumentViewer({ content, sections }: LegalDocumentViewerProps) {
+  if (sections && Array.isArray(sections) && sections.length > 0) {
+    const sorted = [...sections].sort((a, b) => (a.order || 0) - (b.order || 0))
+    return (
+      <div className="space-y-4 text-justify leading-[1.65] font-serif text-[12px] text-slate-900">
+        {sorted.map((sec, sIdx) => {
+          const isSignatories =
+            sec.is_signatories ||
+            (sec.title && (sec.title.toUpperCase().includes('SIGNATOR') || sec.title.toUpperCase().includes('WITNESS')))
+          const isSchedule = sec.is_schedule || (sec.title && sec.title.toUpperCase().includes('SCHEDULE'))
+
+          return (
+            <div
+              key={sec.id || sIdx}
+              className={`space-y-2 text-justify ${
+                isSignatories || isSchedule ? 'avoid-break pt-3' : 'avoid-break'
+              }`}
+            >
+              {sec.title && (
+                <h2 className="font-sans font-bold text-slate-900 uppercase tracking-wide text-[12px] border-b border-slate-300 pb-1 mt-3">
+                  {sec.title}
+                </h2>
+              )}
+              {renderParagraphs(sec.body)}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   if (!content) return null
 
   // Split content into major sections by "### "

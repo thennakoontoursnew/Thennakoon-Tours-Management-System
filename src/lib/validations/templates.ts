@@ -6,6 +6,7 @@ export const documentTemplateSchema = z.object({
   template_type: z.string().optional().nullable(),
   display_name: z.string().optional().nullable(),
   body_content: z.string().optional().nullable(),
+  sections_json: z.array(z.any()).optional().nullable(),
   special_notes: z.string().optional().nullable(),
   important_message: z.string().optional().nullable(),
   bank_account_name: z.string().optional().nullable(),

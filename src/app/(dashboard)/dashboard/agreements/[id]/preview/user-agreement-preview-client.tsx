@@ -152,7 +152,7 @@ export function UserAgreementPreviewClient({
           <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
             Revision {activeAgreementData.version_number || 1}
           </span>
-          {activeAgreementData.rendered_content_snapshot && (
+          {(activeAgreementData.rendered_sections_snapshot?.length > 0 || activeAgreementData.rendered_content_snapshot) && (
             <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 font-mono">
               <Lock size={10} /> Locked Legal Snapshot
             </span>
@@ -263,7 +263,9 @@ export function UserAgreementDocument({
         </div>
       </div>
 
-      {agreement.rendered_content_snapshot ? (
+      {agreement.rendered_sections_snapshot && Array.isArray(agreement.rendered_sections_snapshot) && agreement.rendered_sections_snapshot.length > 0 ? (
+        <LegalDocumentViewer sections={agreement.rendered_sections_snapshot} />
+      ) : agreement.rendered_content_snapshot ? (
         <LegalDocumentViewer content={agreement.rendered_content_snapshot} />
       ) : isV1 ? (
         <V1UserAgreementContent agreement={agreement} customer={customer} vehicle={vehicle} />

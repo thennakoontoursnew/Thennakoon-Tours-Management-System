@@ -170,7 +170,7 @@ export function OwnerAgreementPreviewClient({
         </Link>
         <div className="flex items-center gap-3">
           <span className="font-mono text-xs text-amber-400 font-bold">{agreement.agreement_number}</span>
-          {agreement.rendered_content_snapshot ? (
+          {agreement.rendered_sections_snapshot?.length > 0 || agreement.rendered_content_snapshot ? (
             <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
               <Lock size={11} /> Immutable Legal Snapshot Locked
             </span>
@@ -221,7 +221,9 @@ export function OwnerAgreementPreviewClient({
           </div>
         </div>
 
-        {agreement.rendered_content_snapshot ? (
+        {agreement.rendered_sections_snapshot && Array.isArray(agreement.rendered_sections_snapshot) && agreement.rendered_sections_snapshot.length > 0 ? (
+          <LegalDocumentViewer sections={agreement.rendered_sections_snapshot} />
+        ) : agreement.rendered_content_snapshot ? (
           <LegalDocumentViewer content={agreement.rendered_content_snapshot} />
         ) : (
           <>

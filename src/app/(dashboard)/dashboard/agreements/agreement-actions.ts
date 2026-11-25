@@ -9,6 +9,13 @@ import {
   DEFAULT_OWNER_AGREEMENT_TEMPLATE_BODY,
   DEFAULT_USER_AGREEMENT_TEMPLATE_BODY,
 } from '@/lib/agreements/template-renderer'
+import {
+  AgreementSection,
+  DEFAULT_OWNER_AGREEMENT_SECTIONS,
+  DEFAULT_USER_AGREEMENT_SECTIONS,
+  resolveAgreementSections,
+  sectionsToMarkdown,
+} from '@/lib/agreements/section-template-renderer'
 
 export async function createAgreementFromBooking(bookingId: string) {
   try {
@@ -82,14 +89,18 @@ export async function createAgreementFromBooking(bookingId: string) {
 
     // Fetch active user_agreement master template from document_templates
     let masterUserTemplateBody = DEFAULT_USER_AGREEMENT_TEMPLATE_BODY
+    let masterUserSections: AgreementSection[] = DEFAULT_USER_AGREEMENT_SECTIONS
     try {
       const { data: tmpl } = await supabase
         .from('document_templates')
-        .select('body_content')
+        .select('body_content, sections_json')
         .eq('document_type', 'user_agreement')
         .maybeSingle()
       if (tmpl?.body_content) {
         masterUserTemplateBody = tmpl.body_content
+      }
+      if (tmpl?.sections_json && Array.isArray(tmpl.sections_json) && tmpl.sections_json.length > 0) {
+        masterUserSections = tmpl.sections_json
       }
     } catch (_) {}
 
@@ -117,7 +128,8 @@ export async function createAgreementFromBooking(bookingId: string) {
       special_notes: initialForm.special_notes || '',
     }
 
-    const renderedUserSnapshot = renderAgreementTemplate(masterUserTemplateBody, userVariables)
+    const resolvedUserSections = resolveAgreementSections(masterUserSections, userVariables)
+    const renderedUserSnapshot = sectionsToMarkdown(resolvedUserSections) || renderAgreementTemplate(masterUserTemplateBody, userVariables)
 
     const payload: any = {
       booking_id: b.id,
@@ -139,6 +151,7 @@ export async function createAgreementFromBooking(bookingId: string) {
       special_notes: initialForm.special_notes || null,
       inventory_remarks: initialForm.inventory_remarks || null,
       terms_snapshot: `Standard User Agreement V1 terms applied for ${initialForm.agreement_number}`,
+      rendered_sections_snapshot: resolvedUserSections,
       rendered_content_snapshot: renderedUserSnapshot,
       status: 'generated',
       prepared_by: user.id,
@@ -265,14 +278,18 @@ export async function createOwnerAgreementAction(data: {
 
     // Fetch active owner_agreement master template from document_templates
     let masterOwnerTemplateBody = DEFAULT_OWNER_AGREEMENT_TEMPLATE_BODY
+    let masterOwnerSections: AgreementSection[] = DEFAULT_OWNER_AGREEMENT_SECTIONS
     try {
       const { data: tmpl } = await supabase
         .from('document_templates')
-        .select('body_content')
+        .select('body_content, sections_json')
         .eq('document_type', 'owner_agreement')
         .maybeSingle()
       if (tmpl?.body_content) {
         masterOwnerTemplateBody = tmpl.body_content
+      }
+      if (tmpl?.sections_json && Array.isArray(tmpl.sections_json) && tmpl.sections_json.length > 0) {
+        masterOwnerSections = tmpl.sections_json
       }
     } catch (_) {}
 
@@ -314,7 +331,8 @@ export async function createOwnerAgreementAction(data: {
       special_remarks: agrData.special_remarks || data.special_conditions || '',
     }
 
-    const renderedOwnerSnapshot = renderAgreementTemplate(masterOwnerTemplateBody, ownerTemplateVariables)
+    const resolvedOwnerSections = resolveAgreementSections(masterOwnerSections, ownerTemplateVariables)
+    const renderedOwnerSnapshot = sectionsToMarkdown(resolvedOwnerSections) || renderAgreementTemplate(masterOwnerTemplateBody, ownerTemplateVariables)
 
     // Insert Owner Agreement
     const { data: agreement, error: aErr } = await supabase
@@ -338,6 +356,7 @@ export async function createOwnerAgreementAction(data: {
         terms_and_conditions: data.terms_and_conditions || null,
         special_conditions: data.special_conditions || null,
         agreement_data: data.agreement_data || {},
+        rendered_sections_snapshot: resolvedOwnerSections,
         rendered_content_snapshot: renderedOwnerSnapshot,
         status: 'active',
         activated_at: new Date().toISOString(),
@@ -427,6 +446,7 @@ export async function updateOwnerAgreementDetailsAction(
     settlement_rule?: string
     fixed_monthly_amount?: number
     agreement_data?: Record<string, any>
+    rendered_sections_snapshot?: any
     rendered_content_snapshot?: string
     special_conditions?: string
     terms_and_conditions?: string
@@ -448,6 +468,7 @@ export async function updateOwnerAgreementDetailsAction(
     if (data.special_conditions !== undefined) updatePayload.special_conditions = data.special_conditions
     if (data.terms_and_conditions !== undefined) updatePayload.terms_and_conditions = data.terms_and_conditions
     if (data.agreement_data !== undefined) updatePayload.agreement_data = data.agreement_data
+    if (data.rendered_sections_snapshot !== undefined) updatePayload.rendered_sections_snapshot = data.rendered_sections_snapshot
     if (data.rendered_content_snapshot !== undefined) updatePayload.rendered_content_snapshot = data.rendered_content_snapshot
 
     const { error } = await supabase
