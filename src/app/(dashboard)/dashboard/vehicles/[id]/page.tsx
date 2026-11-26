@@ -99,7 +99,7 @@ export default async function VehicleDetailPage({ params }: PageProps) {
                   {(vehicle.status || 'available').replace('_', ' ')}
                 </span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 uppercase border border-slate-200 dark:border-slate-700">
-                  {vehicle.ownership_type || 'Company'}
+                  {(vehicle.ownership_type || 'Company').replace('_', ' ')}
                 </span>
               </div>
               <h1 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{vehicle.vehicle_name || 'Vehicle Profile'}</h1>

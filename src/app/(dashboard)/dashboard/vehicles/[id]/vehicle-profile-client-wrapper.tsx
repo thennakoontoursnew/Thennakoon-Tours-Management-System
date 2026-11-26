@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { VehicleProfileTabs } from '@/components/fleet/vehicle-profile-tabs'
 import { VehicleOdometerModal } from '@/components/fleet/vehicle-odometer-modal'
 import { VehicleDocumentModal } from '@/components/fleet/vehicle-document-modal'
+import { NewOwnerAgreementModal } from '@/components/agreements/new-owner-agreement-modal'
 import { logOdometerAction, addVehicleDocumentAction } from './fleet-actions'
 
 interface VehicleProfileClientWrapperProps {
@@ -21,7 +22,7 @@ export function VehicleProfileClientWrapper({
   userId,
 }: VehicleProfileClientWrapperProps) {
   const router = useRouter()
-  const [modalType, setModalType] = useState<'odometer' | 'document' | null>(null)
+  const [modalType, setModalType] = useState<'odometer' | 'document' | 'owner_agreement' | null>(null)
 
   const isOwner = userRole === 'owner'
   const pData = profileData || {}
@@ -42,6 +43,7 @@ export function VehicleProfileClientWrapper({
         userRole={userRole || 'viewer'}
         onOpenOdometerModal={() => setModalType('odometer')}
         onOpenDocumentModal={() => setModalType('document')}
+        onOpenOwnerAgreementModal={() => setModalType('owner_agreement')}
       />
 
       <VehicleOdometerModal
@@ -65,6 +67,17 @@ export function VehicleProfileClientWrapper({
           router.refresh()
         }}
       />
+
+      {vehicle.owner && (
+        <NewOwnerAgreementModal
+          owners={[vehicle.owner]}
+          vehicles={[vehicle]}
+          isOpen={modalType === 'owner_agreement'}
+          onClose={() => setModalType(null)}
+          initialOwnerId={vehicle.owner.id}
+          initialVehicleId={vehicle.id}
+        />
+      )}
     </>
   )
 }

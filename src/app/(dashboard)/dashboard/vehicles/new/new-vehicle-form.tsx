@@ -3,17 +3,28 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createVehicle } from '../vehicle-actions'
+import { createVehicleWithOptionalOwner, OwnershipMode } from '../vehicle-actions'
 import { ArrowLeft, Save, AlertCircle } from 'lucide-react'
+import {
+  VehicleOwnershipSection,
+  InlineOwnerState,
+  INITIAL_INLINE_OWNER,
+} from '@/components/fleet/vehicle-ownership-section'
+import { VehiclePricingMarginSection } from '@/components/fleet/vehicle-pricing-margin-section'
 
 interface Props {
   categories: { id: string; name: string }[]
+  owners: any[]
 }
 
-export default function NewVehicleForm({ categories }: Props) {
+export default function NewVehicleForm({ categories, owners }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [ownershipMode, setOwnershipMode] = useState<OwnershipMode>('company')
+  const [existingOwnerId, setExistingOwnerId] = useState<string>('')
+  const [newOwner, setNewOwner] = useState<InlineOwnerState>(INITIAL_INLINE_OWNER)
 
   const [formData, setFormData] = useState({
     vehicle_name: '',
@@ -29,12 +40,24 @@ export default function NewVehicleForm({ categories }: Props) {
     seat_count: 5,
     colour: '',
     current_mileage: 0,
+    // Selling & Owner Rates (Self-Drive & With-Driver)
     daily_rate: 10000,
     weekly_rate: 65000,
     monthly_rate: 250000,
     refundable_deposit: 25000,
     allowed_km_per_day: 100,
     extra_km_charge: 100,
+    owner_daily_rate_self: 0,
+    owner_monthly_rate_self: 0,
+    owner_daily_rate_with_driver: 0,
+    owner_monthly_rate_with_driver: 0,
+    selling_daily_rate_with_driver: 0,
+    selling_monthly_rate_with_driver: 0,
+    driver_bata_per_day: 0,
+    monthly_km_quota: 3000,
+    owner_excess_km_rate: 0,
+    service_interval_km: 5000,
+    // Compliance & Telematics
     insurance_expiry: '',
     revenue_license_expiry: '',
     emission_test_expiry: '',
@@ -57,12 +80,79 @@ export default function NewVehicleForm({ categories }: Props) {
     }
   }
 
+  const handleNumberChange = (name: string, val: number) => {
+    setFormData((prev) => ({ ...prev, [name]: val }))
+    if (name === 'monthly_km_quota' || name === 'owner_excess_km_rate') {
+      setNewOwner((prev) => ({ ...prev, [name]: val }))
+    }
+  }
+
+  const handleExistingOwnerChange = (ownerId: string, ownerObj?: any) => {
+    setExistingOwnerId(ownerId)
+    if (ownerObj) {
+      setFormData((prev) => ({
+        ...prev,
+        monthly_km_quota: ownerObj.monthly_km_quota ?? prev.monthly_km_quota,
+        owner_excess_km_rate: ownerObj.owner_excess_km_rate ?? prev.owner_excess_km_rate,
+        owner_daily_rate_self:
+          prev.owner_daily_rate_self === 0 && ownerObj.flat_rate_per_day
+            ? Number(ownerObj.flat_rate_per_day)
+            : prev.owner_daily_rate_self,
+      }))
+    }
+  }
+
+  const handleNewOwnerChange = (updates: Partial<InlineOwnerState>) => {
+    setNewOwner((prev) => ({ ...prev, ...updates }))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
     setError(null)
 
-    const res = await createVehicle(formData as any)
+    if (ownershipMode === 'existing' && !existingOwnerId) {
+      setError('Please select an existing Vehicle Owner or choose Company Owned.')
+      return
+    }
+    if (ownershipMode === 'new' && !newOwner.full_name.trim()) {
+      setError('Owner Full Name is required when registering a new owner inline.')
+      return
+    }
+
+    setLoading(true)
+
+    const res = await createVehicleWithOptionalOwner({
+      vehicle: {
+        ...(formData as any),
+        ownership_type: ownershipMode === 'company' ? 'company' : 'owner_leased',
+        vehicle_owner_id: ownershipMode === 'existing' ? existingOwnerId : null,
+      },
+      ownershipMode,
+      existingOwnerId: ownershipMode === 'existing' ? existingOwnerId : null,
+      newOwner:
+        ownershipMode === 'new'
+          ? {
+              full_name: newOwner.full_name,
+              owner_type: newOwner.owner_type,
+              company_name: newOwner.company_name || null,
+              national_id: newOwner.national_id || null,
+              mobile: newOwner.mobile || null,
+              whatsapp: newOwner.whatsapp || null,
+              email: newOwner.email || null,
+              address: newOwner.address || null,
+              payment_terms: newOwner.payment_terms,
+              revenue_share_pct: Number(newOwner.revenue_share_pct || 0),
+              monthly_km_quota: Number(formData.monthly_km_quota || 3000),
+              owner_excess_km_rate: Number(formData.owner_excess_km_rate || 0),
+              bank_account_name: newOwner.bank_account_name || null,
+              bank_name: newOwner.bank_name || null,
+              bank_account_number: newOwner.bank_account_number || null,
+              bank_branch: newOwner.bank_branch || null,
+              notes: newOwner.notes || null,
+            }
+          : null,
+    })
+
     if (!res.success) {
       setError(res.error || 'Failed to create vehicle.')
       setLoading(false)
@@ -77,7 +167,7 @@ export default function NewVehicleForm({ categories }: Props) {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6 pb-12">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link
@@ -88,23 +178,25 @@ export default function NewVehicleForm({ categories }: Props) {
           </Link>
           <div>
             <h1 className="text-2xl font-black text-slate-900 dark:text-white">Register New Vehicle</h1>
-            <p className="text-xs text-slate-500">Add a new car, SUV, van, or bus to the operational fleet.</p>
+            <p className="text-xs text-slate-500">
+              Add a fleet vehicle, optionally register & link its owner, and configure Self-Drive & Chauffeur rates.
+            </p>
           </div>
         </div>
       </div>
 
       {error && (
         <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2">
-          <AlertCircle size={16} />
+          <AlertCircle size={16} className="shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-6">
+      <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-8 shadow-xs">
         {/* Section 1: Basic Identity */}
         <div className="space-y-4">
           <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500 border-b border-slate-100 dark:border-slate-800 pb-2">
-            1. Basic Vehicle Information
+            1. Basic Vehicle Information & Specifications
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
@@ -115,7 +207,7 @@ export default function NewVehicleForm({ categories }: Props) {
                 required
                 value={formData.vehicle_name}
                 onChange={handleChange}
-                placeholder="e.g. Toyota Priuis Alpha"
+                placeholder="e.g. Toyota Prius Alpha"
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
               />
             </div>
@@ -183,14 +275,8 @@ export default function NewVehicleForm({ categories }: Props) {
               />
             </div>
           </div>
-        </div>
 
-        {/* Section 2: Specs & Pricing */}
-        <div className="space-y-4">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500 border-b border-slate-100 dark:border-slate-800 pb-2">
-            2. Specs & Rental Rates
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Transmission</label>
               <select
@@ -220,28 +306,72 @@ export default function NewVehicleForm({ categories }: Props) {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Daily Rate (LKR) *</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Seats</label>
               <input
                 type="number"
-                name="daily_rate"
-                required
-                value={formData.daily_rate}
+                name="seat_count"
+                min="1"
+                value={formData.seat_count}
                 onChange={handleChange}
-                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-bold"
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-mono"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Refundable Deposit (LKR)</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Colour</label>
+              <input
+                type="text"
+                name="colour"
+                value={formData.colour}
+                onChange={handleChange}
+                placeholder="e.g. Pearl White"
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Chassis No</label>
+              <input
+                type="text"
+                name="chassis_number"
+                value={formData.chassis_number}
+                onChange={handleChange}
+                placeholder="Optional"
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-mono uppercase"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Odometer (KM)</label>
               <input
                 type="number"
-                name="refundable_deposit"
-                value={formData.refundable_deposit}
+                name="current_mileage"
+                min="0"
+                value={formData.current_mileage}
                 onChange={handleChange}
-                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-bold"
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-mono"
               />
             </div>
           </div>
         </div>
+
+        {/* Section A: Vehicle Ownership & Inline Owner Registration */}
+        <VehicleOwnershipSection
+          ownershipMode={ownershipMode}
+          onOwnershipModeChange={setOwnershipMode}
+          owners={owners}
+          existingOwnerId={existingOwnerId}
+          onExistingOwnerChange={handleExistingOwnerChange}
+          newOwner={newOwner}
+          onNewOwnerChange={handleNewOwnerChange}
+          monthlyKmQuota={formData.monthly_km_quota}
+          ownerExcessKmRate={formData.owner_excess_km_rate}
+          onSettlementTermChange={handleNumberChange}
+        />
+
+        {/* Section B: Dual Pricing & Live Profit Margin Matrix */}
+        <VehiclePricingMarginSection
+          isOwnerLeased={ownershipMode !== 'company'}
+          formData={formData}
+          onNumberChange={handleNumberChange}
+        />
 
         {/* Section 3: Legal Expiry Dates */}
         <div className="space-y-4">
@@ -330,10 +460,10 @@ export default function NewVehicleForm({ categories }: Props) {
           <button
             type="submit"
             disabled={loading}
-            className="px-6 py-2.5 rounded-xl bg-amber-400 text-slate-950 text-xs font-bold hover:bg-amber-300 transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+            className="px-6 py-2.5 rounded-xl bg-amber-400 text-slate-950 text-xs font-bold hover:bg-amber-300 transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer"
           >
             <Save size={16} />
-            <span>{loading ? 'Registering...' : 'Save Vehicle'}</span>
+            <span>{loading ? 'Registering...' : ownershipMode === 'new' ? 'Register Owner & Save Vehicle' : 'Save Vehicle'}</span>
           </button>
         </div>
       </form>

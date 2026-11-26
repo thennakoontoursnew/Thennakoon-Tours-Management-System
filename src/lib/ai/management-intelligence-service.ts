@@ -133,8 +133,8 @@ export async function getSanitizedContextForPeriod(supabase: any, periodKey: str
   const available = vehicles.filter((v: any) => v.status === 'available').length
   const maintenance = vehicles.filter((v: any) => v.status === 'maintenance').length
   const inspectionRequired = vehicles.filter((v: any) => v.status === 'inspection_required').length
-  const companyOwnedCount = vehicles.filter((v: any) => v.ownership_type === 'company').length
-  const externalOwnerCount = vehicles.filter((v: any) => v.ownership_type === 'external_owner').length
+  const companyOwnedCount = vehicles.filter((v: any) => !v.ownership_type || v.ownership_type === 'company').length
+  const externalOwnerCount = vehicles.filter((v: any) => v.ownership_type === 'external_owner' || v.ownership_type === 'owner_leased').length
 
   const fuelLogs = fuelLogsRes.data || []
   const totalFuelCost = fuelLogs.reduce((sum: number, f: any) => sum + Number(f.total_cost || 0), 0)

@@ -16,6 +16,10 @@ import {
   AlertTriangle,
   CheckCircle2,
   Lock,
+  UserCheck,
+  Landmark,
+  Phone,
+  TrendingUp,
 } from 'lucide-react'
 import { calculateDocumentHealth } from '@/lib/fleet/fleet-service'
 
@@ -49,6 +53,7 @@ interface VehicleProfileTabsProps {
   userRole: string
   onOpenOdometerModal: () => void
   onOpenDocumentModal: () => void
+  onOpenOwnerAgreementModal?: () => void
 }
 
 export function VehicleProfileTabs({
@@ -65,6 +70,7 @@ export function VehicleProfileTabs({
   userRole,
   onOpenOdometerModal,
   onOpenDocumentModal,
+  onOpenOwnerAgreementModal,
 }: VehicleProfileTabsProps) {
   const [activeTab, setActiveTab] = useState<
     'overview' | 'availability' | 'bookings' | 'documents' | 'maintenance' | 'financials' | 'inspections' | 'photos'
@@ -150,7 +156,206 @@ export function VehicleProfileTabs({
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase font-semibold">Ownership Type</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{vehicle.ownership_type || 'COMPANY'}</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">
+                    {(vehicle.ownership_type || 'COMPANY').replace('_', ' ')}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Owner & Margin Summary Card */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-5 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <TrendingUp size={16} className="text-amber-500" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500">
+                    Owner & Margin Summary
+                  </h3>
+                </div>
+                {vehicle.owner && onOpenOwnerAgreementModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenOwnerAgreementModal}
+                    className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer self-start sm:self-auto"
+                  >
+                    <FileText size={14} />
+                    <span>Create Owner Agreement</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Linked Owner Details (Contact & Bank) */}
+              {vehicle.owner ? (
+                <div className="p-4 rounded-xl bg-amber-50/50 dark:bg-amber-950/15 border border-amber-200/70 dark:border-amber-800/40 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-amber-700 dark:text-amber-400">
+                      <UserCheck size={13} /> Linked Vehicle Owner
+                    </div>
+                    <div className="font-bold text-slate-900 dark:text-white text-sm">
+                      {vehicle.owner.full_name}
+                      {vehicle.owner.owner_number && (
+                        <span className="ml-2 font-mono text-[11px] text-amber-600 dark:text-amber-400">
+                          [{vehicle.owner.owner_number}]
+                        </span>
+                      )}
+                    </div>
+                    {vehicle.owner.company_name && (
+                      <div className="text-slate-600 dark:text-slate-300">{vehicle.owner.company_name}</div>
+                    )}
+                    <div className="flex flex-wrap items-center gap-3 text-slate-600 dark:text-slate-400 pt-0.5">
+                      {vehicle.owner.mobile && (
+                        <span className="flex items-center gap-1 font-mono">
+                          <Phone size={12} /> {vehicle.owner.mobile}
+                        </span>
+                      )}
+                      {vehicle.owner.email && <span>{vehicle.owner.email}</span>}
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      Terms: <span className="font-semibold capitalize">{(vehicle.owner.payment_terms || 'Monthly').replace('_', ' ')}</span>
+                      {Number(vehicle.owner.revenue_share_pct || 0) > 0 && ` • Share: ${vehicle.owner.revenue_share_pct}%`}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 border-t sm:border-t-0 sm:border-l border-amber-200/70 dark:border-amber-800/40 pt-3 sm:pt-0 sm:pl-4">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-slate-500">
+                      <Landmark size={13} /> Payout Bank Account
+                    </div>
+                    <div className="font-bold text-slate-900 dark:text-white">
+                      {vehicle.owner.bank_name || 'Bank Not Configured'}
+                    </div>
+                    <div className="text-slate-600 dark:text-slate-300">
+                      Holder: <span className="font-semibold">{vehicle.owner.bank_account_name || vehicle.owner.full_name}</span>
+                    </div>
+                    <div className="font-mono text-slate-700 dark:text-slate-300">
+                      Acc No: <span className="font-bold">{vehicle.owner.bank_account_number || 'N/A'}</span>
+                      {vehicle.owner.bank_branch ? ` (${vehicle.owner.bank_branch})` : ''}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200/70 dark:border-slate-800 text-xs text-slate-500 flex items-center justify-between">
+                  <span>Owned directly by Thennakoon Tours (Company Fleet Asset).</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600">100% Margin</span>
+                </div>
+              )}
+
+              {/* Dual Pricing Margin Breakdown Grid */}
+              {(() => {
+                const selfDailyCost = Number(vehicle.owner_daily_rate_self || 0)
+                const selfDailySell = Number(vehicle.daily_rate || 0)
+                const selfDailyProfit = selfDailySell - selfDailyCost
+                const selfDailyPct = selfDailySell > 0 ? (selfDailyProfit / selfDailySell) * 100 : 0
+
+                const selfMonthlyCost = Number(vehicle.owner_monthly_rate_self || 0)
+                const selfMonthlySell = Number(vehicle.monthly_rate || 0)
+                const selfMonthlyProfit = selfMonthlySell - selfMonthlyCost
+                const selfMonthlyPct = selfMonthlySell > 0 ? (selfMonthlyProfit / selfMonthlySell) * 100 : 0
+
+                const drvDailyCost = Number(vehicle.owner_daily_rate_with_driver || 0)
+                const drvBata = Number(vehicle.driver_bata_per_day || 0)
+                const drvDailySell = Number(vehicle.selling_daily_rate_with_driver || 0)
+                const drvDailyProfit = drvDailySell - (drvDailyCost + drvBata)
+                const drvDailyPct = drvDailySell > 0 ? (drvDailyProfit / drvDailySell) * 100 : 0
+
+                const drvMonthlyCost = Number(vehicle.owner_monthly_rate_with_driver || 0)
+                const drvMonthlySell = Number(vehicle.selling_monthly_rate_with_driver || 0)
+                const drvMonthlyProfit = drvMonthlySell - drvMonthlyCost
+                const drvMonthlyPct = drvMonthlySell > 0 ? (drvMonthlyProfit / drvMonthlySell) * 100 : 0
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    {/* Self-Drive Margins */}
+                    <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+                      <div className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                        Without Driver (Self-Drive)
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Daily (Owner Cost / Selling):</span>
+                          <span className="font-mono font-bold">
+                            {selfDailyCost.toLocaleString()} / {selfDailySell.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500">Net Daily Profit:</span>
+                          <span className={`font-mono font-black ${selfDailyProfit < 0 ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                            LKR {selfDailyProfit.toLocaleString()} {selfDailySell > 0 ? `(${selfDailyPct.toFixed(1)}%)` : ''}
+                          </span>
+                        </div>
+                        <div className="border-t border-slate-200/60 dark:border-slate-800 pt-1.5 flex justify-between">
+                          <span className="text-slate-500">Monthly (Owner Cost / Selling):</span>
+                          <span className="font-mono font-bold">
+                            {selfMonthlyCost.toLocaleString()} / {selfMonthlySell.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500">Net Monthly Profit:</span>
+                          <span className={`font-mono font-black ${selfMonthlyProfit < 0 ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                            LKR {selfMonthlyProfit.toLocaleString()} {selfMonthlySell > 0 ? `(${selfMonthlyPct.toFixed(1)}%)` : ''}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* With Driver Margins */}
+                    <div className="p-4 rounded-xl bg-blue-50/40 dark:bg-blue-950/15 border border-blue-200/60 dark:border-blue-800/40 space-y-2.5">
+                      <div className="text-[11px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-400">
+                        With Driver (Chauffeur-Driven)
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Daily Cost (Owner + Bata):</span>
+                          <span className="font-mono font-bold">
+                            {drvDailyCost.toLocaleString()} + {drvBata.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Daily Selling Rate:</span>
+                          <span className="font-mono font-bold">{drvDailySell.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500">Net Daily Profit:</span>
+                          <span className={`font-mono font-black ${drvDailyProfit < 0 ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                            LKR {drvDailyProfit.toLocaleString()} {drvDailySell > 0 ? `(${drvDailyPct.toFixed(1)}%)` : ''}
+                          </span>
+                        </div>
+                        <div className="border-t border-blue-200/60 dark:border-blue-800/40 pt-1.5 flex justify-between">
+                          <span className="text-slate-500">Monthly (Owner / Selling):</span>
+                          <span className="font-mono font-bold">
+                            {drvMonthlyCost.toLocaleString()} / {drvMonthlySell.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500">Net Monthly Profit:</span>
+                          <span className={`font-mono font-black ${drvMonthlyProfit < 0 ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                            LKR {drvMonthlyProfit.toLocaleString()} {drvMonthlySell > 0 ? `(${drvMonthlyPct.toFixed(1)}%)` : ''}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Mileage & Service Terms Strip */}
+              <div className="grid grid-cols-3 gap-3 text-xs pt-1">
+                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-850 border border-slate-200/60 dark:border-slate-800">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Monthly KM Quota</span>
+                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                    {Number(vehicle.monthly_km_quota ?? 3000).toLocaleString()} KM
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-850 border border-slate-200/60 dark:border-slate-800">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Owner Excess KM</span>
+                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                    LKR {Number(vehicle.owner_excess_km_rate || 0).toLocaleString()} / KM
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-850 border border-slate-200/60 dark:border-slate-800">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Service Interval</span>
+                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                    {Number(vehicle.service_interval_km ?? 5000).toLocaleString()} KM
+                  </span>
                 </div>
               </div>
             </div>
@@ -215,9 +420,18 @@ export function VehicleProfileTabs({
               </h3>
               <div className="space-y-3 text-xs">
                 <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Daily Rate</span>
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Self-Drive Daily Rate</span>
                   <div className="font-mono font-black text-amber-500 text-base">LKR {Number(vehicle.daily_rate || 0).toLocaleString()}</div>
                 </div>
+
+                {Number(vehicle.selling_daily_rate_with_driver || 0) > 0 && (
+                  <div className="p-3 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/50 dark:border-blue-800/40 rounded-xl space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-blue-500">With-Driver Daily Rate</span>
+                    <div className="font-mono font-black text-blue-600 dark:text-blue-400 text-base">
+                      LKR {Number(vehicle.selling_daily_rate_with_driver || 0).toLocaleString()}
+                    </div>
+                  </div>
+                )}
 
                 <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl space-y-1">
                   <span className="text-[10px] uppercase font-bold text-slate-400">Refundable Deposit</span>

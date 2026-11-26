@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createQuotation } from '../quotation-actions'
 import { normalizeNewlines, calculateRentalDays, SUPPORTED_CURRENCIES, CURRENCY_SYMBOLS, DEFAULT_EXCHANGE_RATES } from '@/lib/utils/formatters'
+import { getSuggestedVehicleRate, ServiceRateMode } from '@/lib/fleet/rate-helpers'
 import QuickCustomerModal from './quick-customer-modal'
 import {
   ArrowLeft,
@@ -88,6 +89,7 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
   const [items, setItems] = useState<any[]>([
     {
       vehicle_id: '',
+      rental_mode: 'self_drive' as ServiceRateMode,
       description: 'Vehicle Rental Service',
       quantity: 1,
       number_of_days: rentalDays,
@@ -111,15 +113,18 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
     setItems((prev) => prev.map((it) => ({ ...it, number_of_days: newDays })))
   }
 
-  const handleVehicleSelect = (idx: number, vehicleId: string) => {
+  const handleVehicleSelect = (idx: number, vehicleId: string, overrideMode?: ServiceRateMode) => {
     const selected = vehicles.find((v) => v.id === vehicleId)
     setItems((prev) => {
       const copy = [...prev]
+      const mode: ServiceRateMode = overrideMode || copy[idx].rental_mode || 'self_drive'
       copy[idx].vehicle_id = vehicleId
+      copy[idx].rental_mode = mode
       if (selected) {
         const extraKmText = selected.extra_km_charge ? ` (Rs.${selected.extra_km_charge}/- per extra kilometer)` : ''
-        copy[idx].description = `${selected.vehicle_name} [${selected.registration_number}]${extraKmText}`
-        copy[idx].unit_rate = Number(selected.daily_rate)
+        const modeTag = mode === 'with_driver' ? ' — With Driver' : ' — Self-Drive'
+        copy[idx].description = `${selected.vehicle_name} [${selected.registration_number}]${modeTag}${extraKmText}`
+        copy[idx].unit_rate = getSuggestedVehicleRate(selected, mode)
         copy[idx].deposit_amount = Number(selected.refundable_deposit || 0)
         copy[idx].allowed_km = Number(selected.allowed_km_per_day || 100)
         copy[idx].extra_km_charge = Number(selected.extra_km_charge || 50)
@@ -128,11 +133,25 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
     })
   }
 
+  const handleItemModeChange = (idx: number, mode: ServiceRateMode) => {
+    const currentVehicleId = items[idx]?.vehicle_id
+    if (currentVehicleId) {
+      handleVehicleSelect(idx, currentVehicleId, mode)
+    } else {
+      setItems((prev) => {
+        const copy = [...prev]
+        copy[idx].rental_mode = mode
+        return copy
+      })
+    }
+  }
+
   const addItemRow = () => {
     setItems((prev) => [
       ...prev,
       {
         vehicle_id: '',
+        rental_mode: 'self_drive' as ServiceRateMode,
         description: 'Vehicle Rental Service',
         quantity: 1,
         number_of_days: rentalDays,
@@ -220,7 +239,7 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
       company_name_snapshot: formData.company_name_snapshot,
       terms_and_conditions_snapshot: normalizeNewlines(formData.terms_and_conditions_snapshot),
       terms_and_conditions: normalizeNewlines(formData.terms_and_conditions_snapshot),
-      items: items.map((it) => ({
+      items: items.map(({ rental_mode, ...it }) => ({
         ...it,
         quantity: Number(it.quantity || 1),
         number_of_days: Number(it.number_of_days || 1),
@@ -392,9 +411,12 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
             </button>
           </div>
 
-          {items.map((item, idx) => (
+          {items.map((item, idx) => {
+            const selectedVeh = vehicles.find((v) => v.id === item.vehicle_id)
+            const currentMode: ServiceRateMode = item.rental_mode || 'self_drive'
+            return (
             <div key={idx} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
                 <div className="sm:col-span-2">
                   <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Select Fleet Master Vehicle</label>
                   <select
@@ -408,6 +430,17 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
                         [{v.vehicle_code}] {v.vehicle_name} ({v.registration_number}) - LKR {Number(v.daily_rate).toLocaleString()}/day
                       </option>
                     ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Service Mode</label>
+                  <select
+                    value={currentMode}
+                    onChange={(e) => handleItemModeChange(idx, e.target.value as ServiceRateMode)}
+                    className="w-full p-2.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-semibold"
+                  >
+                    <option value="self_drive">Self-Drive (No Driver)</option>
+                    <option value="with_driver">With Driver (Chauffeur)</option>
                   </select>
                 </div>
                 <div>
@@ -441,6 +474,36 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
                 </div>
               </div>
 
+              {selectedVeh && (
+                <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 pt-1">
+                  <span className="font-bold uppercase tracking-wider text-slate-400">Rate Suggestions (LKR):</span>
+                  <button
+                    type="button"
+                    onClick={() => handleItemModeChange(idx, 'self_drive')}
+                    className={`px-2 py-0.5 rounded border font-mono cursor-pointer transition-colors ${
+                      currentMode === 'self_drive'
+                        ? 'bg-amber-400/20 border-amber-400 text-amber-700 dark:text-amber-300 font-bold'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-amber-400'
+                    }`}
+                  >
+                    Self-Drive: {Number(selectedVeh.daily_rate || 0).toLocaleString()}/day
+                  </button>
+                  {Number(selectedVeh.selling_daily_rate_with_driver || 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleItemModeChange(idx, 'with_driver')}
+                      className={`px-2 py-0.5 rounded border font-mono cursor-pointer transition-colors ${
+                        currentMode === 'with_driver'
+                          ? 'bg-blue-500/20 border-blue-400 text-blue-700 dark:text-blue-300 font-bold'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-blue-400'
+                      }`}
+                    >
+                      With Driver: {Number(selectedVeh.selling_daily_rate_with_driver).toLocaleString()}/day
+                    </button>
+                  )}
+                </div>
+              )}
+
               {items.length > 1 && (
                 <div className="flex justify-end pt-1">
                   <button
@@ -454,7 +517,8 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
                 </div>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* SECTION 4: Pricing Summary */}

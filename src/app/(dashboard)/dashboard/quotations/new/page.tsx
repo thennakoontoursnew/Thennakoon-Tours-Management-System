@@ -46,7 +46,9 @@ export default async function NewQuotationPage({ searchParams }: PageProps) {
 
   const { data: vehicles } = await supabase
     .from('vehicles')
-    .select('id, vehicle_code, vehicle_name, registration_number, daily_rate, refundable_deposit, allowed_km_per_day, extra_km_charge, manufacture_year')
+    .select(
+      'id, vehicle_code, vehicle_name, registration_number, daily_rate, monthly_rate, selling_daily_rate_with_driver, selling_monthly_rate_with_driver, driver_bata_per_day, refundable_deposit, allowed_km_per_day, extra_km_charge, manufacture_year'
+    )
     .eq('is_archived', false)
     .order('vehicle_name')
 

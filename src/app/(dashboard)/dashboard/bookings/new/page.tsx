@@ -38,7 +38,9 @@ export default async function NewBookingPage({ searchParams }: PageProps) {
 
   const { data: vehicles } = await supabase
     .from('vehicles')
-    .select('id, vehicle_code, vehicle_name, registration_number, daily_rate, refundable_deposit, status, holding_type, owner_contact_name, owner_contact_phone, agreed_payout_rate')
+    .select(
+      'id, vehicle_code, vehicle_name, registration_number, daily_rate, monthly_rate, selling_daily_rate_with_driver, selling_monthly_rate_with_driver, driver_bata_per_day, allowed_km_per_day, extra_km_charge, refundable_deposit, status, holding_type, owner_contact_name, owner_contact_phone, agreed_payout_rate'
+    )
     .eq('is_archived', false)
     .order('vehicle_name')
 

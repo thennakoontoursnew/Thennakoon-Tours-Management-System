@@ -279,7 +279,7 @@ export async function getVehicleProfileData(supabase: any, vehicleId: string) {
       try {
         const { data: ownerData } = await supabase
           .from('vehicle_owners')
-          .select('id, full_name, company_name, owner_number, revenue_share_pct, flat_rate_per_day, mobile')
+          .select('*')
           .eq('id', vehicle.vehicle_owner_id)
           .maybeSingle()
         vehicle.owner = ownerData || null

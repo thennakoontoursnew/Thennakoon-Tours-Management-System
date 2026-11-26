@@ -102,8 +102,47 @@ export const vehicleSchema = z.object({
   emission_test_expiry: z.string().optional().nullable(),
   gps_installed: z.boolean().default(false),
   tracker_id: z.string().optional().nullable(),
-  status: z.enum(['available', 'reserved', 'on_trip', 'maintenance', 'inactive']).default('available'),
+  status: z.enum(['available', 'available_on_call', 'standby_pool', 'reserved', 'rented', 'on_trip', 'maintenance', 'inspection_required', 'pending_inspection', 'pending_management_approval', 'out_of_service', 'rejected', 'inactive']).default('available'),
   description: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  // Ownership & Owner-Leased Terms
+  ownership_type: z.enum(['company', 'owner_leased', 'external_owner', 'leased', 'financed']).default('company').optional(),
+  vehicle_owner_id: z.string().uuid().optional().nullable(),
+  // Self-Drive Owner Rates
+  owner_daily_rate_self: z.number().min(0).default(0).optional().nullable(),
+  owner_monthly_rate_self: z.number().min(0).default(0).optional().nullable(),
+  // With-Driver Owner & Selling Rates
+  owner_daily_rate_with_driver: z.number().min(0).default(0).optional().nullable(),
+  owner_monthly_rate_with_driver: z.number().min(0).default(0).optional().nullable(),
+  selling_daily_rate_with_driver: z.number().min(0).default(0).optional().nullable(),
+  selling_monthly_rate_with_driver: z.number().min(0).default(0).optional().nullable(),
+  driver_bata_per_day: z.number().min(0).default(0).optional().nullable(),
+  // Mileage, Excess & Service Terms
+  monthly_km_quota: z.number().int().min(0).default(3000).optional().nullable(),
+  owner_excess_km_rate: z.number().min(0).default(0).optional().nullable(),
+  service_interval_km: z.number().int().min(0).default(5000).optional().nullable(),
+  owner_revenue_share_pct: z.number().min(0).max(100).optional().nullable(),
+})
+
+// 4b. Inline Vehicle Owner Validation Schema
+export const inlineOwnerSchema = z.object({
+  full_name: z.string().min(2, 'Owner full name is required'),
+  owner_type: z.enum(['individual', 'company', 'partnership']).default('individual'),
+  company_name: z.string().optional().nullable(),
+  national_id: z.string().optional().nullable(),
+  mobile: z.string().optional().nullable(),
+  whatsapp: z.string().optional().nullable(),
+  email: z.string().email('Invalid owner email address').optional().or(z.literal('')).nullable(),
+  address: z.string().optional().nullable(),
+  revenue_share_pct: z.number().min(0).max(100).default(0).optional().nullable(),
+  flat_rate_per_day: z.number().min(0).optional().nullable(),
+  payment_terms: z.enum(['Monthly', 'Per Trip', 'Weekly', 'monthly', 'per_booking', 'per_trip', 'weekly', 'quarterly']).default('Monthly'),
+  monthly_km_quota: z.number().int().min(0).default(3000).optional().nullable(),
+  owner_excess_km_rate: z.number().min(0).default(0).optional().nullable(),
+  bank_account_name: z.string().optional().nullable(),
+  bank_name: z.string().optional().nullable(),
+  bank_account_number: z.string().optional().nullable(),
+  bank_branch: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 })
 

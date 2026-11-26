@@ -33,6 +33,10 @@ interface AgreementsClientProps {
   owners: any[]
   vehicles: any[]
   bookings: any[]
+  initialTab?: 'user' | 'owner'
+  initialOpenOwnerModal?: boolean
+  initialOwnerId?: string
+  initialVehicleId?: string
 }
 
 export function AgreementsClient({
@@ -42,11 +46,15 @@ export function AgreementsClient({
   owners,
   vehicles,
   bookings,
+  initialTab = 'user',
+  initialOpenOwnerModal = false,
+  initialOwnerId,
+  initialVehicleId,
 }: AgreementsClientProps) {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<'user' | 'owner'>('user')
+  const [activeTab, setActiveTab] = useState<'user' | 'owner'>(initialTab)
   const [searchQuery, setSearchQuery] = useState('')
-  const [showNewOwnerModal, setShowNewOwnerModal] = useState(false)
+  const [showNewOwnerModal, setShowNewOwnerModal] = useState(initialOpenOwnerModal)
   const [showSelectBookingModal, setShowSelectBookingModal] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
 
@@ -97,6 +105,8 @@ export function AgreementsClient({
         vehicles={vehicles}
         isOpen={showNewOwnerModal}
         onClose={() => setShowNewOwnerModal(false)}
+        initialOwnerId={initialOwnerId}
+        initialVehicleId={initialVehicleId}
       />
 
       <SelectBookingModal

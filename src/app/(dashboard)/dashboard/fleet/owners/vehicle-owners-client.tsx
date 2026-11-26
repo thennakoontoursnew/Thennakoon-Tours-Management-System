@@ -11,11 +11,21 @@ interface VehicleOwner {
   full_name: string
   company_name?: string
   owner_type: string
+  national_id?: string
   mobile?: string
+  whatsapp?: string
   email?: string
+  address?: string
+  bank_account_name?: string
+  bank_name?: string
+  bank_account_number?: string
+  bank_branch?: string
   revenue_share_pct: number
   flat_rate_per_day?: number
+  monthly_km_quota?: number
+  owner_excess_km_rate?: number
   payment_terms: string
+  notes?: string
   is_active: boolean
   vehicle_count?: number
 }
@@ -35,18 +45,21 @@ function OwnerFormModal({ isOpen, onClose, editOwner }: { isOpen: boolean; onClo
     full_name: editOwner?.full_name || '',
     company_name: editOwner?.company_name || '',
     owner_type: editOwner?.owner_type || 'individual',
-    national_id: '',
+    national_id: editOwner?.national_id || '',
     mobile: editOwner?.mobile || '',
-    whatsapp: '',
+    whatsapp: editOwner?.whatsapp || '',
     email: editOwner?.email || '',
-    address: '',
-    bank_name: '',
-    bank_account_number: '',
-    bank_branch: '',
+    address: editOwner?.address || '',
+    bank_account_name: editOwner?.bank_account_name || '',
+    bank_name: editOwner?.bank_name || '',
+    bank_account_number: editOwner?.bank_account_number || '',
+    bank_branch: editOwner?.bank_branch || '',
     revenue_share_pct: editOwner?.revenue_share_pct?.toString() || '0',
     flat_rate_per_day: editOwner?.flat_rate_per_day?.toString() || '',
+    monthly_km_quota: editOwner?.monthly_km_quota?.toString() || '3000',
+    owner_excess_km_rate: editOwner?.owner_excess_km_rate?.toString() || '0',
     payment_terms: editOwner?.payment_terms || 'monthly',
-    notes: '',
+    notes: editOwner?.notes || '',
   })
 
   if (!isOpen) return null
@@ -237,7 +250,17 @@ function OwnerFormModal({ isOpen, onClose, editOwner }: { isOpen: boolean; onClo
           </div>
 
           {/* Banking */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Account Holder Name</label>
+              <input
+                type="text"
+                value={form.bank_account_name}
+                onChange={(e) => setForm({ ...form, bank_account_name: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                placeholder="Account holder name"
+              />
+            </div>
             <div>
               <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Bank Name</label>
               <input
@@ -338,6 +361,7 @@ export function VehicleOwnersClient({ owners }: VehicleOwnersClientProps) {
   return (
     <>
       <OwnerFormModal
+        key={editOwner?.id || (showModal ? 'new-open' : 'closed')}
         isOpen={showModal}
         onClose={() => { setShowModal(false); setEditOwner(null) }}
         editOwner={editOwner}

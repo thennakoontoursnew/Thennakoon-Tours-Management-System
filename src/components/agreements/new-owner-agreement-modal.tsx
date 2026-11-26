@@ -22,6 +22,8 @@ interface NewOwnerAgreementModalProps {
   vehicles: any[]
   isOpen: boolean
   onClose: () => void
+  initialOwnerId?: string
+  initialVehicleId?: string
 }
 
 function getOrdinal(n: number): string {
@@ -79,14 +81,24 @@ export function NewOwnerAgreementModal({
   vehicles,
   isOpen,
   onClose,
+  initialOwnerId,
+  initialVehicleId,
 }: NewOwnerAgreementModalProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<'parties' | 'term' | 'financials' | 'signatories'>('parties')
   const [submitting, setSubmitting] = useState(false)
 
   // 1. Owner & Vehicle Selection
-  const [selectedOwnerId, setSelectedOwnerId] = useState('')
-  const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([])
+  const [selectedOwnerId, setSelectedOwnerId] = useState(initialOwnerId || '')
+  const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>(initialVehicleId ? [initialVehicleId] : [])
+
+  // Sync initial selection whenever modal opens with pre-selected owner/vehicle
+  useEffect(() => {
+    if (isOpen) {
+      if (initialOwnerId) setSelectedOwnerId(initialOwnerId)
+      if (initialVehicleId) setSelectedVehicleIds([initialVehicleId])
+    }
+  }, [isOpen, initialOwnerId, initialVehicleId])
 
   // Owner editable fields
   const [ownerFullName, setOwnerFullName] = useState('')
@@ -170,7 +182,10 @@ export function NewOwnerAgreementModal({
       setBankName(o.bank_name || '')
       setBankBranch(o.bank_branch || '')
       setBankAccountNo(o.bank_account_number || '')
-      setAccountHolderName(o.full_name || '')
+      setAccountHolderName(o.bank_account_name || o.full_name || '')
+      if (o.revenue_share_pct) setRevenueSharePct(String(o.revenue_share_pct))
+      if (o.monthly_km_quota) setMonthlyMileageQuota(String(o.monthly_km_quota))
+      if (o.owner_excess_km_rate) setExcessMileageRate(String(o.owner_excess_km_rate))
     }
   }, [selectedOwnerId, owners])
 
@@ -199,9 +214,17 @@ export function NewOwnerAgreementModal({
       setVehicleChassis(v.chassis_number || '')
       setVehicleEngine(v.engine_number || '')
       setVehicleMileage(v.current_mileage ? String(v.current_mileage) : '')
-      if (v.agreed_payout_rate) {
-        setMonthlyRental(String(v.agreed_payout_rate))
+      const mRate = Number(v.owner_monthly_rate_self || 0) || Number(v.owner_monthly_rate_with_driver || 0) || Number(v.agreed_payout_rate || 0)
+      if (mRate > 0) {
+        setMonthlyRental(String(mRate))
       }
+      const dRate = Number(v.owner_daily_rate_self || 0) || Number(v.owner_daily_rate_with_driver || 0) || Number(v.owner_flat_rate_per_day || 0)
+      if (dRate > 0) {
+        setFlatRatePerDay(String(dRate))
+      }
+      if (v.monthly_km_quota) setMonthlyMileageQuota(String(v.monthly_km_quota))
+      if (v.owner_excess_km_rate) setExcessMileageRate(String(v.owner_excess_km_rate))
+      if (v.service_interval_km) setServiceIntervalMileage(String(v.service_interval_km))
     }
   }, [selectedVehicleIds, vehicles])
 
