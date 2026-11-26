@@ -258,9 +258,10 @@ export default function TemplateForm({ template }: Props) {
                 rows={24}
                 required
                 value={bodyContent}
+                spellCheck={false}
                 onChange={(e) => setBodyContent(e.target.value)}
                 placeholder="Enter master agreement legal text..."
-                className="w-full p-4 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-xl text-xs font-mono leading-relaxed border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 shadow-inner"
+                className="w-full bg-slate-50/80 dark:bg-slate-950/60 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 focus:bg-white dark:focus:bg-slate-900 focus:border-amber-500 rounded-xl p-4 text-sm leading-relaxed"
                 style={{ tabSize: 2 }}
               />
             </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   AgreementSection,
   DEFAULT_OWNER_AGREEMENT_SECTIONS,
@@ -118,6 +118,26 @@ export default function SectionCardBuilder({ template }: Props) {
   // Map of textarea refs by section ID
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
 
+  // Auto-adjust textarea height dynamically based on content (no inner scrollbars)
+  const adjustTextareaHeight = (el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.max(100, el.scrollHeight)}px`
+  }
+
+  // Adjust all visible card textareas on mount, tab changes, or section count changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      sections.forEach((sec) => {
+        const el = textareaRefs.current[sec.id]
+        if (el) {
+          adjustTextareaHeight(el)
+        }
+      })
+    }, 50)
+    return () => clearTimeout(timer)
+  }, [sections.length, previewMode])
+
   // Merge tags list
   const availableTags: MergeTagDefinition[] = isOwner
     ? MERGE_TAGS_OWNER_AGREEMENT
@@ -208,7 +228,11 @@ export default function SectionCardBuilder({ template }: Props) {
     setActiveCardId(newSec.id)
 
     setTimeout(() => {
-      textareaRefs.current[newSec.id]?.focus()
+      const el = textareaRefs.current[newSec.id]
+      if (el) {
+        el.focus()
+        adjustTextareaHeight(el)
+      }
     }, 50)
   }
 
@@ -241,6 +265,7 @@ export default function SectionCardBuilder({ template }: Props) {
       setTimeout(() => {
         textarea.focus()
         textarea.setSelectionRange(start + tag.length, start + tag.length)
+        adjustTextareaHeight(textarea)
       }, 10)
     }
 
@@ -303,19 +328,19 @@ export default function SectionCardBuilder({ template }: Props) {
   return (
     <div className="space-y-6">
       {/* Top Banner & Control Bar */}
-      <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 shadow-xl backdrop-blur-sm">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                 {isOwner ? 'Vehicle Owner Agreement' : 'User Rental Agreement'}
               </span>
-              <span className="text-xs text-slate-400 font-mono">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                 {sections.length} Section{sections.length === 1 ? '' : 's'}
               </span>
             </div>
-            <h2 className="text-lg font-bold text-white mt-1">Section-by-Section Legal Builder</h2>
-            <p className="text-xs text-slate-400">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white mt-1">Section-by-Section Legal Builder</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Each clause is an independent card. Reorder, edit, insert dynamic merge tags, or add custom covenants.
             </p>
           </div>
@@ -327,8 +352,8 @@ export default function SectionCardBuilder({ template }: Props) {
               onClick={() => setPreviewMode(!previewMode)}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
                 previewMode
-                  ? 'bg-amber-400 text-slate-950 border-amber-400 shadow-lg shadow-amber-400/20 font-black'
-                  : 'bg-slate-700 text-slate-200 border-slate-600 hover:bg-slate-600'
+                  ? 'bg-amber-400 text-slate-950 border-amber-400 shadow-md font-black'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-750'
               }`}
             >
               {previewMode ? <Edit3 size={14} /> : <Eye size={14} />}
@@ -339,7 +364,7 @@ export default function SectionCardBuilder({ template }: Props) {
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="px-4 py-2 rounded-xl text-xs font-black bg-amber-400 text-slate-950 hover:bg-amber-300 transition-all flex items-center gap-1.5 shadow-lg shadow-amber-400/10 cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 rounded-xl text-xs font-black bg-amber-400 text-slate-950 hover:bg-amber-300 transition-all flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {saving ? 'Saving...' : 'Save Master Template'}
@@ -348,14 +373,14 @@ export default function SectionCardBuilder({ template }: Props) {
         </div>
 
         {/* Template Display Name Input */}
-        <div className="mt-4 pt-4 border-t border-slate-700/60 flex flex-col sm:flex-row sm:items-center gap-3">
-          <label className="text-xs font-bold text-slate-300 whitespace-nowrap">Template Name:</label>
+        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center gap-3">
+          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">Template Name:</label>
           <input
             type="text"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Master Agreement Template Name"
-            className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-700 text-xs text-white focus:outline-none focus:border-amber-400"
+            className="flex-1 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-amber-400"
           />
         </div>
       </div>
@@ -428,10 +453,10 @@ export default function SectionCardBuilder({ template }: Props) {
         /* SECTION CARDS BUILDER (GOOGLE-FORMS STYLE) */
         <div className="space-y-6">
           {/* Global Quick Merge Tag Palette Bar */}
-          <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 shadow-lg space-y-3">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
-                <Tag size={14} className="text-amber-400" />
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                <Tag size={14} className="text-amber-500" />
                 <span>Click-to-Insert Merge Tags</span>
                 <span className="text-[10px] text-slate-400 font-normal">
                   (Inserts tag at cursor in active card)
@@ -446,7 +471,7 @@ export default function SectionCardBuilder({ template }: Props) {
                   placeholder="Filter merge tags..."
                   value={tagSearch}
                   onChange={(e) => setTagSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-amber-400"
+                  className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
                 />
               </div>
             </div>
@@ -460,8 +485,8 @@ export default function SectionCardBuilder({ template }: Props) {
                   onClick={() => setSelectedTagCategory(cat.id)}
                   className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer ${
                     selectedTagCategory === cat.id
-                      ? 'bg-amber-400/20 text-amber-300 border border-amber-400/40 font-bold'
-                      : 'bg-slate-800 text-slate-400 border border-slate-700/60 hover:text-slate-200'
+                      ? 'bg-amber-400/20 text-amber-700 dark:text-amber-300 border border-amber-400/40 font-bold'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700/60 hover:text-slate-900 dark:hover:text-slate-200'
                   }`}
                 >
                   {cat.label}
@@ -481,11 +506,11 @@ export default function SectionCardBuilder({ template }: Props) {
                     title={t.description || t.label}
                     className={`px-2.5 py-1 rounded-md text-[11px] font-mono transition-all flex items-center gap-1 cursor-pointer border ${
                       isJustCopied
-                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 scale-105'
-                        : 'bg-slate-800/90 text-slate-300 border-slate-700 hover:border-amber-400 hover:text-amber-300 hover:bg-slate-750'
+                        ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border-emerald-500/40 scale-105'
+                        : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-amber-400 hover:text-amber-600 dark:hover:text-amber-300 hover:bg-amber-50/50 dark:hover:bg-slate-750'
                     }`}
                   >
-                    {isJustCopied ? <Check size={11} className="text-emerald-400" /> : <Tag size={10} className="text-slate-400" />}
+                    {isJustCopied ? <Check size={11} className="text-emerald-500" /> : <Tag size={10} className="text-slate-400" />}
                     <span>{t.tag}</span>
                     <span className="text-[10px] text-slate-400 font-sans">({t.label})</span>
                   </button>
@@ -502,19 +527,19 @@ export default function SectionCardBuilder({ template }: Props) {
                 <div
                   key={section.id}
                   onClick={() => setActiveCardId(section.id)}
-                  className={`relative rounded-2xl p-5 md:p-6 transition-all shadow-xl border ${
+                  className={`relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm p-5 md:p-6 transition-all ${
                     isActive
-                      ? 'bg-slate-850 border-amber-400/80 shadow-amber-400/5 ring-1 ring-amber-400/30'
-                      : 'bg-slate-800/80 border-slate-700/80 hover:border-slate-600'
+                      ? 'border-l-4 border-l-amber-500 shadow-md ring-1 ring-amber-500/10'
+                      : 'hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
                   {/* Card Header: Reordering, Section Title & Actions */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700/60">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-2 flex-1">
-                      <div className="cursor-grab text-slate-500 hover:text-slate-300 p-1">
+                      <div className="cursor-grab text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
                         <GripVertical size={16} />
                       </div>
-                      <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-slate-900 border border-slate-700 text-amber-400 font-mono">
+                      <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-mono">
                         Clause {index + 1}
                       </span>
                       <input
@@ -522,7 +547,7 @@ export default function SectionCardBuilder({ template }: Props) {
                         value={section.title}
                         onChange={(e) => updateSection(section.id, { title: e.target.value })}
                         placeholder="Section Title (e.g. 1. TERM & COMMENCEMENT)"
-                        className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-700 text-xs font-bold text-white placeholder-slate-400 focus:outline-none focus:border-amber-400"
+                        className="flex-1 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/60 focus:bg-slate-50 dark:focus:bg-slate-800 text-slate-900 dark:text-white font-bold text-base border-b border-transparent focus:border-amber-500 px-2 py-1 rounded-md transition-colors focus:outline-none placeholder-slate-400"
                       />
                     </div>
 
@@ -536,7 +561,7 @@ export default function SectionCardBuilder({ template }: Props) {
                         }}
                         disabled={index === 0}
                         title="Move Up"
-                        className="p-1.5 rounded-lg bg-slate-900/80 border border-slate-700 text-slate-400 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-30 disabled:hover:bg-slate-100 dark:disabled:hover:bg-slate-800 transition-colors cursor-pointer"
                       >
                         <ChevronUp size={15} />
                       </button>
@@ -548,7 +573,7 @@ export default function SectionCardBuilder({ template }: Props) {
                         }}
                         disabled={index === sections.length - 1}
                         title="Move Down"
-                        className="p-1.5 rounded-lg bg-slate-900/80 border border-slate-700 text-slate-400 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-30 disabled:hover:bg-slate-100 dark:disabled:hover:bg-slate-800 transition-colors cursor-pointer"
                       >
                         <ChevronDown size={15} />
                       </button>
@@ -559,7 +584,7 @@ export default function SectionCardBuilder({ template }: Props) {
                           handleDuplicate(index)
                         }}
                         title="Duplicate Section"
-                        className="p-1.5 rounded-lg bg-slate-900/80 border border-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
                       >
                         <Copy size={15} />
                       </button>
@@ -571,7 +596,7 @@ export default function SectionCardBuilder({ template }: Props) {
                         }}
                         disabled={sections.length <= 1}
                         title="Delete Section"
-                        className="p-1.5 rounded-lg bg-slate-900/80 border border-slate-700 text-rose-400 hover:text-rose-300 disabled:opacity-30 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 hover:text-rose-600 dark:hover:text-rose-400 disabled:opacity-30 transition-colors cursor-pointer"
                       >
                         <Trash2 size={15} />
                       </button>
@@ -580,24 +605,24 @@ export default function SectionCardBuilder({ template }: Props) {
 
                   {/* Card Body: Textarea */}
                   <div className="mt-4 space-y-2">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                       <span>Clause Wording & Legal Covenants:</span>
                       <div className="flex items-center gap-4">
-                        <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-400 hover:text-slate-200">
+                        <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
                           <input
                             type="checkbox"
                             checked={Boolean(section.is_schedule)}
                             onChange={(e) => updateSection(section.id, { is_schedule: e.target.checked })}
-                            className="rounded border-slate-700 text-amber-500 focus:ring-amber-400/20"
+                            className="rounded border-slate-300 dark:border-slate-700 text-amber-500 focus:ring-amber-400/20"
                           />
                           <span>Schedule / Table block</span>
                         </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-400 hover:text-slate-200">
+                        <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
                           <input
                             type="checkbox"
                             checked={Boolean(section.is_signatories)}
                             onChange={(e) => updateSection(section.id, { is_signatories: e.target.checked })}
-                            className="rounded border-slate-700 text-amber-500 focus:ring-amber-400/20"
+                            className="rounded border-slate-300 dark:border-slate-700 text-amber-500 focus:ring-amber-400/20"
                           />
                           <span>Signatures block</span>
                         </label>
@@ -607,21 +632,25 @@ export default function SectionCardBuilder({ template }: Props) {
                     <textarea
                       ref={(el) => {
                         textareaRefs.current[section.id] = el
+                        if (el) adjustTextareaHeight(el)
                       }}
                       value={section.body}
+                      spellCheck={false}
                       onFocus={() => setActiveCardId(section.id)}
-                      onChange={(e) => updateSection(section.id, { body: e.target.value })}
+                      onChange={(e) => {
+                        updateSection(section.id, { body: e.target.value })
+                        adjustTextareaHeight(e.target)
+                      }}
                       placeholder="Write standard legal wording and insert {{merge_tags}} here..."
-                      rows={Math.max(5, (section.body.match(/\n/g) || []).length + 2)}
-                      className="w-full px-3.5 py-3 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-100 placeholder-slate-400 font-serif leading-relaxed focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/20 resize-y"
+                      className="w-full bg-slate-50/80 dark:bg-slate-950/60 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 focus:bg-white dark:focus:bg-slate-900 focus:border-amber-500 rounded-xl p-4 text-sm leading-relaxed overflow-hidden resize-none focus:outline-none transition-colors"
                     />
                   </div>
 
                   {/* Active Card Merge Tag Shortcut Row */}
                   {isActive && (
-                    <div className="mt-3 pt-3 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400 flex items-center gap-1">
-                        <Tag size={12} className="text-amber-400" />
+                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                      <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        <Tag size={12} className="text-amber-500" />
                         Quick insert into this clause:
                       </span>
                       <div className="flex items-center gap-1 overflow-x-auto max-w-[70%]">
@@ -633,7 +662,7 @@ export default function SectionCardBuilder({ template }: Props) {
                               e.stopPropagation()
                               handleInsertTag(t.tag, section.id)
                             }}
-                            className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] text-slate-300 font-mono hover:text-amber-300 hover:border-amber-400 transition-colors whitespace-nowrap cursor-pointer"
+                            className="px-2 py-0.5 rounded bg-slate-100 hover:bg-amber-50 dark:bg-slate-800 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 text-[10px] text-slate-700 dark:text-slate-300 font-mono hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-400 transition-colors whitespace-nowrap cursor-pointer"
                           >
                             {t.tag}
                           </button>
@@ -647,14 +676,14 @@ export default function SectionCardBuilder({ template }: Props) {
           </div>
 
           {/* Bottom Floating Action Bar */}
-          <div className="sticky bottom-6 z-20 bg-slate-900/95 border border-slate-700/90 rounded-2xl p-4 shadow-2xl backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="sticky bottom-6 z-20 bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/90 rounded-2xl p-4 shadow-2xl backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleAddSection}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 text-slate-100 border border-slate-700 hover:bg-slate-700 hover:border-slate-600 transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
               >
-                <Plus size={15} className="text-amber-400" />
+                <Plus size={15} className="text-amber-500" />
                 Add New Section Card
               </button>
 
@@ -662,7 +691,7 @@ export default function SectionCardBuilder({ template }: Props) {
                 type="button"
                 onClick={handleReset}
                 disabled={resetting}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 text-rose-300 border border-rose-500/30 hover:bg-rose-950/40 hover:border-rose-500/60 transition-all flex items-center gap-1.5 cursor-pointer shadow-md disabled:opacity-50"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
               >
                 {resetting ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}
                 Reset to Default Legal Template
@@ -670,7 +699,7 @@ export default function SectionCardBuilder({ template }: Props) {
             </div>
 
             <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-400 font-mono hidden md:inline">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-mono hidden md:inline">
                 {sections.length} total clauses
               </span>
               <button
