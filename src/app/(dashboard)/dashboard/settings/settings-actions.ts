@@ -28,6 +28,26 @@ export async function saveCompanySettings(formData: FormData) {
   const defaultSpecialNotes = formData.get('default_special_notes')?.toString() || null
   const signatureUrl = formData.get('signature_url')?.toString() || null
 
+  const rawExchangeRates = formData.get('default_exchange_rates')?.toString()
+  let defaultExchangeRates: Record<string, number> = {
+    LKR: 1,
+    USD: 300,
+    EUR: 325,
+    GBP: 380,
+    AUD: 195,
+  }
+  if (rawExchangeRates) {
+    try {
+      defaultExchangeRates = JSON.parse(rawExchangeRates)
+    } catch (_) {}
+  } else {
+    const usd = Number(formData.get('rate_usd')) || 300
+    const eur = Number(formData.get('rate_eur')) || 325
+    const gbp = Number(formData.get('rate_gbp')) || 380
+    const aud = Number(formData.get('rate_aud')) || 195
+    defaultExchangeRates = { LKR: 1, USD: usd, EUR: eur, GBP: gbp, AUD: aud }
+  }
+
   // Query existing row to preserve single-record primary key ID
   const { data: existing } = await supabase
     .from('company_settings')
@@ -51,6 +71,8 @@ export async function saveCompanySettings(formData: FormData) {
     default_invoice_terms: defaultInvoiceTerms,
     default_special_notes: defaultSpecialNotes,
     signature_url: signatureUrl,
+    supported_currencies: ['LKR', 'USD', 'EUR', 'GBP', 'AUD'],
+    default_exchange_rates: defaultExchangeRates,
     updated_at: new Date().toISOString(),
   }
 

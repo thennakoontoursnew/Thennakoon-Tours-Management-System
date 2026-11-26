@@ -94,8 +94,8 @@ export async function getSanitizedContextForPeriod(supabase: any, periodKey: str
     prevPaymentsRes,
     prevBookingsRes,
   ] = await Promise.all([
-    supabase.from('payments').select('amount, status, payment_date').eq('status', 'completed').gte('payment_date', startIso).lte('payment_date', endIso),
-    supabase.from('invoices').select('grand_total, amount_paid, balance_due, status').neq('status', 'cancelled'),
+    supabase.from('payments').select('amount, status, payment_date, exchange_rate').eq('status', 'completed').gte('payment_date', startIso).lte('payment_date', endIso),
+    supabase.from('invoices').select('grand_total, amount_paid, balance_due, status, exchange_rate').neq('status', 'cancelled'),
     supabase.from('expenses').select('amount, category, expense_date').gte('expense_date', startIso).lte('expense_date', endIso),
     supabase.from('bookings').select('id, status, rental_start_at, rental_end_at, grand_total').eq('is_archived', false),
     supabase.from('vehicles').select('id, status, ownership_type, current_mileage, service_due_mileage').eq('is_archived', false),
@@ -105,7 +105,7 @@ export async function getSanitizedContextForPeriod(supabase: any, periodKey: str
     supabase.from('maintenance_tasks').select('id, status, scheduled_date').gte('scheduled_date', startIso).lte('scheduled_date', endIso),
     supabase.from('marketing_campaigns').select('actual_cost, attributed_revenue').gte('start_date', startIso),
     supabase.from('reminders').select('id, status, priority, due_at'),
-    supabase.from('payments').select('amount').eq('status', 'completed').gte('payment_date', prevStartIso).lte('payment_date', prevEndIso),
+    supabase.from('payments').select('amount, exchange_rate').eq('status', 'completed').gte('payment_date', prevStartIso).lte('payment_date', prevEndIso),
     supabase.from('bookings').select('id, status').eq('is_archived', false).gte('created_at', prevStartIso).lte('created_at', prevEndIso),
   ])
 
@@ -113,9 +113,9 @@ export async function getSanitizedContextForPeriod(supabase: any, periodKey: str
   const payments = paymentsRes.data || []
   const invoices = invoicesRes.data || []
   const expenses = expensesRes.data || []
-  const collectedRevenue = payments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0)
-  const invoicedRevenue = invoices.reduce((sum: number, inv: any) => sum + Number(inv.grand_total || 0), 0)
-  const outstandingBalance = invoices.reduce((sum: number, inv: any) => sum + Number(inv.balance_due || 0), 0)
+  const collectedRevenue = payments.reduce((sum: number, p: any) => sum + Number(p.amount || 0) * (Number(p.exchange_rate || 1.0) || 1.0), 0)
+  const invoicedRevenue = invoices.reduce((sum: number, inv: any) => sum + Number(inv.grand_total || 0) * (Number(inv.exchange_rate || 1.0) || 1.0), 0)
+  const outstandingBalance = invoices.reduce((sum: number, inv: any) => sum + Number(inv.balance_due || 0) * (Number(inv.exchange_rate || 1.0) || 1.0), 0)
   const totalExpenses = expenses.reduce((sum: number, e: any) => sum + Number(e.amount || 0), 0)
 
   // Process Bookings
@@ -166,7 +166,7 @@ export async function getSanitizedContextForPeriod(supabase: any, periodKey: str
 
   // Previous Period Comparisons
   const prevPayments = prevPaymentsRes.data || []
-  const prevCollectedRevenue = prevPayments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0)
+  const prevCollectedRevenue = prevPayments.reduce((sum: number, p: any) => sum + Number(p.amount || 0) * (Number(p.exchange_rate || 1.0) || 1.0), 0)
   const prevBookingsCount = (prevBookingsRes.data || []).length
 
   const rawContext = {

@@ -403,25 +403,32 @@ export default async function BookingDetailPage({ params }: PageProps) {
             {/* Financial Grid */}
             <div className="pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2 text-xs">
               <div className="text-slate-500">Subtotal:</div>
-              <div className="text-right font-mono text-slate-800 dark:text-slate-200">LKR {formatNumberSafe(booking.subtotal)}</div>
+              <div className="text-right font-mono text-slate-800 dark:text-slate-200">{booking.currency || 'LKR'} {formatNumberSafe(booking.subtotal)}</div>
 
               <div className="text-slate-500">Discount:</div>
-              <div className="text-right font-mono text-slate-800 dark:text-slate-200">LKR {formatNumberSafe(booking.discount_amount)}</div>
+              <div className="text-right font-mono text-slate-800 dark:text-slate-200">{booking.currency || 'LKR'} {formatNumberSafe(booking.discount_amount)}</div>
 
               <div className="text-slate-500">Tax Amount:</div>
-              <div className="text-right font-mono text-slate-800 dark:text-slate-200">LKR {formatNumberSafe(booking.tax_amount)}</div>
+              <div className="text-right font-mono text-slate-800 dark:text-slate-200">{booking.currency || 'LKR'} {formatNumberSafe(booking.tax_amount)}</div>
 
               <div className="text-slate-500">Refundable Deposit:</div>
-              <div className="text-right font-mono text-slate-800 dark:text-slate-200">LKR {formatNumberSafe(booking.refundable_deposit)}</div>
+              <div className="text-right font-mono text-slate-800 dark:text-slate-200">{booking.currency || 'LKR'} {formatNumberSafe(booking.refundable_deposit)}</div>
 
               <div className="text-slate-900 dark:text-white font-bold pt-1 border-t border-slate-200 dark:border-slate-700">Grand Total:</div>
-              <div className="text-right font-mono font-bold text-amber-500 text-sm pt-1 border-t border-slate-200 dark:border-slate-700">LKR {formatNumberSafe(booking.grand_total)}</div>
+              <div className="text-right font-mono font-bold text-amber-500 text-sm pt-1 border-t border-slate-200 dark:border-slate-700">
+                {booking.currency || 'LKR'} {formatNumberSafe(booking.grand_total)}
+                {booking.currency && booking.currency !== 'LKR' && (
+                  <div className="text-[11px] text-slate-500 font-normal">
+                    ≈ LKR {formatNumberSafe(Number(booking.grand_total || 0) * (Number(booking.exchange_rate) || 1))}
+                  </div>
+                )}
+              </div>
 
               <div className="text-slate-900 dark:text-white font-bold">Advance Paid:</div>
-              <div className="text-right font-mono font-bold text-emerald-500 text-sm">LKR {formatNumberSafe(booking.advance_paid)}</div>
+              <div className="text-right font-mono font-bold text-emerald-500 text-sm">{booking.currency || 'LKR'} {formatNumberSafe(booking.advance_paid)}</div>
 
               <div className="text-slate-900 dark:text-white font-bold">Balance Due:</div>
-              <div className="text-right font-mono font-bold text-rose-500 text-base">LKR {formatNumberSafe(totalBalanceDue)}</div>
+              <div className="text-right font-mono font-bold text-rose-500 text-base">{booking.currency || 'LKR'} {formatNumberSafe(totalBalanceDue)}</div>
             </div>
           </div>
         </div>

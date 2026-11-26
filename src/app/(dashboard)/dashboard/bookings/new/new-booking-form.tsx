@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBooking, checkAvailabilityAction } from '../booking-actions'
-import { ArrowLeft, Save, AlertCircle, CheckCircle, Phone, FileText, ExternalLink, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Save, AlertCircle, CheckCircle, Phone, FileText, ExternalLink, ShieldCheck, DollarSign } from 'lucide-react'
+import { SUPPORTED_CURRENCIES, CURRENCY_SYMBOLS, DEFAULT_EXCHANGE_RATES } from '@/lib/utils/formatters'
 
 interface Props {
   customers: any[]
@@ -29,6 +30,8 @@ export default function NewBookingForm({ customers, vehicles, initialCustomerId,
     destination: initialLead?.interested_vehicle_name ? `Requested: ${initialLead.interested_vehicle_name}` : '',
     passenger_count: 1,
     special_requests: initialLead?.notes || '',
+    currency: 'LKR',
+    exchange_rate: 1.0,
     discount_amount: 0,
     tax_amount: 0,
     refundable_deposit: 0,
@@ -246,6 +249,61 @@ export default function NewBookingForm({ customers, vehicles, initialCustomerId,
               {availStatus}
             </div>
           )}
+        </div>
+
+        {/* Section 3: Currency & Pricing */}
+        <div className="space-y-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-amber-500 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-1.5">
+            <DollarSign size={15} />
+            <span>3. Currency & Financial Terms</span>
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Currency</label>
+              <select
+                value={formData.currency}
+                onChange={(e) => {
+                  const cur = e.target.value
+                  const newRate = cur === 'LKR' ? 1.0 : (Number(DEFAULT_EXCHANGE_RATES[cur as keyof typeof DEFAULT_EXCHANGE_RATES]) || 1.0)
+                  setFormData({ ...formData, currency: cur, exchange_rate: newRate })
+                }}
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-bold"
+              >
+                {SUPPORTED_CURRENCIES.map((c) => (
+                  <option key={c} value={c}>{c} ({CURRENCY_SYMBOLS[c] || c})</option>
+                ))}
+              </select>
+            </div>
+
+            {formData.currency !== 'LKR' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Exchange Rate (1 {formData.currency} in LKR)
+                </label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  min="0.0001"
+                  value={formData.exchange_rate}
+                  onChange={(e) => setFormData({ ...formData, exchange_rate: Number(e.target.value) })}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-mono"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Advance Required ({formData.currency})
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={formData.advance_required}
+                onChange={(e) => setFormData({ ...formData, advance_required: Number(e.target.value) })}
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-mono"
+              />
+            </div>
+          </div>
         </div>
 
         {/* Submit */}

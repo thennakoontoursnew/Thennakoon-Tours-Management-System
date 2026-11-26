@@ -21,6 +21,8 @@ interface CompanySettings {
   default_invoice_terms: string | null
   default_special_notes: string | null
   signature_url: string | null
+  supported_currencies?: string[] | null
+  default_exchange_rates?: Record<string, number> | null
 }
 
 interface NumberCounter {
@@ -344,7 +346,7 @@ export function CompanySettingsForm({ initialValues, invoiceCounter }: CompanySe
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
             <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-              Currency
+              Default Currency
             </label>
             <select
               name="currency"
@@ -371,6 +373,104 @@ export function CompanySettingsForm({ initialValues, invoiceCounter }: CompanySe
               <option value="UTC">UTC (GMT+0)</option>
             </select>
           </div>
+        </div>
+      </div>
+
+      {/* Multi-Currency & Default Exchange Rates */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-800 overflow-hidden shadow-sm">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-5 bg-amber-400 rounded-full"></div>
+            <div>
+              <h2 className="font-bold text-slate-900 dark:text-white text-sm">Currency & Exchange Rates (vs LKR)</h2>
+              <p className="text-[11px] text-slate-500">Configure default benchmark exchange rates for foreign currency quotations, bookings, and invoices.</p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+            Base Currency: LKR
+          </span>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>USD (US Dollar)</span>
+                <span className="text-[10px] text-amber-500 font-mono font-bold">$</span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">1 USD =</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  name="rate_usd"
+                  defaultValue={initialValues?.default_exchange_rates?.USD ?? 300}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg pl-18 pr-12 py-2.5 text-sm font-mono focus:outline-none focus:border-amber-400 transition-colors"
+                />
+                <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">LKR</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>EUR (Euro)</span>
+                <span className="text-[10px] text-amber-500 font-mono font-bold">€</span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">1 EUR =</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  name="rate_eur"
+                  defaultValue={initialValues?.default_exchange_rates?.EUR ?? 325}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg pl-18 pr-12 py-2.5 text-sm font-mono focus:outline-none focus:border-amber-400 transition-colors"
+                />
+                <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">LKR</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>GBP (British Pound)</span>
+                <span className="text-[10px] text-amber-500 font-mono font-bold">£</span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">1 GBP =</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  name="rate_gbp"
+                  defaultValue={initialValues?.default_exchange_rates?.GBP ?? 380}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg pl-18 pr-12 py-2.5 text-sm font-mono focus:outline-none focus:border-amber-400 transition-colors"
+                />
+                <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">LKR</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>AUD (Australian Dollar)</span>
+                <span className="text-[10px] text-amber-500 font-mono font-bold">A$</span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">1 AUD =</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  name="rate_aud"
+                  defaultValue={initialValues?.default_exchange_rates?.AUD ?? 195}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg pl-18 pr-12 py-2.5 text-sm font-mono focus:outline-none focus:border-amber-400 transition-colors"
+                />
+                <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">LKR</span>
+              </div>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-400">
+            Note: These exchange rates serve as default rates when drafting new quotations, bookings, and invoices in foreign currencies. You can adjust the exact spot exchange rate on each individual document during creation.
+          </p>
         </div>
       </div>
 

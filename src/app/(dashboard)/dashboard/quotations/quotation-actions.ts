@@ -322,8 +322,7 @@ export async function convertQuotationToBooking(id: string) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated.' }
 
-    // If quotation is not yet accepted, mark as accepted so conversion proceeds seamlessly
-    const { data: qt } = await supabase.from('quotations').select('status').eq('id', id).single()
+    const { data: qt } = await supabase.from('quotations').select('status, currency, exchange_rate').eq('id', id).single()
     if (qt && qt.status !== 'accepted') {
       await supabase.from('quotations').update({ status: 'accepted', updated_at: new Date().toISOString() }).eq('id', id)
     }
@@ -338,6 +337,17 @@ export async function convertQuotationToBooking(id: string) {
         success: false,
         error: rpcErr?.message || res?.error || 'Booking conversion failed. No partial booking was created.',
       }
+    }
+
+    // Ensure currency and exchange rate are synced to booking
+    if (res.booking_id && qt) {
+      await supabase
+        .from('bookings')
+        .update({
+          currency: qt.currency || 'LKR',
+          exchange_rate: Number(qt.exchange_rate || 1.0),
+        })
+        .eq('id', res.booking_id)
     }
 
     revalidatePath('/dashboard/quotations')

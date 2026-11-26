@@ -72,7 +72,8 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   currentY += Math.max(leftY - currentY, rightY - currentY, cardHeight) + 5
 
   // 3. Vehicle Table (9.5pt Header & Body, Centered Numeric Values)
-  const tableHead = [['#', 'Description', 'Days', 'Rate (LKR)', 'Amount (LKR)']]
+  const cur = quotation.currency || 'LKR'
+  const tableHead = [['#', 'Description', 'Days', `Rate (${cur})`, `Amount (${cur})`]]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tableRows = (quotation.items || []).map((item: any, idx: number) => [
     idx + 1,
@@ -115,18 +116,18 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(34, 34, 34)
   doc.text('Subtotal:', totalsX, currentY)
-  doc.text(`LKR ${Number(quotation.subtotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
+  doc.text(`${cur} ${Number(quotation.subtotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
   currentY += 4.5
 
   if (Number(quotation.discount_amount) > 0) {
     doc.text('Discount:', totalsX, currentY)
-    doc.text(`- LKR ${Number(quotation.discount_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
+    doc.text(`- ${cur} ${Number(quotation.discount_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
     currentY += 4.5
   }
 
   if (Number(quotation.refundable_deposit) > 0) {
     doc.text('Refundable Deposit:', totalsX, currentY)
-    doc.text(`+ LKR ${Number(quotation.refundable_deposit).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
+    doc.text(`+ ${cur} ${Number(quotation.refundable_deposit).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
     currentY += 4.5
   }
 
@@ -139,7 +140,7 @@ export async function generateQuotationPDF(quotation: any, companySettings?: any
   doc.setFontSize(14) // Prominent 14pt Bold
   setPdfBrandGoldText(doc) // Brand Gold #997711
   doc.text('GRAND TOTAL:', totalsX, currentY)
-  doc.text(`LKR ${Number(quotation.grand_total).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
+  doc.text(`${cur} ${Number(quotation.grand_total).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, A4_MARGINS.right, currentY, { align: 'right' })
 
   currentY += 7
 

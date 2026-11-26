@@ -97,7 +97,7 @@ export async function getFinanceSummaryKPIs(supabase: SupabaseClient, period: st
   // 1. Fetch Invoices
   let invQuery = supabase
     .from('invoices')
-    .select('id, grand_total, amount_paid, balance_due, due_date, status, created_at')
+    .select('id, grand_total, amount_paid, balance_due, due_date, status, created_at, currency, exchange_rate')
     .neq('status', 'cancelled')
     .eq('is_archived', false)
 
@@ -108,7 +108,7 @@ export async function getFinanceSummaryKPIs(supabase: SupabaseClient, period: st
   // 2. Fetch Payments (Completed payments)
   let payQuery = supabase
     .from('payments')
-    .select('amount, payment_date, status')
+    .select('amount, payment_date, status, currency, exchange_rate')
     .eq('status', 'completed')
 
   if (range.startStr && range.endStr) {
@@ -118,7 +118,7 @@ export async function getFinanceSummaryKPIs(supabase: SupabaseClient, period: st
   // 3. Fetch All Time Completed Payments for Today & This Month KPIs
   const todayPayQuery = supabase
     .from('payments')
-    .select('amount, payment_date')
+    .select('amount, payment_date, exchange_rate')
     .eq('status', 'completed')
 
   // 4. Fetch Expenses
@@ -162,8 +162,9 @@ export async function getFinanceSummaryKPIs(supabase: SupabaseClient, period: st
   let cancelledCount = 0
 
   invoices.forEach((inv: Record<string, unknown>) => {
-    const grand = Number(inv.grand_total || 0)
-    const bal = Number(inv.balance_due || 0)
+    const rate = Number(inv.exchange_rate || 1.0) || 1.0
+    const grand = Number(inv.grand_total || 0) * rate
+    const bal = Number(inv.balance_due || 0) * rate
     totalInvoiced += grand
 
     if (inv.status === 'draft') draftCount++
@@ -182,7 +183,10 @@ export async function getFinanceSummaryKPIs(supabase: SupabaseClient, period: st
     }
   })
 
-  const totalCollected = payments.reduce((acc: number, p: Record<string, unknown>) => acc + Number(p.amount || 0), 0)
+  const totalCollected = payments.reduce((acc: number, p: Record<string, unknown>) => {
+    const rate = Number(p.exchange_rate || 1.0) || 1.0
+    return acc + Number(p.amount || 0) * rate
+  }, 0)
   const totalExpenses = expenses.reduce((acc: number, e: Record<string, unknown>) => acc + Number(e.amount || 0), 0)
   const depositsHeld = deposits.reduce((acc: number, d: Record<string, unknown>) => acc + Number(d.amount || 0), 0)
   const netCashFlow = totalCollected - totalExpenses
@@ -193,7 +197,8 @@ export async function getFinanceSummaryKPIs(supabase: SupabaseClient, period: st
   let thisMonthsCollections = 0
 
   allPayments.forEach((p: Record<string, unknown>) => {
-    const amt = Number(p.amount || 0)
+    const rate = Number(p.exchange_rate || 1.0) || 1.0
+    const amt = Number(p.amount || 0) * rate
     const pDate = String(p.payment_date || '').slice(0, 10)
     if (pDate === todayStr) todaysCollections += amt
     if (pDate >= thisMonthStartStr) thisMonthsCollections += amt
@@ -226,7 +231,7 @@ export async function getPaymentMethodBreakdown(
   const range = getPeriodDateRange(period)
   let payQuery = supabase
     .from('payments')
-    .select('amount, payment_method, status')
+    .select('amount, payment_method, status, exchange_rate')
     .eq('status', 'completed')
 
   if (range.startStr && range.endStr) {
@@ -249,7 +254,8 @@ export async function getPaymentMethodBreakdown(
 
   pList.forEach((p: Record<string, unknown>) => {
     const m = String(p.payment_method || 'other').toLowerCase()
-    const amt = Number(p.amount || 0)
+    const rate = Number(p.exchange_rate || 1.0) || 1.0
+    const amt = Number(p.amount || 0) * rate
     grandTotal += amt
 
     if (!methodMap[m]) {

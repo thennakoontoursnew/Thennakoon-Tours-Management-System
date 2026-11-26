@@ -100,14 +100,14 @@ export async function generateAIForecasts(supabase: any, userId?: string): Promi
 
   // Fetch 30-day historical completed payments
   const [paymentsRes, bookingsRes] = await Promise.all([
-    supabase.from('payments').select('amount').eq('status', 'completed').gte('payment_date', d30Ago).lte('payment_date', todayStr),
-    supabase.from('bookings').select('id, grand_total, rental_start_at, status').eq('is_archived', false),
+    supabase.from('payments').select('amount, exchange_rate').eq('status', 'completed').gte('payment_date', d30Ago).lte('payment_date', todayStr),
+    supabase.from('bookings').select('id, grand_total, rental_start_at, status, exchange_rate').eq('is_archived', false),
   ])
 
   const payments = paymentsRes.data || []
   const bookings = bookingsRes.data || []
 
-  const historicalCompletedRevenue = payments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0)
+  const historicalCompletedRevenue = payments.reduce((sum: number, p: any) => sum + Number(p.amount || 0) * (Number(p.exchange_rate || 1.0) || 1.0), 0)
   const completedRentalsCount = bookings.filter((b: any) => b.status === 'closed' || b.status === 'completed').length
   const totalBookingsCount = bookings.length
 
@@ -118,15 +118,15 @@ export async function generateAIForecasts(supabase: any, userId?: string): Promi
 
   const future7dRev = bookings
     .filter((b: any) => ['confirmed', 'ready', 'in_progress'].includes(b.status) && b.rental_start_at && b.rental_start_at.slice(0, 10) <= d7Future)
-    .reduce((sum: number, b: any) => sum + Number(b.grand_total || 0), 0)
+    .reduce((sum: number, b: any) => sum + Number(b.grand_total || 0) * (Number(b.exchange_rate || 1.0) || 1.0), 0)
 
   const future30dRev = bookings
     .filter((b: any) => ['confirmed', 'ready', 'in_progress'].includes(b.status) && b.rental_start_at && b.rental_start_at.slice(0, 10) <= d30Future)
-    .reduce((sum: number, b: any) => sum + Number(b.grand_total || 0), 0)
+    .reduce((sum: number, b: any) => sum + Number(b.grand_total || 0) * (Number(b.exchange_rate || 1.0) || 1.0), 0)
 
   const future90dRev = bookings
     .filter((b: any) => ['confirmed', 'ready', 'in_progress'].includes(b.status) && b.rental_start_at && b.rental_start_at.slice(0, 10) <= d90Future)
-    .reduce((sum: number, b: any) => sum + Number(b.grand_total || 0), 0)
+    .reduce((sum: number, b: any) => sum + Number(b.grand_total || 0) * (Number(b.exchange_rate || 1.0) || 1.0), 0)
 
   const revenue7d = calculateDeterministicForecast({
     forecastType: 'revenue_7d',

@@ -57,6 +57,8 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
       customer_id: invoice.customer_id,
       payment_date: new Date().toISOString(),
       amount,
+      currency: invoice.currency || 'LKR',
+      exchange_rate: Number(invoice.exchange_rate || 1.0),
       payment_method: method as 'bank_transfer' | 'cash' | 'card' | 'online' | 'cheque' | 'other',
       reference_number: ref,
       status: 'completed',
@@ -129,9 +131,25 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
             Balance Summary
           </h2>
           <div className="space-y-2 text-xs">
-            <div><span className="font-bold text-slate-700 dark:text-slate-300">Grand Total:</span> <span className="font-mono font-bold text-slate-900 dark:text-white">LKR {toSafeNumber(invoice.grand_total).toLocaleString()}</span></div>
-            <div><span className="font-bold text-slate-700 dark:text-slate-300">Amount Paid:</span> <span className="font-mono text-emerald-500 font-bold">LKR {toSafeNumber(invoice.amount_paid).toLocaleString()}</span></div>
-            <div><span className="font-bold text-slate-700 dark:text-slate-300">Balance Due:</span> <span className="font-mono text-rose-500 font-bold text-sm">LKR {toSafeNumber(invoice.balance_due).toLocaleString()}</span></div>
+            <div>
+              <span className="font-bold text-slate-700 dark:text-slate-300">Grand Total:</span>{' '}
+              <span className="font-mono font-bold text-slate-900 dark:text-white">
+                {invoice.currency || 'LKR'} {toSafeNumber(invoice.grand_total).toLocaleString()}
+                {invoice.currency && invoice.currency !== 'LKR' && (
+                  <span className="text-[11px] text-slate-500 font-normal ml-1">
+                    (≈ LKR {(toSafeNumber(invoice.grand_total) * (Number(invoice.exchange_rate) || 1)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                  </span>
+                )}
+              </span>
+            </div>
+            <div>
+              <span className="font-bold text-slate-700 dark:text-slate-300">Amount Paid:</span>{' '}
+              <span className="font-mono text-emerald-500 font-bold">{invoice.currency || 'LKR'} {toSafeNumber(invoice.amount_paid).toLocaleString()}</span>
+            </div>
+            <div>
+              <span className="font-bold text-slate-700 dark:text-slate-300">Balance Due:</span>{' '}
+              <span className="font-mono text-rose-500 font-bold text-sm">{invoice.currency || 'LKR'} {toSafeNumber(invoice.balance_due).toLocaleString()}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -146,12 +164,12 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
             {deductionList.map((d, i) => (
               <div key={i} className="flex justify-between items-center text-slate-700 dark:text-slate-300">
                 <span>{d.description}</span>
-                <span className="font-mono font-bold text-rose-500">- LKR {d.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono font-bold text-rose-500">- {invoice.currency || 'LKR'} {d.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               </div>
             ))}
             <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center font-bold">
               <span className="text-slate-900 dark:text-white">Total Deductions:</span>
-              <span className="font-mono text-rose-500">LKR {toSafeNumber(invoice.total_deductions).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              <span className="font-mono text-rose-500">{invoice.currency || 'LKR'} {toSafeNumber(invoice.total_deductions).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
         </div>
@@ -165,7 +183,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
           </h2>
           <form action={handlePayment} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
             <div>
-              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Amount (LKR) *</label>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Amount ({invoice.currency || 'LKR'}) *</label>
               <input
                 type="number"
                 step="0.01"
@@ -225,7 +243,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
                 <div key={p.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-850 flex items-center justify-between text-xs">
                   <div>
                     <div className="font-bold text-slate-900 dark:text-white">
-                      LKR {toSafeNumber(p.amount).toLocaleString()} via {methodStr}
+                      {p.currency || invoice.currency || 'LKR'} {toSafeNumber(p.amount).toLocaleString()} via {methodStr}
                     </div>
                     <div className="text-[11px] text-slate-400">
                       {toSafeDateString(p.payment_date)} {p.reference_number ? `| Ref: ${p.reference_number}` : ''}

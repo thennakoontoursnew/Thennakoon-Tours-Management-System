@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createQuotation } from '../quotation-actions'
-import { normalizeNewlines, calculateRentalDays } from '@/lib/utils/formatters'
+import { normalizeNewlines, calculateRentalDays, SUPPORTED_CURRENCIES, CURRENCY_SYMBOLS, DEFAULT_EXCHANGE_RATES } from '@/lib/utils/formatters'
 import QuickCustomerModal from './quick-customer-modal'
 import {
   ArrowLeft,
@@ -52,6 +52,8 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
     destination: '',
     passenger_count: 1,
     purpose: initialLead?.interested_vehicle_name ? `Rental for ${initialLead.interested_vehicle_name}` : '',
+    currency: 'LKR',
+    exchange_rate: 1.0,
     discount_type: 'none',
     discount_value: 0,
     tax_rate: 0,
@@ -196,6 +198,8 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
       destination: formData.destination,
       passenger_count: Number(formData.passenger_count || 1),
       purpose: formData.purpose,
+      currency: formData.currency,
+      exchange_rate: Number(formData.exchange_rate || 1.0),
       discount_type: formData.discount_type as any,
       discount_value: Number(formData.discount_value || 0),
       tax_rate: Number(formData.tax_rate || 0),
@@ -419,7 +423,7 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Daily Unit Rate (LKR)</label>
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Daily Unit Rate ({formData.currency})</label>
                   <input
                     type="number"
                     min="0"
@@ -460,7 +464,41 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
             <span>4. Pricing Summary & Financial Calculations</span>
           </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Currency</label>
+              <select
+                value={formData.currency}
+                onChange={(e) => {
+                  const cur = e.target.value
+                  const defaultRates = template?.default_exchange_rates || DEFAULT_EXCHANGE_RATES
+                  const newRate = cur === 'LKR' ? 1.0 : (Number(defaultRates[cur]) || 1.0)
+                  setFormData({ ...formData, currency: cur, exchange_rate: newRate })
+                }}
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-bold"
+              >
+                {SUPPORTED_CURRENCIES.map((c) => (
+                  <option key={c} value={c}>{c} ({CURRENCY_SYMBOLS[c] || c})</option>
+                ))}
+              </select>
+            </div>
+
+            {formData.currency !== 'LKR' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Exchange Rate (1 {formData.currency} in LKR)
+                </label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  min="0.0001"
+                  value={formData.exchange_rate}
+                  onChange={(e) => setFormData({ ...formData, exchange_rate: Number(e.target.value) })}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:outline-none font-mono"
+                />
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Discount Type</label>
               <select
@@ -470,14 +508,14 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
               >
                 <option value="none">No Discount</option>
                 <option value="percentage">Percentage (%)</option>
-                <option value="fixed">Fixed Amount (LKR)</option>
+                <option value="fixed">Fixed Amount ({formData.currency})</option>
               </select>
             </div>
 
             {formData.discount_type !== 'none' && (
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Discount Value ({formData.discount_type === 'percentage' ? '%' : 'LKR'})
+                  Discount Value ({formData.discount_type === 'percentage' ? '%' : formData.currency})
                 </label>
                 <input
                   type="number"
@@ -490,7 +528,7 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
             )}
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Refundable Deposit (LKR)</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Refundable Deposit ({formData.currency})</label>
               <input
                 type="number"
                 min="0"
@@ -501,23 +539,31 @@ export default function NewQuotationForm({ customers: initialCustomers, vehicles
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-            <div>
-              <div className="text-slate-500">Subtotal</div>
-              <div className="font-bold text-slate-900 dark:text-white text-sm">LKR {calculatedSubtotal.toLocaleString()}</div>
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+              <div>
+                <div className="text-slate-500">Subtotal</div>
+                <div className="font-bold text-slate-900 dark:text-white text-sm">{formData.currency} {calculatedSubtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </div>
+              <div>
+                <div className="text-slate-500">Discount</div>
+                <div className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">- {formData.currency} {calculatedDiscount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </div>
+              <div>
+                <div className="text-slate-500">Refundable Deposit</div>
+                <div className="font-bold text-slate-900 dark:text-white text-sm">+ {formData.currency} {Number(formData.refundable_deposit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </div>
+              <div>
+                <div className="text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider">Grand Total</div>
+                <div className="font-black text-amber-500 text-base">{formData.currency} {calculatedGrandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </div>
             </div>
-            <div>
-              <div className="text-slate-500">Discount</div>
-              <div className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">- LKR {calculatedDiscount.toLocaleString()}</div>
-            </div>
-            <div>
-              <div className="text-slate-500">Refundable Deposit</div>
-              <div className="font-bold text-slate-900 dark:text-white text-sm">+ LKR {Number(formData.refundable_deposit || 0).toLocaleString()}</div>
-            </div>
-            <div>
-              <div className="text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider">Grand Total</div>
-              <div className="font-black text-amber-500 text-base">LKR {calculatedGrandTotal.toLocaleString()}</div>
-            </div>
+            {formData.currency !== 'LKR' && (
+              <div className="pt-2 border-t border-amber-500/20 flex flex-wrap items-center justify-between text-xs text-amber-700 dark:text-amber-300 font-medium">
+                <span>LKR Estimate: <strong className="font-mono font-bold">≈ LKR {(calculatedGrandTotal * (Number(formData.exchange_rate) || 1)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">Rate: 1 {formData.currency} = LKR {Number(formData.exchange_rate || 1).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+              </div>
+            )}
           </div>
         </div>
 

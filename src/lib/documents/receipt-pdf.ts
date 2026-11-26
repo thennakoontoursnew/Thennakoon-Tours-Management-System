@@ -17,8 +17,9 @@ function formatCurrency(val: unknown): string {
   return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function numberToWords(amount: number): string {
-  if (!amount || amount <= 0 || isNaN(amount)) return 'ZERO LANKAN RUPEES ONLY'
+function numberToWords(amount: number, currency: string = 'LKR'): string {
+  const currencyName = currency === 'USD' ? 'US DOLLARS' : currency === 'EUR' ? 'EUROS' : currency === 'GBP' ? 'BRITISH POUNDS' : currency === 'AUD' ? 'AUSTRALIAN DOLLARS' : 'LANKAN RUPEES'
+  if (!amount || amount <= 0 || isNaN(amount)) return `ZERO ${currencyName} ONLY`
 
   const ones = [
     '',
@@ -81,7 +82,7 @@ function numberToWords(amount: number): string {
     centsStr = ` AND CENTS ${convertGroup(cents).trim()}`
   }
 
-  return `${result.trim()}${centsStr} LANKAN RUPEES ONLY`.toUpperCase()
+  return `${result.trim()}${centsStr} ${currencyName} ONLY`.toUpperCase()
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -147,8 +148,9 @@ export async function generateReceiptPDF(receiptData: any, companySettings?: any
     let rowRightY = currentY + 5.5
 
     const custName = customer.full_name || receipt.customer_name || 'Valued Customer'
+    const cur = receipt.currency || receipt.payment?.currency || invoice.currency || 'LKR'
     const amtPaid = Number(receipt.amount || 0)
-    const formattedAmountStr = `LKR ${amtPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}/=`
+    const formattedAmountStr = `${cur} ${amtPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}/=`
 
     const reasonForPayment =
       receipt.payment_reason ||
@@ -244,7 +246,7 @@ export async function generateReceiptPDF(receiptData: any, companySettings?: any
       desc = `Payment received for Booking #${booking.booking_number || receipt.booking_number}`
     }
 
-    const tableHead = [['Payment Description', 'Total Due (LKR)', 'Amount Paid (LKR)', 'Balance Due (LKR)']]
+    const tableHead = [['Payment Description', `Total Due (${cur})`, `Amount Paid (${cur})`, `Balance Due (${cur})`]]
     const tableRows = [[desc, formatCurrency(invTotal), formatCurrency(amtPaid), formatCurrency(balDue)]]
 
     autoTable(doc, {
@@ -284,7 +286,7 @@ export async function generateReceiptPDF(receiptData: any, companySettings?: any
     setPdfBrandGoldText(doc) // Brand Gold #997711
     doc.text('AMOUNT RECEIVED IN WORDS', A4_MARGINS.left + 4, currentY + 6.5)
 
-    const wordsText = numberToWords(amtPaid)
+    const wordsText = numberToWords(amtPaid, cur)
     doc.setFont('helvetica', 'italic')
     doc.setFontSize(7.5)
     doc.setTextColor(100, 116, 139)

@@ -24,6 +24,7 @@ import { createInvoice, updateInvoiceAction } from '../invoice-actions'
 import { generateCommercialInvoicePDF } from '@/lib/documents/invoice-pdf-commercial'
 import { COMPANY_CONFIG } from '@/lib/company-config'
 import { calculateCommercialInvoiceFinancials, unwrapDeductionsRelation } from '@/lib/utils/relation-utils'
+import { SUPPORTED_CURRENCIES, CURRENCY_SYMBOLS, DEFAULT_EXCHANGE_RATES } from '@/lib/utils/formatters'
 
 interface Customer {
   id: string
@@ -135,6 +136,13 @@ export function CreateInvoiceForm({
 
   const [bookingId, setBookingId] = useState<string>(() => {
     return String(initialInvoice?.booking_id || initialBookingId || '')
+  })
+
+  const [currency, setCurrency] = useState<string>(() => {
+    return String(initialInvoice?.currency || 'LKR')
+  })
+  const [exchangeRate, setExchangeRate] = useState<number>(() => {
+    return Number(initialInvoice?.exchange_rate || 1.0)
   })
 
   // SECTION 2: CUSTOMER DETAILS
@@ -426,9 +434,13 @@ export function CreateInvoiceForm({
   const handleQuotationSelect = (qId: string) => {
     setQuotationId(qId)
     if (!qId) return
-    const q = quotations.find((quote) => quote.id === qId)
+    const q = quotations.find((quote) => quote.id === qId) as any
     if (q) {
       if (q.customer_id) handleCustomerSelect(q.customer_id)
+      if (q.currency) {
+        setCurrency(q.currency)
+        setExchangeRate(Number(q.exchange_rate || 1.0))
+      }
       if (q.items && q.items.length > 0) {
         const qItems = q.items.map((it: Record<string, unknown>) => ({
           description: String(it.description || 'Quotation Line Item'),
@@ -449,6 +461,10 @@ export function CreateInvoiceForm({
     const b = bookings.find((bk) => bk.id === bId) as any
     if (b) {
       if (b.customer_id) handleCustomerSelect(b.customer_id)
+      if (b.currency) {
+        setCurrency(b.currency)
+        setExchangeRate(Number(b.exchange_rate || 1.0))
+      }
       setDiscountAmount(Number(b.discount_amount || 0))
       setRefundableDeposit(Number(b.refundable_deposit || 0))
       setAdvancePayment(Number(b.advance_paid || 0))
@@ -580,6 +596,8 @@ export function CreateInvoiceForm({
       additional_charge_description: additionalChargeDescription,
       tax_rate: financials.taxRate,
       tax_amount: financials.taxAmount,
+      currency: currency || 'LKR',
+      exchange_rate: Number(exchangeRate || 1.0),
       refundable_deposit: financials.refundableDeposit,
       grand_total: financials.netAmount,
       amount_paid: financials.amountPaid,
@@ -670,7 +688,8 @@ export function CreateInvoiceForm({
         invoice_date: invoiceDate,
         due_date: dueDate,
         payment_terms: paymentTerms,
-        currency: 'LKR',
+        currency: currency || 'LKR',
+        exchange_rate: Number(exchangeRate || 1.0),
         discount_amount: Number(discountAmount),
         discount_description: discountDescription || undefined,
         total_deductions: Number(financials.deductions),
@@ -885,6 +904,40 @@ export function CreateInvoiceForm({
               className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-slate-900 dark:text-white disabled:opacity-70 disabled:bg-slate-100 dark:disabled:bg-slate-800"
             />
           </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Invoice Currency</label>
+            <select
+              value={currency}
+              onChange={(e) => {
+                const cur = e.target.value
+                const newRate = cur === 'LKR' ? 1.0 : (Number(DEFAULT_EXCHANGE_RATES[cur as keyof typeof DEFAULT_EXCHANGE_RATES]) || 1.0)
+                setCurrency(cur)
+                setExchangeRate(newRate)
+              }}
+              className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white"
+            >
+              {SUPPORTED_CURRENCIES.map((c) => (
+                <option key={c} value={c}>{c} ({CURRENCY_SYMBOLS[c] || c})</option>
+              ))}
+            </select>
+          </div>
+
+          {currency !== 'LKR' && (
+            <div>
+              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Exchange Rate (1 {currency} in LKR)
+              </label>
+              <input
+                type="number"
+                step="0.0001"
+                min="0.0001"
+                value={exchangeRate}
+                onChange={(e) => setExchangeRate(Number(e.target.value))}
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl font-mono font-semibold text-slate-900 dark:text-white"
+              />
+            </div>
+          )}
 
           <div>
             <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Quotation Reference (Optional)</label>
@@ -1384,7 +1437,7 @@ export function CreateInvoiceForm({
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Refundable Security Deposit (LKR)</label>
+              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Refundable Security Deposit ({currency})</label>
               <input
                 type="number"
                 step="0.01"
@@ -1409,14 +1462,14 @@ export function CreateInvoiceForm({
             <div className="flex justify-between items-center">
               <span className="text-slate-500">Subtotal:</span>
               <span className="font-mono font-bold text-slate-900 dark:text-white text-sm">
-                LKR {financials.subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {currency} {financials.subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </span>
             </div>
 
             {financials.discountAmount > 0 && (
               <div className="flex justify-between items-center text-rose-500">
                 <span>Discount {discountDescription ? `(${discountDescription})` : ''}:</span>
-                <span className="font-mono font-bold">- LKR {financials.discountAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono font-bold">- {currency} {financials.discountAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               </div>
             )}
 
@@ -1424,12 +1477,12 @@ export function CreateInvoiceForm({
               <div className="space-y-1">
                 <div className="flex justify-between items-center text-rose-500 font-bold">
                   <span>Deductions ({deductions.length} item{deductions.length > 1 ? 's' : ''}):</span>
-                  <span className="font-mono">- LKR {financials.deductions.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  <span className="font-mono">- {currency} {financials.deductions.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                 </div>
                 {deductions.map((d, dIdx) => (
                   <div key={dIdx} className="flex justify-between items-center text-[10px] text-rose-400/80 pl-2">
                     <span>• {d.description || 'Deduction'}</span>
-                    <span className="font-mono">- LKR {Number(d.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    <span className="font-mono">- {currency} {Number(d.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   </div>
                 ))}
               </div>
@@ -1438,43 +1491,50 @@ export function CreateInvoiceForm({
             {financials.additionalCharges > 0 && (
               <div className="flex justify-between items-center text-emerald-500">
                 <span>Additional Charges {additionalChargeDescription ? `(${additionalChargeDescription})` : ''}:</span>
-                <span className="font-mono font-bold">+ LKR {financials.additionalCharges.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono font-bold">+ {currency} {financials.additionalCharges.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               </div>
             )}
 
             {financials.taxAmount > 0 && (
               <div className="flex justify-between items-center text-slate-500">
                 <span>Tax ({financials.taxRate}%):</span>
-                <span className="font-mono font-bold">LKR {financials.taxAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono font-bold">{currency} {financials.taxAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               </div>
             )}
 
             {financials.refundableDeposit > 0 && (
               <div className="flex justify-between items-center text-amber-500">
                 <span>Refundable Deposit (Separate):</span>
-                <span className="font-mono font-bold">LKR {financials.refundableDeposit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                <span className="font-mono font-bold">{currency} {financials.refundableDeposit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               </div>
             )}
 
             <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
               <span className="font-bold text-slate-900 dark:text-white text-sm">Net Amount:</span>
               <span className="font-mono font-bold text-slate-900 dark:text-white text-base">
-                LKR {financials.netAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {currency} {financials.netAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </span>
             </div>
 
             <div className="flex justify-between items-center text-emerald-500">
               <span>Amount Paid / Advance:</span>
-              <span className="font-mono font-bold">LKR {financials.amountPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              <span className="font-mono font-bold">{currency} {financials.amountPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
             </div>
 
             {/* BALANCE DUE Highlight Bar */}
             <div className="p-3 bg-slate-950 rounded-xl flex justify-between items-center shadow-xs border border-amber-400/30">
               <span className="font-black text-amber-400 uppercase text-xs">BALANCE DUE:</span>
               <span className="font-mono font-black text-amber-400 text-xl">
-                LKR {financials.balanceDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {currency} {financials.balanceDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </span>
             </div>
+
+            {currency !== 'LKR' && (
+              <div className="pt-1 flex flex-wrap items-center justify-between text-[11px] text-amber-700 dark:text-amber-300 font-medium">
+                <span>≈ LKR {(financials.netAmount * (Number(exchangeRate) || 1)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Net)</span>
+                <span className="text-slate-500 dark:text-slate-400">Rate: 1 {currency} = LKR {Number(exchangeRate || 1).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

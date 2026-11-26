@@ -41,6 +41,7 @@ const CONTENT_WIDTH = CONTENT_RIGHT - CONTENT_LEFT
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateCommercialInvoicePDF(invoice: Record<string, any>, companySettings?: Record<string, any>) {
+  const cur = invoice.currency || 'LKR'
   // A4 Portrait: 210 x 297 mm
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -274,8 +275,8 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>,
     doc.text(String(idx + 1), 22, currentY + 4.5, { align: 'center' })
     doc.text(descLines, 28, currentY + 4.5)
     doc.text(String(it.quantity || 1), 124, currentY + 4.5, { align: 'right' })
-    doc.text(`LKR ${formatNumberSafe(it.unit_price)}`, 156, currentY + 4.5, { align: 'right' })
-    doc.text(`LKR ${formatNumberSafe(it.line_total || (Number(it.quantity || 1) * Number(it.unit_price || 0)))}`, 189, currentY + 4.5, { align: 'right' })
+    doc.text(`${cur} ${formatNumberSafe(it.unit_price)}`, 156, currentY + 4.5, { align: 'right' })
+    doc.text(`${cur} ${formatNumberSafe(it.line_total || (Number(it.quantity || 1) * Number(it.unit_price || 0)))}`, 189, currentY + 4.5, { align: 'right' })
 
     currentY += rowHeight
 
@@ -309,7 +310,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>,
 
   // Subtotal (Always rendered)
   doc.text('Subtotal', sumLabelX, sumY)
-  doc.text(`LKR ${formatNumberSafe(financials.subtotal)}`, 189, sumY, { align: 'right' })
+  doc.text(`${cur} ${formatNumberSafe(financials.subtotal)}`, 189, sumY, { align: 'right' })
   sumY += finRowHeight
 
   // Discount (Render ONLY if > 0)
@@ -317,7 +318,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>,
     const discLabel = hasMeaningfulValue(invoice.discount_description) ? `Discount (${invoice.discount_description})` : 'Discount'
     const discLabelClean = discLabel.length > 30 ? `${discLabel.slice(0, 29)}...` : discLabel
     doc.text(discLabelClean, sumLabelX, sumY)
-    doc.text(`- LKR ${formatNumberSafe(financials.discountAmount)}`, 189, sumY, { align: 'right' })
+    doc.text(`- ${cur} ${formatNumberSafe(financials.discountAmount)}`, 189, sumY, { align: 'right' })
     sumY += finRowHeight
   }
 
@@ -336,19 +337,19 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>,
     for (const d of deductionList) {
       const label = d.description.length > 24 ? `${d.description.slice(0, 23)}...` : d.description
       doc.text(`  ${label}`, sumLabelX, sumY)
-      doc.text(`- LKR ${formatNumberSafe(d.amount)}`, 189, sumY, { align: 'right' })
+      doc.text(`- ${cur} ${formatNumberSafe(d.amount)}`, 189, sumY, { align: 'right' })
       sumY += 4.0
     }
     doc.setFont('helvetica', 'bold')
     doc.text('Total Deductions', sumLabelX, sumY)
-    doc.text(`- LKR ${formatNumberSafe(financials.deductions)}`, 189, sumY, { align: 'right' })
+    doc.text(`- ${cur} ${formatNumberSafe(financials.deductions)}`, 189, sumY, { align: 'right' })
     doc.setFont('helvetica', 'normal')
     sumY += finRowHeight
   } else if (financials.deductions > 0) {
     const dedLabel = hasMeaningfulValue(invoice.deduction_description) ? `Deductions (${invoice.deduction_description})` : 'Deductions'
     const dedLabelClean = dedLabel.length > 30 ? `${dedLabel.slice(0, 29)}...` : dedLabel
     doc.text(dedLabelClean, sumLabelX, sumY)
-    doc.text(`- LKR ${formatNumberSafe(financials.deductions)}`, 189, sumY, { align: 'right' })
+    doc.text(`- ${cur} ${formatNumberSafe(financials.deductions)}`, 189, sumY, { align: 'right' })
     sumY += finRowHeight
   }
 
@@ -357,21 +358,21 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>,
     const addLabel = hasMeaningfulValue(invoice.additional_charge_description) ? `Add. Charges (${invoice.additional_charge_description})` : 'Additional Charges'
     const addLabelClean = addLabel.length > 30 ? `${addLabel.slice(0, 29)}...` : addLabel
     doc.text(addLabelClean, sumLabelX, sumY)
-    doc.text(`+ LKR ${formatNumberSafe(financials.additionalCharges)}`, 189, sumY, { align: 'right' })
+    doc.text(`+ ${cur} ${formatNumberSafe(financials.additionalCharges)}`, 189, sumY, { align: 'right' })
     sumY += finRowHeight
   }
 
   // Tax (Render ONLY if > 0)
   if (financials.taxAmount > 0) {
     doc.text(`Tax (${financials.taxRate}%)`, sumLabelX, sumY)
-    doc.text(`LKR ${formatNumberSafe(financials.taxAmount)}`, 189, sumY, { align: 'right' })
+    doc.text(`${cur} ${formatNumberSafe(financials.taxAmount)}`, 189, sumY, { align: 'right' })
     sumY += finRowHeight
   }
 
   // Refundable Deposit (Render ONLY if > 0)
   if (financials.refundableDeposit > 0) {
     doc.text('Refundable Deposit (Separate)', sumLabelX, sumY)
-    doc.text(`LKR ${formatNumberSafe(financials.refundableDeposit)}`, 189, sumY, { align: 'right' })
+    doc.text(`${cur} ${formatNumberSafe(financials.refundableDeposit)}`, 189, sumY, { align: 'right' })
     sumY += finRowHeight
   }
 
@@ -380,7 +381,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>,
   doc.setFontSize(PDF_TYPOGRAPHY.financialRow)
   setPdfDarkText(doc)
   doc.text('Net Amount', sumLabelX, sumY)
-  doc.text(`LKR ${formatNumberSafe(financials.netAmount)}`, 189, sumY, { align: 'right' })
+  doc.text(`${cur} ${formatNumberSafe(financials.netAmount)}`, 189, sumY, { align: 'right' })
   sumY += finRowHeight
 
   // Amount Paid
@@ -388,7 +389,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>,
   doc.setFontSize(PDF_TYPOGRAPHY.financialRow)
   setPdfBodyText(doc)
   doc.text('Amount Paid', sumLabelX, sumY)
-  doc.text(`- LKR ${formatNumberSafe(financials.amountPaid)}`, 189, sumY, { align: 'right' })
+  doc.text(`- ${cur} ${formatNumberSafe(financials.amountPaid)}`, 189, sumY, { align: 'right' })
   sumY += 4.8
 
   // BALANCE DUE HIGHLIGHT BAR
@@ -400,7 +401,7 @@ export async function generateCommercialInvoicePDF(invoice: Record<string, any>,
   doc.setFontSize(PDF_TYPOGRAPHY.balanceDue)
   setPdfBrandGoldText(doc) // Brand Gold #997711
   doc.text('BALANCE DUE', 108, sumY + 2.3)
-  doc.text(`LKR ${formatNumberSafe(financials.balanceDue)}`, 189, sumY + 2.3, { align: 'right' })
+  doc.text(`${cur} ${formatNumberSafe(financials.balanceDue)}`, 189, sumY + 2.3, { align: 'right' })
   sumY += barHeight
 
   currentY = sumY

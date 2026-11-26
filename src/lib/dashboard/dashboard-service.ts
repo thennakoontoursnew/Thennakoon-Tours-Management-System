@@ -185,14 +185,14 @@ export async function getDashboardKPIs(userRole: string): Promise<KPIOverview> {
   ] = await Promise.all([
     // Completed Payments Total Revenue
     isFinanceAuthorized
-      ? supabase.from('payments').select('amount').eq('status', 'completed')
+      ? supabase.from('payments').select('amount, exchange_rate').eq('status', 'completed')
       : Promise.resolve({ data: [] }),
 
     // Current Month Payments
     isFinanceAuthorized
       ? supabase
           .from('payments')
-          .select('amount')
+          .select('amount, exchange_rate')
           .eq('status', 'completed')
           .gte('payment_date', `${todayStr.slice(0, 7)}-01T00:00:00.000+05:30`)
       : Promise.resolve({ data: [] }),
@@ -208,7 +208,7 @@ export async function getDashboardKPIs(userRole: string): Promise<KPIOverview> {
           const nextMonthStr = `${year}-${String(month).padStart(2, '0')}`
           return supabase
             .from('payments')
-            .select('amount')
+            .select('amount, exchange_rate')
             .eq('status', 'completed')
             .gte('payment_date', `${prevMonthStr}-01T00:00:00.000+05:30`)
             .lt('payment_date', `${nextMonthStr}-01T00:00:00.000+05:30`)
@@ -247,7 +247,7 @@ export async function getDashboardKPIs(userRole: string): Promise<KPIOverview> {
     isFinanceAuthorized
       ? supabase
           .from('invoices')
-          .select('balance_due')
+          .select('balance_due, exchange_rate')
           .in('status', ['unpaid', 'partially_paid', 'overdue'])
       : Promise.resolve({ data: [] }),
 
@@ -255,7 +255,7 @@ export async function getDashboardKPIs(userRole: string): Promise<KPIOverview> {
     isFinanceAuthorized
       ? supabase
           .from('invoices')
-          .select('balance_due')
+          .select('balance_due, exchange_rate')
           .eq('status', 'overdue')
       : Promise.resolve({ data: [] }),
 
@@ -273,17 +273,17 @@ export async function getDashboardKPIs(userRole: string): Promise<KPIOverview> {
       .eq('is_archived', false),
   ])
 
-  const totalRevenue = (paymentsRes.data || []).reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0)
-  const monthRevenue = (monthPaymentsRes.data || []).reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0)
-  const prevMonthRevenue = (prevMonthPaymentsRes.data || []).reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0)
+  const totalRevenue = (paymentsRes.data || []).reduce((acc: number, p: any) => acc + Number(p.amount || 0) * (Number(p.exchange_rate || 1.0) || 1.0), 0)
+  const monthRevenue = (monthPaymentsRes.data || []).reduce((acc: number, p: any) => acc + Number(p.amount || 0) * (Number(p.exchange_rate || 1.0) || 1.0), 0)
+  const prevMonthRevenue = (prevMonthPaymentsRes.data || []).reduce((acc: number, p: any) => acc + Number(p.amount || 0) * (Number(p.exchange_rate || 1.0) || 1.0), 0)
 
   let revenueGrowthPct: number | null = null
   if (prevMonthRevenue > 0) {
     revenueGrowthPct = Number((((monthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100).toFixed(1))
   }
 
-  const outstandingBalance = (invoicesRes.data || []).reduce((acc: number, inv: any) => acc + Number(inv.balance_due || 0), 0)
-  const overdueBalance = (overdueInvoicesRes.data || []).reduce((acc: number, inv: any) => acc + Number(inv.balance_due || 0), 0)
+  const outstandingBalance = (invoicesRes.data || []).reduce((acc: number, inv: any) => acc + Number(inv.balance_due || 0) * (Number(inv.exchange_rate || 1.0) || 1.0), 0)
+  const overdueBalance = (overdueInvoicesRes.data || []).reduce((acc: number, inv: any) => acc + Number(inv.balance_due || 0) * (Number(inv.exchange_rate || 1.0) || 1.0), 0)
 
   return {
     totalRevenue,
@@ -317,14 +317,14 @@ export async function getRevenueSeries(periodFilter: string = '30d') {
   const [paymentsRes, invoicesRes] = await Promise.all([
     supabase
       .from('payments')
-      .select('amount, payment_date')
+      .select('amount, payment_date, exchange_rate')
       .eq('status', 'completed')
       .gte('payment_date', startIso)
       .order('payment_date', { ascending: true }),
 
     supabase
       .from('invoices')
-      .select('grand_total, amount_paid, balance_due, invoice_date, status')
+      .select('grand_total, amount_paid, balance_due, invoice_date, status, exchange_rate')
       .neq('status', 'cancelled')
       .gte('invoice_date', startDate)
       .order('invoice_date', { ascending: true }),
@@ -333,9 +333,9 @@ export async function getRevenueSeries(periodFilter: string = '30d') {
   const payments = paymentsRes.data || []
   const invoices = invoicesRes.data || []
 
-  const totalInvoiced = invoices.reduce((acc: number, inv: any) => acc + Number(inv.grand_total || 0), 0)
-  const totalCollected = payments.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0)
-  const outstanding = invoices.reduce((acc: number, inv: any) => acc + Number(inv.balance_due || 0), 0)
+  const totalInvoiced = invoices.reduce((acc: number, inv: any) => acc + Number(inv.grand_total || 0) * (Number(inv.exchange_rate || 1.0) || 1.0), 0)
+  const totalCollected = payments.reduce((acc: number, p: any) => acc + Number(p.amount || 0) * (Number(p.exchange_rate || 1.0) || 1.0), 0)
+  const outstanding = invoices.reduce((acc: number, inv: any) => acc + Number(inv.balance_due || 0) * (Number(inv.exchange_rate || 1.0) || 1.0), 0)
   const collectionRate = totalInvoiced > 0 ? Number(((totalCollected / totalInvoiced) * 100).toFixed(1)) : 0
 
   const dateMap: Record<string, { collected: number; invoiced: number }> = {}
@@ -343,13 +343,13 @@ export async function getRevenueSeries(periodFilter: string = '30d') {
   payments.forEach((p: any) => {
     const key = String(p.payment_date).slice(0, 10)
     if (!dateMap[key]) dateMap[key] = { collected: 0, invoiced: 0 }
-    dateMap[key].collected += Number(p.amount || 0)
+    dateMap[key].collected += Number(p.amount || 0) * (Number(p.exchange_rate || 1.0) || 1.0)
   })
 
   invoices.forEach((inv: any) => {
     const key = String(inv.invoice_date).slice(0, 10)
     if (!dateMap[key]) dateMap[key] = { collected: 0, invoiced: 0 }
-    dateMap[key].invoiced += Number(inv.grand_total || 0)
+    dateMap[key].invoiced += Number(inv.grand_total || 0) * (Number(inv.exchange_rate || 1.0) || 1.0)
   })
 
   const sortedDates = Object.keys(dateMap).sort()

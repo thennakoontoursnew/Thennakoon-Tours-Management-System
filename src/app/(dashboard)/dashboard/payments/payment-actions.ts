@@ -23,18 +23,26 @@ export async function recordPayment(values: PaymentInput) {
     if (payload.invoice_id) {
       const { data: inv, error: invErr } = await supabase
         .from('invoices')
-        .select('id, grand_total, amount_paid, balance_due, status, booking_id')
+        .select('id, grand_total, amount_paid, balance_due, status, booking_id, currency, exchange_rate')
         .eq('id', payload.invoice_id)
         .single()
 
       if (invErr || !inv) return { success: false, error: 'Target invoice not found.' }
       if (inv.status === 'cancelled') return { success: false, error: 'Cannot record payment for a cancelled invoice.' }
       
+      // Inherit currency and exchange rate if not explicitly specified
+      if (!payload.currency || payload.currency === 'LKR') {
+        if (inv.currency && inv.currency !== 'LKR') {
+          payload.currency = inv.currency
+          payload.exchange_rate = inv.exchange_rate || 1.0
+        }
+      }
+
       // Reject overpayment
       if (Number(payload.amount) > Number(inv.balance_due) + 0.01) {
         return {
           success: false,
-          error: `Payment amount (LKR ${payload.amount}) exceeds remaining balance due (LKR ${inv.balance_due}).`,
+          error: `Payment amount (${inv.currency || 'LKR'} ${payload.amount}) exceeds remaining balance due (${inv.currency || 'LKR'} ${inv.balance_due}).`,
         }
       }
       currentInvoice = inv
@@ -98,6 +106,8 @@ export async function recordPayment(values: PaymentInput) {
         booking_id: payment.booking_id,
         customer_id: payment.customer_id,
         amount: payment.amount,
+        currency: payment.currency || 'LKR',
+        exchange_rate: payment.exchange_rate || 1.0,
         payment_method: payment.payment_method,
         reference_number: payment.reference_number,
         prepared_by: user.id,
@@ -109,7 +119,7 @@ export async function recordPayment(values: PaymentInput) {
       p_action: 'RECORD_PAYMENT',
       p_entity_type: 'payment',
       p_entity_id: payment.id,
-      p_description: `Recorded payment of LKR ${payment.amount} via ${payment.payment_method}`,
+      p_description: `Recorded payment of ${payment.currency || 'LKR'} ${payment.amount} via ${payment.payment_method}`,
     })
 
     if (payload.invoice_id) revalidatePath(`/dashboard/invoices/${payload.invoice_id}`)

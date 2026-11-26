@@ -186,7 +186,57 @@ export function buildWhatsAppQuotationMessage(quotation: any, companyName: strin
   const rentalStart = formatDateOrdinal(quotation?.rental_start_date) || 'N/A'
   const rentalEnd = formatDateOrdinal(quotation?.rental_end_date) || 'N/A'
 
-  return `Hello ${customerName},\n\nPlease find your Quotation (${quotationNumber}) details:\n\nAmount: LKR ${grandTotal}\n\nRental Dates:\n${rentalStart} to ${rentalEnd}\n\nThank you,\n${companyName}`
+  const currency = quotation?.currency || 'LKR'
+  return `Hello ${customerName},\n\nPlease find your Quotation (${quotationNumber}) details:\n\nAmount: ${currency} ${grandTotal}\n\nRental Dates:\n${rentalStart} to ${rentalEnd}\n\nThank you,\n${companyName}`
+}
+
+export const SUPPORTED_CURRENCIES = ['LKR', 'USD', 'EUR', 'GBP', 'AUD'] as const
+export type SupportedCurrency = (typeof SUPPORTED_CURRENCIES)[number]
+
+export const DEFAULT_EXCHANGE_RATES: Record<string, number> = {
+  LKR: 1,
+  USD: 300,
+  EUR: 325,
+  GBP: 380,
+  AUD: 195,
+}
+
+export const CURRENCY_SYMBOLS: Record<string, string> = {
+  LKR: 'Rs.',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  AUD: 'A$',
+}
+
+/**
+ * Dynamically formats monetary amounts according to the passed currency code.
+ * Defaults cleanly to LKR if not specified.
+ * Examples:
+ *   formatCurrency(1500) -> "LKR 1,500.00"
+ *   formatCurrency(150, 'USD') -> "USD 150.00"
+ *   formatCurrency(250, 'EUR') -> "EUR 250.00"
+ */
+export function formatCurrency(
+  amount: number | string | null | undefined,
+  currency: string = 'LKR'
+): string {
+  const num = Number(amount ?? 0)
+  const validNum = isNaN(num) ? 0 : num
+  const formatted = validNum.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+  const cur = (currency || 'LKR').toUpperCase().trim()
+  return `${cur} ${formatted}`
+}
+
+/**
+ * Returns the short currency symbol if known, or the 3-letter code otherwise.
+ */
+export function getCurrencySymbol(currency: string = 'LKR'): string {
+  const cur = (currency || 'LKR').toUpperCase().trim()
+  return CURRENCY_SYMBOLS[cur] || cur
 }
 
 export function buildWhatsAppQuotationUrl(quotation: any, companyName: string = 'Thennakoon Tours'): string {
