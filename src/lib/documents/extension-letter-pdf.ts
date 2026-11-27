@@ -411,8 +411,8 @@ export async function generateExtensionLetterPDF(
     )
   }
 
-  // Signature & Seal Block anchored near bottom of letter above footer (clears >= 56mm bottom margin / ~241mm Y)
-  const sigTopY = Math.min(Math.max(y + 6, 210), 214)
+  // Signature & Seal Block positioned ~14mm below final body paragraph baseline, clamped above footer (~241mm Y)
+  const sigTopY = Math.min(hasLockedSnapshot ? y + 2 : y + 8, 214)
   const leftColX = left
   const rightColX = 112
 
@@ -428,8 +428,8 @@ export async function generateExtensionLetterPDF(
   doc.text(companyName, leftColX, sigTopY + 4.2)
   doc.text(isOwner ? 'Vehicle Owner' : 'Customer / Authorized Signatory', rightColX, sigTopY + 4.2)
 
-  // Signature line sits 18mm below sigTopY, finishing the entire block cleanly around 240mm
-  const lineY = Math.min(sigTopY + 18, 229)
+  // Signature line sits 18mm below sigTopY (keeps block safely above bottom letterhead footer)
+  const lineY = Math.min(sigTopY + 18, 232)
 
   // Render Staff Digital Signature (height ~12.5mm) & Official Company Seal (height ~15mm)
   let sealOffsetX = leftColX
@@ -496,7 +496,6 @@ export async function generateExtensionLetterPDF(
   doc.setTextColor(71, 85, 105)
   doc.text(formattedDesignation, leftColX, lineY + 8)
   doc.text('Signature', rightColX, lineY + 8)
-  doc.text('Date / NIC: ________________________', rightColX, lineY + 12)
 
   return doc
 }

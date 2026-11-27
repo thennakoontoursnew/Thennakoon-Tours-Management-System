@@ -168,7 +168,7 @@ export function ExtensionLetterPreviewClient({
 
         {/* Safe Foreground Letter Content Area (clears header & footer artwork cleanly) */}
         <div
-          className="relative z-10 min-h-[297mm] flex flex-col justify-between"
+          className="relative z-10"
           style={{
             padding: '44mm 18mm 56mm 18mm',
             fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif',
@@ -306,7 +306,7 @@ export function ExtensionLetterPreviewClient({
           )}
 
           {/* Two-Column Signature & Company Seal Block */}
-          <div className="mt-auto pt-8 grid grid-cols-2 gap-12 font-sans text-slate-900 break-inside-avoid page-break-inside-avoid">
+          <div className="mt-8 pt-3 grid grid-cols-2 gap-12 font-sans text-slate-900 break-inside-avoid page-break-inside-avoid">
             {/* Column 1: Company / Staff Digital Signature & Official Seal */}
             <div className="flex flex-col">
               <p className="text-[11px] text-slate-600 font-medium">Issued For &amp; On Behalf of</p>
@@ -366,9 +366,6 @@ export function ExtensionLetterPreviewClient({
                   {extension?.recipient_name}
                 </p>
                 <p className="text-[11px] text-slate-600 font-medium">Signature</p>
-                <p className="text-[11px] text-slate-600 pt-0.5">
-                  Date / NIC: ______________________
-                </p>
               </div>
             </div>
           </div>
