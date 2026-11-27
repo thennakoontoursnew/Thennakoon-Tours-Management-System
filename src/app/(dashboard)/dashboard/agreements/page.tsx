@@ -23,7 +23,7 @@ export default async function AgreementsPage({ searchParams }: PageProps) {
   const params = await searchParams
   const supabase = await createClient()
 
-  const [kpis, userAgreements, ownerAgreements, ownersRes, vehiclesRes, bookingsRes] = await Promise.all([
+  const [kpis, userAgreements, ownerAgreements, ownersRes, vehiclesRes, bookingsRes, staffRes, authRes] = await Promise.all([
     getAgreementsKPIs(supabase),
     getUserAgreements(supabase),
     getOwnerAgreements(supabase),
@@ -34,6 +34,12 @@ export default async function AgreementsPage({ searchParams }: PageProps) {
       .select('id, booking_number, rental_start_at, rental_end_at, customer:customers(id, full_name, mobile)')
       .order('created_at', { ascending: false })
       .limit(50),
+    supabase
+      .from('profiles')
+      .select('id, full_name, role, designation, signature_url')
+      .eq('is_active', true)
+      .order('full_name', { ascending: true }),
+    supabase.auth.getUser(),
   ])
 
   const vehiclesList = vehiclesRes.data || []
@@ -50,6 +56,8 @@ export default async function AgreementsPage({ searchParams }: PageProps) {
         owners={ownersRes.data || []}
         vehicles={vehiclesList}
         bookings={bookingsRes.data || []}
+        staffProfiles={staffRes.data || []}
+        currentUserId={authRes.data?.user?.id || null}
         initialTab={params.tab === 'owner' ? 'owner' : 'user'}
         initialOpenOwnerModal={params.new_owner === '1'}
         initialOwnerId={preselectedOwnerId}

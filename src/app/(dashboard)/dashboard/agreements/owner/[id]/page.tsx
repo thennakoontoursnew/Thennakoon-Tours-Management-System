@@ -18,6 +18,11 @@ import {
   AlertCircle,
   Lock,
 } from 'lucide-react'
+import {
+  AgreementExtensionsPanel,
+  ExtendedBadge,
+  buildExtensionModalDefaults,
+} from '@/components/agreements/agreement-extensions-panel'
 
 export const metadata = {
   title: 'Owner Agreement Details — Thennakoon Tours',
@@ -36,7 +41,7 @@ export default async function OwnerAgreementDetailPage({
     notFound()
   }
 
-  const { agreement, payouts, statements } = data
+  const { agreement, payouts, statements, extensions = [], staffProfiles = [], currentUserId = null } = data
   const owner = agreement.owner
   const vehicles = agreement.vehicles || []
   const agreementData = agreement.agreement_data || {}
@@ -93,6 +98,10 @@ export default async function OwnerAgreementDetailPage({
               >
                 {agreement.status}
               </span>
+              <ExtendedBadge
+                isExtended={agreement.is_extended || extensions.length > 0}
+                count={extensions.length}
+              />
               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                 {termDuration}
               </span>
@@ -116,6 +125,19 @@ export default async function OwnerAgreementDetailPage({
           <span>View & Print Official Legal Agreement (PDF)</span>
         </Link>
       </div>
+
+      {/* Agreement Extension Letters & Trigger */}
+      <AgreementExtensionsPanel
+        agreementType="owner"
+        agreementId={agreement.id}
+        isExtended={agreement.is_extended}
+        canExtend={agreement.status !== 'draft' && agreement.status !== 'terminated' && agreement.status !== 'cancelled'}
+        extensions={extensions}
+        defaults={buildExtensionModalDefaults({ agreementType: 'owner', agreement, owner, vehicles })}
+        staffProfiles={staffProfiles}
+        currentUserId={currentUserId}
+        variant="card"
+      />
 
       {/* Grid: Agreement Core Details */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

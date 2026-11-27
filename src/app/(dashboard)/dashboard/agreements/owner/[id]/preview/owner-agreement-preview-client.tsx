@@ -4,11 +4,20 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Printer, ShieldCheck, FileText, Lock } from 'lucide-react'
 import { LegalDocumentViewer } from '@/lib/agreements/legal-document-viewer'
+import {
+  AgreementExtensionsPanel,
+  ExtendAgreementButton,
+  ExtendedBadge,
+  buildExtensionModalDefaults,
+} from '@/components/agreements/agreement-extensions-panel'
 
 interface OwnerAgreementPreviewClientProps {
   agreement: any
   owner?: any
   vehicles?: any[]
+  extensions?: any[]
+  staffProfiles?: any[]
+  currentUserId?: string | null
 }
 
 function getOrdinal(n: number): string {
@@ -49,6 +58,9 @@ export function OwnerAgreementPreviewClient({
   agreement,
   owner,
   vehicles = [],
+  extensions = [],
+  staffProfiles = [],
+  currentUserId = null,
 }: OwnerAgreementPreviewClientProps) {
   const data = agreement?.agreement_data || {}
   const firstCovered = vehicles?.[0]?.vehicle || {}
@@ -168,8 +180,12 @@ export function OwnerAgreementPreviewClient({
         >
           <ArrowLeft size={15} /> Back to Details
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 justify-end">
           <span className="font-mono text-xs text-amber-400 font-bold">{agreement.agreement_number}</span>
+          <ExtendedBadge
+            isExtended={agreement.is_extended || extensions.length > 0}
+            count={extensions.length}
+          />
           {agreement.rendered_sections_snapshot?.length > 0 || agreement.rendered_content_snapshot ? (
             <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
               <Lock size={11} /> Immutable Legal Snapshot Locked
@@ -179,6 +195,16 @@ export function OwnerAgreementPreviewClient({
               Official 10-Clause Legal Contract (A4/Legal)
             </span>
           )}
+          {agreement.status !== 'draft' && agreement.status !== 'terminated' && agreement.status !== 'cancelled' && (
+            <ExtendAgreementButton
+              agreementType="owner"
+              agreementId={agreement.id}
+              defaults={buildExtensionModalDefaults({ agreementType: 'owner', agreement, owner, vehicles })}
+              staffProfiles={staffProfiles}
+              currentUserId={currentUserId}
+              variant="toolbar"
+            />
+          )}
           <button
             onClick={handlePrint}
             className="px-5 py-2 rounded-xl bg-amber-400 text-slate-950 font-black text-xs hover:bg-amber-300 transition-all cursor-pointer flex items-center gap-1.5 shadow-md"
@@ -187,6 +213,18 @@ export function OwnerAgreementPreviewClient({
           </button>
         </div>
       </div>
+
+      <AgreementExtensionsPanel
+        agreementType="owner"
+        agreementId={agreement.id}
+        isExtended={agreement.is_extended}
+        canExtend={agreement.status !== 'draft' && agreement.status !== 'terminated' && agreement.status !== 'cancelled'}
+        extensions={extensions}
+        defaults={buildExtensionModalDefaults({ agreementType: 'owner', agreement, owner, vehicles })}
+        staffProfiles={staffProfiles}
+        currentUserId={currentUserId}
+        variant="banner"
+      />
 
       {/* Formal Legal Document Paper Container */}
       <div

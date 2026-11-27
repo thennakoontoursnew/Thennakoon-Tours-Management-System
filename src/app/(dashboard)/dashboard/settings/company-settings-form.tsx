@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { saveCompanySettings } from './settings-actions'
-import { Loader2, Save, CheckCircle, Hash } from 'lucide-react'
+import { saveCompanySettings, uploadCompanySealAction, removeCompanySealAction } from './settings-actions'
+import { Loader2, Save, CheckCircle, Hash, Upload, AlertCircle, Stamp } from 'lucide-react'
 import { COMPANY_CONFIG } from '@/lib/company-config'
 
 interface CompanySettings {
@@ -21,6 +21,7 @@ interface CompanySettings {
   default_invoice_terms: string | null
   default_special_notes: string | null
   signature_url: string | null
+  company_seal_url?: string | null
   supported_currencies?: string[] | null
   default_exchange_rates?: Record<string, number> | null
 }
@@ -79,6 +80,11 @@ export function CompanySettingsForm({ initialValues, invoiceCounter }: CompanySe
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [signatureUrl, setSignatureUrl] = useState<string | null>(initialValues?.signature_url || null)
+  const [companySealUrl, setCompanySealUrl] = useState<string | null>(initialValues?.company_seal_url || null)
+  const [sealFile, setSealFile] = useState<File | null>(null)
+  const [sealPreview, setSealPreview] = useState<string | null>(null)
+  const [sealUploading, setSealUploading] = useState(false)
+  const [sealStatus, setSealStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -88,6 +94,57 @@ export function CompanySettingsForm({ initialValues, invoiceCounter }: CompanySe
         setSignatureUrl(reader.result as string)
       }
       reader.readAsDataURL(file)
+    }
+  }
+
+  const handleSealFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    setSealStatus(null)
+    if (!file) return
+    setSealFile(file)
+    const reader = new FileReader()
+    reader.onloadend = () => setSealPreview(reader.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  const handleSealUpload = async () => {
+    if (!sealFile) return
+    setSealUploading(true)
+    setSealStatus(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', sealFile)
+      const res = await uploadCompanySealAction(fd)
+      if (res.error) {
+        setSealStatus({ type: 'error', text: res.error })
+      } else if (res.url) {
+        setCompanySealUrl(res.url)
+        setSealFile(null)
+        setSealPreview(null)
+        setSealStatus({ type: 'success', text: 'Company seal uploaded & saved!' })
+      }
+    } catch (err: any) {
+      setSealStatus({ type: 'error', text: err.message || 'Failed to upload company seal.' })
+    } finally {
+      setSealUploading(false)
+    }
+  }
+
+  const handleSealRemove = async () => {
+    setSealUploading(true)
+    setSealStatus(null)
+    try {
+      const res = await removeCompanySealAction()
+      if (res.error) {
+        setSealStatus({ type: 'error', text: res.error })
+      } else {
+        setCompanySealUrl(null)
+        setSealFile(null)
+        setSealPreview(null)
+        setSealStatus({ type: 'success', text: 'Company seal removed.' })
+      }
+    } finally {
+      setSealUploading(false)
     }
   }
 
@@ -332,6 +389,90 @@ export function CompanySettingsForm({ initialValues, invoiceCounter }: CompanySe
               <p className="text-[11px] text-slate-400 leading-relaxed">
                 This signature will be embedded above the <strong>PREPARED BY:</strong> section on all generated invoices, receipts, quotations, and agreements.
               </p>
+            </div>
+          </div>
+
+          {/* Official Company Seal / Rubber Stamp */}
+          <div className="pt-5 border-t border-slate-100 dark:border-slate-800 space-y-4">
+            <input type="hidden" name="company_seal_url" value={companySealUrl || ''} />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Stamp size={15} className="text-amber-500" />
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
+                    Official Company Seal / Rubber Stamp (Optional)
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Rendered beside staff signatures on Agreement Extension Letters & official correspondence.
+                  </p>
+                </div>
+              </div>
+              {companySealUrl && (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                  Seal Active
+                </span>
+              )}
+            </div>
+
+            {sealStatus && (
+              <div
+                className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                  sealStatus.type === 'success'
+                    ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400'
+                }`}
+              >
+                {sealStatus.type === 'success' ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
+                <span>{sealStatus.text}</span>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row items-start gap-6">
+              <div className="w-full sm:w-44 h-32 bg-slate-50 dark:bg-slate-950 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-center p-3 overflow-hidden">
+                {sealPreview || companySealUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={sealPreview || companySealUrl || ''}
+                    alt="Company Seal"
+                    className="max-h-full max-w-full object-contain"
+                  />
+                ) : (
+                  <div className="text-center text-slate-400">
+                    <p className="text-xs font-bold">No Seal Image</p>
+                    <p className="text-[10px]">Transparent PNG recommended</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3 flex-1">
+                <input
+                  type="file"
+                  accept="image/png, image/jpeg, image/jpg, image/webp"
+                  onChange={handleSealFileChange}
+                  className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-400 file:text-slate-950 hover:file:bg-amber-500 cursor-pointer"
+                />
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSealUpload}
+                    disabled={!sealFile || sealUploading}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 hover:bg-amber-300 disabled:opacity-50 cursor-pointer"
+                  >
+                    {sealUploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                    <span>{sealUploading ? 'Uploading Seal...' : 'Upload & Save Company Seal'}</span>
+                  </button>
+                  {companySealUrl && (
+                    <button
+                      type="button"
+                      onClick={handleSealRemove}
+                      disabled={sealUploading}
+                      className="text-xs font-bold text-rose-500 hover:text-rose-600 cursor-pointer"
+                    >
+                      Remove Seal
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -27,6 +27,7 @@ export async function saveCompanySettings(formData: FormData) {
   const defaultInvoiceTerms = formData.get('default_invoice_terms')?.toString() || null
   const defaultSpecialNotes = formData.get('default_special_notes')?.toString() || null
   const signatureUrl = formData.get('signature_url')?.toString() || null
+  const companySealUrl = formData.get('company_seal_url')?.toString() || null
 
   const rawExchangeRates = formData.get('default_exchange_rates')?.toString()
   let defaultExchangeRates: Record<string, number> = {
@@ -71,6 +72,7 @@ export async function saveCompanySettings(formData: FormData) {
     default_invoice_terms: defaultInvoiceTerms,
     default_special_notes: defaultSpecialNotes,
     signature_url: signatureUrl,
+    company_seal_url: companySealUrl,
     supported_currencies: ['LKR', 'USD', 'EUR', 'GBP', 'AUD'],
     default_exchange_rates: defaultExchangeRates,
     updated_at: new Date().toISOString(),
@@ -278,5 +280,119 @@ export async function removeCompanyLetterheadAction(): Promise<{ success?: boole
   revalidatePath('/dashboard/quotations')
   revalidatePath('/dashboard/receipts')
 
+  return { success: true }
+}
+
+// =============================================
+// UPLOAD COMPANY SEAL / RUBBER STAMP
+// =============================================
+export async function uploadCompanySealAction(formData: FormData): Promise<{ success?: boolean; error?: string; url?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const file = formData.get('file') as File | null
+  if (!file || typeof file === 'string') {
+    return { error: 'Please select a valid seal image file to upload.' }
+  }
+
+  const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
+  if (!validTypes.includes(file.type)) {
+    return { error: 'Invalid file format. Please upload a PNG, JPG, or WEBP image.' }
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    return { error: 'File size exceeds maximum limit of 5MB.' }
+  }
+
+  const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
+  const filePath = `branding/company-seal-${Date.now()}.${ext}`
+  const adminClient = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : supabase
+
+  try {
+    await adminClient.storage.createBucket('company-assets', { public: true })
+  } catch (_) {}
+
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+
+  const { error: uploadError } = await adminClient.storage
+    .from('company-assets')
+    .upload(filePath, buffer, {
+      contentType: file.type,
+      upsert: true,
+    })
+
+  if (uploadError) {
+    return { error: `Failed to upload company seal image: ${uploadError.message}` }
+  }
+
+  const { data: publicUrlData } = adminClient.storage
+    .from('company-assets')
+    .getPublicUrl(filePath)
+
+  const publicUrl = publicUrlData.publicUrl
+
+  const { data: existing } = await adminClient
+    .from('company_settings')
+    .select('id')
+    .limit(1)
+    .maybeSingle()
+
+  const payload: Record<string, unknown> = {
+    company_seal_url: publicUrl,
+    updated_at: new Date().toISOString(),
+  }
+  if (existing?.id) {
+    payload.id = existing.id
+  }
+
+  const { error: updateError } = await adminClient
+    .from('company_settings')
+    .upsert(payload, { onConflict: 'id' })
+
+  if (updateError) {
+    return { error: `Failed to save company seal URL: ${updateError.message}` }
+  }
+
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard/agreements')
+  return { success: true, url: publicUrl }
+}
+
+// =============================================
+// REMOVE COMPANY SEAL / RUBBER STAMP
+// =============================================
+export async function removeCompanySealAction(): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const adminClient = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : supabase
+
+  const { data: existing } = await adminClient
+    .from('company_settings')
+    .select('id')
+    .limit(1)
+    .maybeSingle()
+
+  const payload: Record<string, unknown> = {
+    company_seal_url: null,
+    updated_at: new Date().toISOString(),
+  }
+  if (existing?.id) {
+    payload.id = existing.id
+  }
+
+  const { error: updateError } = await adminClient
+    .from('company_settings')
+    .upsert(payload, { onConflict: 'id' })
+
+  if (updateError) {
+    return { error: `Failed to remove company seal: ${updateError.message}` }
+  }
+
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard/agreements')
   return { success: true }
 }

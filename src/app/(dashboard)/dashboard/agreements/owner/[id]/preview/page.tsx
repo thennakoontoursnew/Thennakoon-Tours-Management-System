@@ -28,6 +28,9 @@ export default async function OwnerAgreementPreviewPage({
       agreement={serialized.agreement}
       owner={serialized.agreement.owner}
       vehicles={serialized.agreement.vehicles}
+      extensions={serialized.extensions || []}
+      staffProfiles={serialized.staffProfiles || []}
+      currentUserId={serialized.currentUserId || null}
     />
   )
 }

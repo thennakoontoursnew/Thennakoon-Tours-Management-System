@@ -19,6 +19,7 @@ const createStaffSchema = z.object({
   email: z.string().email('Invalid email address'),
   role: z.enum(VALID_ROLES, 'Invalid role selected'),
   phone: z.string().optional(),
+  designation: z.string().optional(),
   password: z.string().min(8, 'Password must be at least 8 characters'),
 })
 
@@ -27,6 +28,7 @@ export async function createStaffUser(values: {
   email: string
   role: string
   phone?: string
+  designation?: string
   password: string
 }) {
   const supabase = await createClient()
@@ -79,6 +81,14 @@ export async function createStaffUser(values: {
 
   if (createError || !newUser.user) {
     return { success: false, error: createError?.message || 'Failed to create user.' }
+  }
+
+  // Persist designation onto profile if supplied
+  if (values.designation?.trim()) {
+    await adminSupabase
+      .from('profiles')
+      .update({ designation: values.designation.trim(), updated_at: new Date().toISOString() })
+      .eq('id', newUser.user.id)
   }
 
   // Audit log
@@ -181,4 +191,115 @@ export async function updateStaffRole(targetUserId: string, newRole: string) {
 
   revalidatePath('/dashboard/users')
   return { success: true }
+}
+
+export async function updateStaffProfileDetailsAction(formData: FormData): Promise<{
+  success?: boolean
+  error?: string
+  signatureUrl?: string | null
+  designation?: string | null
+}> {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user: caller },
+    } = await supabase.auth.getUser()
+
+    if (!caller) return { error: 'Not authenticated.' }
+
+    const targetUserId = formData.get('target_user_id')?.toString() || caller.id
+    const designation = formData.get('designation')?.toString()?.trim() || null
+    const fullName = formData.get('full_name')?.toString()?.trim()
+    const phone = formData.get('phone')?.toString()?.trim()
+    const removeSignature = formData.get('remove_signature')?.toString() === 'true'
+    const file = formData.get('signature_file') as File | null
+
+    const { data: callerProfile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', caller.id)
+      .single()
+
+    const isOwner = callerProfile?.role === 'owner'
+    if (caller.id !== targetUserId && !isOwner) {
+      return { error: 'Only the system owner can update another user’s profile.' }
+    }
+
+    const dbClient = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : supabase
+
+    const updatePayload: Record<string, any> = {
+      designation,
+      updated_at: new Date().toISOString(),
+    }
+    if (fullName && fullName.length >= 2) {
+      updatePayload.full_name = fullName
+    }
+    if (phone !== undefined) {
+      updatePayload.phone = phone || null
+    }
+
+    let uploadedUrl: string | null | undefined = undefined
+
+    if (removeSignature) {
+      updatePayload.signature_url = null
+      uploadedUrl = null
+    } else if (file && typeof file !== 'string' && file.size > 0) {
+      const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
+      if (!validTypes.includes(file.type)) {
+        return { error: 'Invalid signature file format. Please upload PNG, JPG, or WEBP.' }
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        return { error: 'Signature file size exceeds 5MB limit.' }
+      }
+
+      try {
+        await dbClient.storage.createBucket('signatures', { public: true })
+      } catch (_) {}
+
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
+      const storagePath = `staff/${targetUserId}-${Date.now()}.${ext}`
+      const arrayBuffer = await file.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+
+      const { error: uploadErr } = await dbClient.storage
+        .from('signatures')
+        .upload(storagePath, buffer, {
+          contentType: file.type,
+          upsert: true,
+        })
+
+      if (uploadErr) {
+        return { error: `Failed to upload signature image: ${uploadErr.message}` }
+      }
+
+      const { data: urlData } = dbClient.storage.from('signatures').getPublicUrl(storagePath)
+      uploadedUrl = urlData.publicUrl
+      updatePayload.signature_url = uploadedUrl
+    }
+
+    const { error: updateErr } = await dbClient
+      .from('profiles')
+      .update(updatePayload)
+      .eq('id', targetUserId)
+
+    if (updateErr) {
+      return { error: updateErr.message }
+    }
+
+    try {
+      await supabase.rpc('log_audit_action_internal', {
+        p_action: 'UPDATE_STAFF_SIGNATURE_DESIGNATION',
+        p_entity_type: 'profile',
+        p_entity_id: targetUserId,
+        p_description: `Updated designation (${designation || 'none'}) and signature settings`,
+      })
+    } catch (_) {}
+
+    revalidatePath('/dashboard/users')
+    revalidatePath('/dashboard/profile')
+    revalidatePath('/dashboard/agreements')
+    return { success: true, signatureUrl: uploadedUrl, designation }
+  } catch (err: any) {
+    return { error: err.message || 'Failed to update staff signature & designation.' }
+  }
 }

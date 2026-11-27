@@ -20,6 +20,12 @@ import { NewOwnerAgreementModal } from '@/components/agreements/new-owner-agreem
 import { SelectBookingModal } from '@/components/agreements/select-booking-modal'
 import { updateOwnerAgreementStatusAction } from './agreement-actions'
 
+import {
+  ExtendedBadge,
+  ExtendAgreementButton,
+  buildExtensionModalDefaults,
+} from '@/components/agreements/agreement-extensions-panel'
+
 interface AgreementsClientProps {
   kpis: {
     totalAgreements: number
@@ -33,6 +39,8 @@ interface AgreementsClientProps {
   owners: any[]
   vehicles: any[]
   bookings: any[]
+  staffProfiles?: any[]
+  currentUserId?: string | null
   initialTab?: 'user' | 'owner'
   initialOpenOwnerModal?: boolean
   initialOwnerId?: string
@@ -46,6 +54,8 @@ export function AgreementsClient({
   owners,
   vehicles,
   bookings,
+  staffProfiles = [],
+  currentUserId = null,
   initialTab = 'user',
   initialOpenOwnerModal = false,
   initialOwnerId,
@@ -237,28 +247,58 @@ export function AgreementsClient({
                         {item.rental_start_at ? new Date(item.rental_start_at).toLocaleDateString() : 'N/A'} to {item.rental_end_at ? new Date(item.rental_end_at).toLocaleDateString() : 'N/A'}
                       </td>
                       <td className="py-3.5 px-4">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${item.status === 'cancelled' ? 'bg-rose-500/10 text-rose-600 border border-rose-200' : item.status === 'draft' ? 'bg-slate-100 text-slate-600' : 'bg-amber-500/10 text-amber-600 border border-amber-500/20'}`}>
-                          {item.status}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${item.status === 'cancelled' ? 'bg-rose-500/10 text-rose-600 border border-rose-200' : item.status === 'draft' ? 'bg-slate-100 text-slate-600' : 'bg-amber-500/10 text-amber-600 border border-amber-500/20'}`}>
+                            {item.status}
+                          </span>
+                          <ExtendedBadge
+                            isExtended={item.is_extended || (item.extensions?.length ?? 0) > 0}
+                            count={item.extensions?.length ?? 0}
+                          />
+                        </div>
                       </td>
-                      <td className="py-3.5 px-4 text-right space-x-1.5">
-                        {item.status === 'draft' ? (
-                          <Link
-                            href={`/dashboard/agreements/new?booking_id=${item.booking_id}`}
-                            className="p-1.5 rounded bg-amber-400 text-slate-950 font-bold text-[11px] hover:bg-amber-300 inline-flex items-center gap-1"
-                          >
-                            <Play size={13} />
-                            <span>Continue</span>
-                          </Link>
-                        ) : (
-                          <Link
-                            href={`/dashboard/agreements/${item.id}/preview`}
-                            className="p-1.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 inline-flex items-center gap-1 font-semibold text-[11px]"
-                          >
-                            <Printer size={13} />
-                            <span>View / PDF</span>
-                          </Link>
-                        )}
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
+                          {item.status === 'draft' ? (
+                            <Link
+                              href={`/dashboard/agreements/new?booking_id=${item.booking_id}`}
+                              className="p-1.5 rounded bg-amber-400 text-slate-950 font-bold text-[11px] hover:bg-amber-300 inline-flex items-center gap-1"
+                            >
+                              <Play size={13} />
+                              <span>Continue</span>
+                            </Link>
+                          ) : (
+                            <>
+                              <Link
+                                href={`/dashboard/agreements/${item.id}/preview`}
+                                className="p-1.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 inline-flex items-center gap-1 font-semibold text-[11px]"
+                              >
+                                <Printer size={13} />
+                                <span>View / PDF</span>
+                              </Link>
+                              {item.status !== 'cancelled' && (
+                                <ExtendAgreementButton
+                                  agreementType="user"
+                                  agreementId={item.id}
+                                  defaults={buildExtensionModalDefaults({ agreementType: 'user', agreement: item })}
+                                  staffProfiles={staffProfiles}
+                                  currentUserId={currentUserId}
+                                  variant="compact"
+                                />
+                              )}
+                              {item.extensions?.[0]?.id && (
+                                <Link
+                                  href={`/dashboard/agreements/extensions/${item.extensions[0].id}/preview`}
+                                  className="p-1.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 inline-flex items-center gap-1 font-semibold text-[11px]"
+                                  title={`View latest extension letter (${item.extensions[0].extension_number})`}
+                                >
+                                  <FileText size={12} />
+                                  <span>Latest Ext</span>
+                                </Link>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -315,27 +355,55 @@ export function AgreementsClient({
                           </span>
                         </td>
                         <td className="py-3.5 px-4">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${item.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-200' : 'bg-amber-500/10 text-amber-600 border border-amber-200'}`}>
-                            {item.status}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${item.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-200' : 'bg-amber-500/10 text-amber-600 border border-amber-200'}`}>
+                              {item.status}
+                            </span>
+                            <ExtendedBadge
+                              isExtended={item.is_extended || (item.extensions?.length ?? 0) > 0}
+                              count={item.extensions?.length ?? 0}
+                            />
+                          </div>
                         </td>
-                        <td className="py-3.5 px-4 text-right space-x-1.5">
-                          <Link
-                            href={`/dashboard/agreements/owner/${item.id}`}
-                            className="p-1.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 inline-flex items-center gap-1 font-semibold text-[11px]"
-                          >
-                            <FileText size={13} />
-                            <span>View</span>
-                          </Link>
-                          {item.status === 'draft' && (
-                            <button
-                              onClick={() => handleStatusChange(item.id, 'active')}
-                              disabled={updatingId === item.id}
-                              className="px-2 py-1 rounded bg-emerald-500 text-white font-bold text-[10px] hover:bg-emerald-600 cursor-pointer"
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
+                            <Link
+                              href={`/dashboard/agreements/owner/${item.id}`}
+                              className="p-1.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 inline-flex items-center gap-1 font-semibold text-[11px]"
                             >
-                              Activate
-                            </button>
-                          )}
+                              <FileText size={13} />
+                              <span>View</span>
+                            </Link>
+                            {item.status === 'draft' && (
+                              <button
+                                onClick={() => handleStatusChange(item.id, 'active')}
+                                disabled={updatingId === item.id}
+                                className="px-2 py-1 rounded bg-emerald-500 text-white font-bold text-[10px] hover:bg-emerald-600 cursor-pointer"
+                              >
+                                Activate
+                              </button>
+                            )}
+                            {item.status !== 'draft' && item.status !== 'terminated' && item.status !== 'cancelled' && (
+                              <ExtendAgreementButton
+                                agreementType="owner"
+                                agreementId={item.id}
+                                defaults={buildExtensionModalDefaults({ agreementType: 'owner', agreement: item })}
+                                staffProfiles={staffProfiles}
+                                currentUserId={currentUserId}
+                                variant="compact"
+                              />
+                            )}
+                            {item.extensions?.[0]?.id && (
+                              <Link
+                                href={`/dashboard/agreements/extensions/${item.extensions[0].id}/preview`}
+                                className="p-1.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 inline-flex items-center gap-1 font-semibold text-[11px]"
+                                title={`View latest extension letter (${item.extensions[0].extension_number})`}
+                              >
+                                <FileText size={12} />
+                                <span>Latest Ext</span>
+                              </Link>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )

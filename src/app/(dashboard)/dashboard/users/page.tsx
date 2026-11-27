@@ -28,7 +28,7 @@ export default async function UsersPage() {
   // Fetch all profiles for owner
   const { data: profiles, error } = await supabase
     .from('profiles')
-    .select('id, full_name, email, role, is_active, phone, last_login_at, created_at')
+    .select('id, full_name, email, role, is_active, phone, designation, signature_url, last_login_at, created_at')
     .order('created_at', { ascending: true })
 
   return (

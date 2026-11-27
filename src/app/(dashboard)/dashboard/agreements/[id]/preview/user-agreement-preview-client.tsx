@@ -28,6 +28,12 @@ import {
 import { UserAgreementFormData, validateUserAgreementData } from '@/lib/agreements/user-agreement-service'
 import { amendUserAgreementAction } from '@/app/(dashboard)/dashboard/agreements/user-agreement-actions'
 import { LegalDocumentViewer } from '@/lib/agreements/legal-document-viewer'
+import {
+  AgreementExtensionsPanel,
+  ExtendAgreementButton,
+  ExtendedBadge,
+  buildExtensionModalDefaults,
+} from '@/components/agreements/agreement-extensions-panel'
 
 interface UserAgreementPreviewClientProps {
   agreement: any
@@ -37,6 +43,9 @@ interface UserAgreementPreviewClientProps {
   vehicle?: any
   companySettings?: any
   versionHistory?: any[]
+  extensions?: any[]
+  staffProfiles?: any[]
+  currentUserId?: string | null
 }
 
 function formatDateSafe(val: any): string {
@@ -85,6 +94,9 @@ export function UserAgreementPreviewClient({
   vehicle,
   companySettings,
   versionHistory = [],
+  extensions = [],
+  staffProfiles = [],
+  currentUserId = null,
 }: UserAgreementPreviewClientProps) {
   const router = useRouter()
   const [showAmendModal, setShowAmendModal] = useState(false)
@@ -174,6 +186,28 @@ export function UserAgreementPreviewClient({
             <span>Version History ({versionHistory.length || 1})</span>
           </button>
 
+          <ExtendedBadge
+            isExtended={agreement.is_extended || extensions.length > 0}
+            count={extensions.length}
+          />
+
+          {!selectedVersion && agreement.status !== 'cancelled' && (
+            <ExtendAgreementButton
+              agreementType="user"
+              agreementId={agreement.id}
+              defaults={buildExtensionModalDefaults({
+                agreementType: 'user',
+                agreement,
+                booking,
+                customer,
+                vehicle,
+              })}
+              staffProfiles={staffProfiles}
+              currentUserId={currentUserId}
+              variant="toolbar"
+            />
+          )}
+
           {!selectedVersion && (
             <button
               onClick={() => setShowAmendModal(true)}
@@ -193,6 +227,25 @@ export function UserAgreementPreviewClient({
           </button>
         </div>
       </div>
+
+      {/* ISSUED EXTENSION LETTERS HISTORY BANNER (EXCLUDED ON PRINT) */}
+      <AgreementExtensionsPanel
+        agreementType="user"
+        agreementId={agreement.id}
+        isExtended={agreement.is_extended}
+        canExtend={!selectedVersion && agreement.status !== 'cancelled'}
+        extensions={extensions}
+        defaults={buildExtensionModalDefaults({
+          agreementType: 'user',
+          agreement,
+          booking,
+          customer,
+          vehicle,
+        })}
+        staffProfiles={staffProfiles}
+        currentUserId={currentUserId}
+        variant="banner"
+      />
 
       {/* PURE DOCUMENT CONTENT CONTAINER (EXCLUSIVELY EXPORTED TO PRINT / PDF) */}
       <UserAgreementDocument

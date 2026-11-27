@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Menu, X, Bell, Calendar, Search, LogOut, Settings, ChevronDown } from 'lucide-react'
+import { Menu, X, Bell, Calendar, Search, LogOut, Settings, ChevronDown, PenTool } from 'lucide-react'
 import { Sidebar } from './sidebar'
 import { Breadcrumbs } from './breadcrumbs'
 import { GlobalSearchModal } from './global-search-modal'
@@ -125,13 +125,24 @@ export function Navbar({ role, fullName, onLogout }: NavbarProps) {
                 </div>
 
                 <Link
-                  href="/dashboard/settings"
+                  href="/dashboard/profile"
                   onClick={() => setIsUserMenuOpen(false)}
                   className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
-                  <Settings size={15} className="text-slate-400" />
-                  <span>Account Settings</span>
+                  <PenTool size={15} className="text-amber-500" />
+                  <span>My Signature & Profile</span>
                 </Link>
+
+                {role === 'owner' && (
+                  <Link
+                    href="/dashboard/settings"
+                    onClick={() => setIsUserMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <Settings size={15} className="text-slate-400" />
+                    <span>Account Settings</span>
+                  </Link>
+                )}
 
                 <button
                   onClick={() => {
