@@ -301,6 +301,17 @@ export function UserAgreementDocument({
   vehicle?: any
   companySettings?: any
 }) {
+  const lesseeSnap = agreement?.lessee_snapshot || {}
+  const lessorRep = agreement?.lessor_representative_snapshot || {}
+  const customerSignatureUrl =
+    agreement?.customer_signature_path ||
+    (lesseeSnap?.include_signature ? lesseeSnap?.saved_signature_url : null) ||
+    null
+  const companyRepSignatureUrl =
+    agreement?.company_signature_path || lessorRep?.signature_url || null
+  const companySealUrl = companySettings?.company_seal_url || null
+  const lesseeDisplayName = lesseeSnap?.company_name || lesseeSnap?.full_name || customer?.full_name || 'Lessee'
+
   return (
     <div className="relative w-full max-w-[215.9mm] min-h-[355.6mm] bg-white text-slate-950 shadow-2xl rounded-none p-12 md:p-16 space-y-6 text-xs leading-relaxed print:p-0 print:shadow-none print:w-full font-serif sm:font-sans">
       {/* Formal Document Header */}
@@ -317,13 +328,40 @@ export function UserAgreementDocument({
       </div>
 
       {agreement.rendered_sections_snapshot && Array.isArray(agreement.rendered_sections_snapshot) && agreement.rendered_sections_snapshot.length > 0 ? (
-        <LegalDocumentViewer sections={agreement.rendered_sections_snapshot} />
+        <LegalDocumentViewer
+          sections={agreement.rendered_sections_snapshot}
+          companyRepSignatureUrl={companyRepSignatureUrl}
+          companySealUrl={companySealUrl}
+          recipientSignatureUrl={customerSignatureUrl}
+          companyRepName={lessorRep?.name}
+          recipientName={lesseeDisplayName}
+          recipientRoleLabel="Signed by THE LESSEE"
+        />
       ) : agreement.rendered_content_snapshot ? (
-        <LegalDocumentViewer content={agreement.rendered_content_snapshot} />
+        <LegalDocumentViewer
+          content={agreement.rendered_content_snapshot}
+          companyRepSignatureUrl={companyRepSignatureUrl}
+          companySealUrl={companySealUrl}
+          recipientSignatureUrl={customerSignatureUrl}
+          companyRepName={lessorRep?.name}
+          recipientName={lesseeDisplayName}
+          recipientRoleLabel="Signed by THE LESSEE"
+        />
       ) : isV1 ? (
-        <V1UserAgreementContent agreement={agreement} customer={customer} vehicle={vehicle} />
+        <V1UserAgreementContent
+          agreement={agreement}
+          customer={customer}
+          vehicle={vehicle}
+          companySettings={companySettings}
+        />
       ) : (
-        <LegacyUserAgreementContent agreement={agreement} booking={booking} customer={customer} vehicle={vehicle} companySettings={companySettings} />
+        <LegacyUserAgreementContent
+          agreement={agreement}
+          booking={booking}
+          customer={customer}
+          vehicle={vehicle}
+          companySettings={companySettings}
+        />
       )}
 
       {/* Dynamic Footer */}
@@ -335,7 +373,7 @@ export function UserAgreementDocument({
   )
 }
 
-function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
+function V1UserAgreementContent({ agreement, customer, vehicle, companySettings }: any) {
   const lessee = agreement.lessee_snapshot || customer || {}
   const veh = agreement.vehicle_snapshot || vehicle || {}
   const rental = agreement.rental_snapshot || {}
@@ -343,6 +381,12 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
   const drivers = agreement.nominated_drivers_snapshot || []
   const witnesses = agreement.witnesses_snapshot || {}
   const lessorRep = agreement.lessor_representative_snapshot || {}
+  const companyRepSignatureUrl = agreement?.company_signature_path || lessorRep?.signature_url || null
+  const customerSignatureUrl =
+    agreement?.customer_signature_path ||
+    (lessee?.include_signature ? lessee?.saved_signature_url : null) ||
+    null
+  const companySealUrl = companySettings?.company_seal_url || null
 
   const lesseeName = lessee.company_name || lessee.full_name || 'Lessee'
   const lesseeId = lessee.nic || lessee.identifier_no || lessee.passport_number || '........................'
@@ -605,22 +649,53 @@ function V1UserAgreementContent({ agreement, customer, vehicle }: any) {
       </div>
 
       {/* LESSOR / LESSEE SIGNATURE SECTION */}
-      <div className="pt-10 grid grid-cols-2 gap-12 text-xs break-inside-avoid page-break-inside-avoid">
-        <div className="border-t border-slate-950 pt-2 space-y-1">
-          <p className="font-bold text-slate-950 uppercase">The Lessor/ on behalf of the Lessor</p>
-          <p className="text-slate-800">NIC: {lessorRep.nic || '........................'}</p>
-          <p className="text-slate-800">Name: {lessorRep.name || '........................'}</p>
-          <p className="text-slate-800">Address: No. 146/5A, Dutugemunu Street, Caldera Gardens, Kohuwala.</p>
+      <div className="pt-8 grid grid-cols-2 gap-12 text-xs break-inside-avoid page-break-inside-avoid">
+        <div>
+          <div className="h-[54px] flex items-end mb-1">
+            {companyRepSignatureUrl && (
+              <img
+                src={companyRepSignatureUrl}
+                alt="Company Representative Signature"
+                className="h-[42px] max-w-[160px] object-contain object-left pb-0.5"
+              />
+            )}
+            {companySealUrl && (
+              <img
+                src={companySealUrl}
+                alt="Official Company Seal"
+                className={`h-[52px] w-[52px] object-contain opacity-90 pointer-events-none select-none ${
+                  companyRepSignatureUrl ? '-ml-3' : ''
+                }`}
+              />
+            )}
+          </div>
+          <div className="border-t border-dotted border-slate-950 pt-2 space-y-1">
+            <p className="font-bold text-slate-950 uppercase">The Lessor/ on behalf of the Lessor</p>
+            <p className="text-slate-800">NIC: {lessorRep.nic || '........................'}</p>
+            <p className="text-slate-800">Name: {lessorRep.name || '........................'}</p>
+            <p className="text-slate-800">Address: No. 146/5A, Dutugemunu Street, Caldera Gardens, Kohuwala.</p>
+          </div>
         </div>
 
-        <div className="border-t border-slate-950 pt-2 space-y-1">
-          <div className="flex justify-between font-bold text-slate-950">
-            <span>The Lessee—Ol</span>
-            <span>The Lessee----02</span>
+        <div>
+          <div className="h-[54px] flex items-end mb-1">
+            {customerSignatureUrl && (
+              <img
+                src={customerSignatureUrl}
+                alt={`${lesseeName} Signature`}
+                className="h-[42px] max-w-[160px] object-contain object-left pb-0.5"
+              />
+            )}
           </div>
-          <p className="text-slate-800">Name: {lesseeName}</p>
-          <p className="text-slate-800">NIC/Passport: {lesseeId}</p>
-          <p className="text-slate-800">Address: {lesseeAddr}</p>
+          <div className="border-t border-dotted border-slate-950 pt-2 space-y-1">
+            <div className="flex justify-between font-bold text-slate-950">
+              <span>The Lessee—Ol</span>
+              <span>The Lessee----02</span>
+            </div>
+            <p className="text-slate-800">Name: {lesseeName}</p>
+            <p className="text-slate-800">NIC/Passport: {lesseeId}</p>
+            <p className="text-slate-800">Address: {lesseeAddr}</p>
+          </div>
         </div>
       </div>
 
@@ -663,6 +738,14 @@ function LegacyUserAgreementContent({ agreement, booking, customer, vehicle, com
   const dailyRate = booking?.daily_rate || vehicle?.daily_rate || 7500
   const deposit = booking?.refundable_deposit || vehicle?.refundable_deposit || 50000
   const termsText = agreement.terms_snapshot || companySettings?.default_agreement_terms || '1. Hirer is responsible for vehicle during rental period. 2. Fuel level must match pickup level. 3. Vehicle must be returned on time.'
+  const customerSignatureUrl =
+    agreement?.customer_signature_path ||
+    (agreement?.lessee_snapshot?.include_signature ? agreement?.lessee_snapshot?.saved_signature_url : null) ||
+    null
+  const companyRepSignatureUrl =
+    agreement?.company_signature_path || agreement?.lessor_representative_snapshot?.signature_url || null
+  const companySealUrl = companySettings?.company_seal_url || null
+  const lessorRepName = agreement?.lessor_representative_snapshot?.name || 'Authorized Officer'
 
   return (
     <div className="space-y-6">
@@ -695,9 +778,46 @@ function LegacyUserAgreementContent({ agreement, booking, customer, vehicle, com
         </div>
       </div>
 
-      <div className="pt-12 grid grid-cols-2 gap-12 text-xs">
-        <div className="border-t border-slate-950 pt-2 text-center space-y-1"><p className="font-bold text-slate-950">HIRER SIGNATURE</p><p className="text-slate-800">{custName}</p></div>
-        <div className="border-t border-slate-950 pt-2 text-center space-y-1"><p className="font-bold text-slate-950">FOR THENNAKOON TOURS (PVT) LTD</p><p className="text-slate-800">Authorized Officer</p></div>
+      <div className="pt-8 grid grid-cols-2 gap-12 text-xs">
+        <div>
+          <div className="h-[54px] flex items-end justify-center mb-1">
+            {customerSignatureUrl && (
+              <img
+                src={customerSignatureUrl}
+                alt={`${custName} Signature`}
+                className="h-[42px] max-w-[160px] object-contain"
+              />
+            )}
+          </div>
+          <div className="border-t border-dotted border-slate-950 pt-2 text-center space-y-1">
+            <p className="font-bold text-slate-950">HIRER SIGNATURE</p>
+            <p className="text-slate-800">{custName}</p>
+          </div>
+        </div>
+        <div>
+          <div className="h-[54px] flex items-end justify-center mb-1">
+            {companyRepSignatureUrl && (
+              <img
+                src={companyRepSignatureUrl}
+                alt="Company Representative Signature"
+                className="h-[42px] max-w-[160px] object-contain"
+              />
+            )}
+            {companySealUrl && (
+              <img
+                src={companySealUrl}
+                alt="Official Company Seal"
+                className={`h-[52px] w-[52px] object-contain opacity-90 pointer-events-none select-none ${
+                  companyRepSignatureUrl ? '-ml-3' : ''
+                }`}
+              />
+            )}
+          </div>
+          <div className="border-t border-dotted border-slate-950 pt-2 text-center space-y-1">
+            <p className="font-bold text-slate-950">FOR THENNAKOON TOURS (PVT) LTD</p>
+            <p className="text-slate-800">{lessorRepName}</p>
+          </div>
+        </div>
       </div>
     </div>
   )

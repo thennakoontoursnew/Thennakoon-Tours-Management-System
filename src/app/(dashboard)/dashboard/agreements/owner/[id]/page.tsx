@@ -66,9 +66,9 @@ export default async function OwnerAgreementDetailPage({
   const bankBranch = agreementData.bank_details?.bank_branch || owner?.bank_branch || 'N/A'
   const bankAccountNo = agreementData.bank_details?.bank_account_number || owner?.bank_account_number || 'N/A'
 
-  const companyRepName = agreementData.signatories?.company_rep_name || 'HBNK Dissanayaka'
-  const companyRepDesignation = agreementData.signatories?.company_rep_designation || 'Technical Officer'
-  const companyRepNic = agreementData.signatories?.company_rep_nic || '881843935V'
+  const companyRepName = agreementData.signatories?.company_rep_name || 'Authorized Officer'
+  const companyRepDesignation = agreementData.signatories?.company_rep_designation || 'Management'
+  const companyRepNic = agreementData.signatories?.company_rep_nic || '—'
 
   const ownerWitnessName = agreementData.signatories?.owner_witness_name
   const companyWitnessName = agreementData.signatories?.company_witness_name

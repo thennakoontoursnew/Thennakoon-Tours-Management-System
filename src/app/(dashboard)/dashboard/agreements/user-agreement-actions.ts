@@ -35,6 +35,10 @@ export async function createOrUpdateUserAgreementDraft(formData: UserAgreementFo
       witnesses_snapshot: formData.witnesses,
       lessor_representative_snapshot: formData.lessor_representative,
       pickup_delivery_snapshot: formData.pickup_delivery,
+      customer_signature_path: formData.lessee?.include_signature
+        ? formData.lessee?.saved_signature_url || null
+        : null,
+      company_signature_path: formData.lessor_representative?.signature_url || null,
       special_notes: formData.special_notes || null,
       inventory_remarks: formData.inventory_remarks || null,
       terms_snapshot: `Standard User Agreement V1 terms applied for ${formData.agreement_number}`,
@@ -232,6 +236,10 @@ export async function amendUserAgreementAction(
       witnesses_snapshot: formData.witnesses,
       lessor_representative_snapshot: formData.lessor_representative,
       pickup_delivery_snapshot: formData.pickup_delivery,
+      customer_signature_path: formData.lessee?.include_signature
+        ? formData.lessee?.saved_signature_url || null
+        : null,
+      company_signature_path: formData.lessor_representative?.signature_url || null,
       special_notes: formData.special_notes || null,
       inventory_remarks: formData.inventory_remarks || null,
       amendment_reason: amendmentReason.trim(),

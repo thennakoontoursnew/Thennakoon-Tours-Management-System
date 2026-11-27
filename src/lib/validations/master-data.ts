@@ -55,6 +55,7 @@ export const customerSchema = z.object({
     .nullable(),
   preferred_vehicle_id: z.string().uuid().optional().nullable(),
   notes: z.string().optional().nullable(),
+  signature_url: z.string().optional().nullable(),
   status: z.enum(['active', 'inactive', 'blacklisted']).default('active'),
 })
 
@@ -143,6 +144,7 @@ export const inlineOwnerSchema = z.object({
   bank_name: z.string().optional().nullable(),
   bank_account_number: z.string().optional().nullable(),
   bank_branch: z.string().optional().nullable(),
+  signature_url: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 })
 

@@ -151,9 +151,10 @@ export async function generateExtensionLetterPDF(
     drawLetterheadOnPage(doc, letterheadB64)
   }
 
-  const [signatureImg, sealImg] = await Promise.all([
+  const [signatureImg, sealImg, recipientSigImg] = await Promise.all([
     loadImageAsset(extension?.issued_by_signature_url),
     loadImageAsset(companySettings?.company_seal_url),
+    loadImageAsset(extension?.recipient_signature_url),
   ])
 
   const left = 18
@@ -171,7 +172,7 @@ export async function generateExtensionLetterPDF(
       ? formatCurrency(extension.renewal_amount, extension?.currency || 'LKR')
       : null
 
-  let y = 47
+  let y = 39
 
   const hasLockedSnapshot =
     (Array.isArray(extension?.rendered_sections_snapshot) &&
@@ -187,14 +188,14 @@ export async function generateExtensionLetterPDF(
     for (const block of blocks) {
       if (block.type === 'ref_date_row') {
         doc.setTextColor(15, 23, 42)
-        doc.setFontSize(10)
+        doc.setFontSize(9.5)
         doc.setFont('helvetica', 'bold')
         doc.text(block.left.replace(/\*\*/g, ''), left, y)
         doc.text(block.right.replace(/\*\*/g, ''), right, y, { align: 'right' })
         doc.setDrawColor(203, 213, 225)
         doc.setLineWidth(0.25)
-        doc.line(left, y + 2, right, y + 2)
-        y += 8
+        doc.line(left, y + 1.8, right, y + 1.8)
+        y += 6.5
         continue
       }
 
@@ -202,19 +203,19 @@ export async function generateExtensionLetterPDF(
         const cleanSubject = block.text.replace(/\*\*/g, '').toUpperCase()
         doc.setTextColor(15, 23, 42)
         doc.setFont('helvetica', 'bold')
-        doc.setFontSize(10.5)
+        doc.setFontSize(10)
         const subjectLines = doc.splitTextToSize(cleanSubject, contentWidth)
         doc.text(subjectLines, left, y)
         const firstLineWidth = Math.min(doc.getTextWidth(subjectLines[0] || ''), contentWidth)
         doc.setDrawColor(15, 23, 42)
         doc.setLineWidth(0.35)
-        doc.line(left, y + 1.4, left + firstLineWidth, y + 1.4)
-        y += subjectLines.length * 5.5 + 4.5
+        doc.line(left, y + 1.2, left + firstLineWidth, y + 1.2)
+        y += subjectLines.length * 4.8 + 3.2
         continue
       }
 
       if (block.type === 'note') {
-        doc.setFontSize(9.5)
+        doc.setFontSize(9)
         doc.setTextColor(30, 41, 59)
         const startNoteY = y
         const endNoteY = drawRichParagraph(
@@ -223,17 +224,17 @@ export async function generateExtensionLetterPDF(
           left + 3.5,
           startNoteY,
           contentWidth - 3.5,
-          5.0
+          4.4
         )
         doc.setDrawColor(148, 163, 184)
         doc.setLineWidth(0.7)
-        doc.line(left + 0.5, startNoteY - 3, left + 0.5, Math.max(startNoteY, endNoteY - 3))
-        y = endNoteY + 3.5
+        doc.line(left + 0.5, startNoteY - 2.6, left + 0.5, Math.max(startNoteY, endNoteY - 2.6))
+        y = endNoteY + 2.4
         continue
       }
 
       const isGreeting = /^To\s*:/i.test(block.text) || /^Dear\s+/i.test(block.text)
-      doc.setFontSize(10)
+      doc.setFontSize(9.5)
       doc.setTextColor(isGreeting ? 15 : 30, isGreeting ? 23 : 41, isGreeting ? 42 : 59)
       y = drawRichParagraph(
         doc,
@@ -241,44 +242,44 @@ export async function generateExtensionLetterPDF(
         left,
         y,
         contentWidth,
-        5.3
+        4.7
       )
-      y += 3.8
+      y += 2.6
     }
   } else {
     // Legacy fallback for extensions created prior to editable master templates
     doc.setTextColor(15, 23, 42)
-    doc.setFontSize(10)
+    doc.setFontSize(9.5)
     doc.setFont('helvetica', 'bold')
     doc.text(`Ref: ${extension?.extension_number || 'EXT'}`, left, y)
     doc.text(`Date: ${formatDateOrdinal(extension?.issue_date) || 'N/A'}`, right, y, { align: 'right' })
 
-    y += 10
+    y += 7
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10.5)
+    doc.setFontSize(9.5)
     doc.text(`To: ${extension?.recipient_name || ''}`, left, y)
 
-    y += 10
+    y += 7
     const subjectText = isOwner
       ? `RE: EXTENSION OF VEHICLE OWNER AGREEMENT – VEHICLE NO: ${regNo}`
       : `RE: EXTENSION OF VEHICLE RENTAL AGREEMENT – VEHICLE NO: ${regNo}`
 
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10.5)
+    doc.setFontSize(10)
     const subjectLines = doc.splitTextToSize(subjectText, contentWidth)
     doc.text(subjectLines, left, y)
     const firstLineWidth = Math.min(doc.getTextWidth(subjectLines[0] || ''), contentWidth)
     doc.setDrawColor(15, 23, 42)
     doc.setLineWidth(0.35)
-    doc.line(left, y + 1.4, left + firstLineWidth, y + 1.4)
-    y += subjectLines.length * 5.5 + 5
+    doc.line(left, y + 1.2, left + firstLineWidth, y + 1.2)
+    y += subjectLines.length * 4.8 + 3.5
 
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
+    doc.setFontSize(9.5)
     doc.text(`Dear ${extension?.recipient_name || 'Sir / Madam'},`, left, y)
-    y += 8
+    y += 6
 
-    doc.setFontSize(10)
+    doc.setFontSize(9.5)
     doc.setTextColor(30, 41, 59)
 
     if (isOwner) {
@@ -298,7 +299,7 @@ export async function generateExtensionLetterPDF(
         left,
         y,
         contentWidth,
-        5.3
+        4.7
       )
     } else {
       y = drawRichParagraph(
@@ -315,11 +316,11 @@ export async function generateExtensionLetterPDF(
         left,
         y,
         contentWidth,
-        5.3
+        4.7
       )
     }
 
-    y += 4
+    y += 2.6
 
     const para2Segments: TextSegment[] = []
     if (isOwner) {
@@ -370,15 +371,15 @@ export async function generateExtensionLetterPDF(
       }
     }
 
-    y = drawRichParagraph(doc, para2Segments, left, y, contentWidth, 5.3)
-    y += 4
+    y = drawRichParagraph(doc, para2Segments, left, y, contentWidth, 4.7)
+    y += 2.6
 
     const para3Text = isOwner
       ? 'All original terms, conditions, revenue-share / monthly payment schedules, mileage limits, and maintenance responsibilities set out in the principal Vehicle Owner Agreement shall remain binding throughout the extended tenure.'
       : 'All other terms, conditions, security deposit provisions, insurance obligations, and covenants stated in the original Vehicle Rental Agreement shall remain unchanged and continue in full force and effect during this extended period.'
 
-    y = drawRichParagraph(doc, [{ text: para3Text }], left, y, contentWidth, 5.3)
-    y += 4
+    y = drawRichParagraph(doc, [{ text: para3Text }], left, y, contentWidth, 4.7)
+    y += 2.6
 
     if (extension?.custom_notes) {
       y = drawRichParagraph(
@@ -390,9 +391,9 @@ export async function generateExtensionLetterPDF(
         left,
         y,
         contentWidth,
-        5.2
+        4.4
       )
-      y += 4
+      y += 2.6
     }
 
     y = drawRichParagraph(
@@ -405,12 +406,12 @@ export async function generateExtensionLetterPDF(
       left,
       y,
       contentWidth,
-      5.3
+      4.7
     )
   }
 
-  // Signature & Seal Block positioned safely above footer
-  const sigTopY = Math.min(Math.max(y + 10, 178), 198)
+  // Signature & Seal Block positioned safely above footer (clears >= 54mm bottom margin)
+  const sigTopY = Math.min(y + 7, 204)
   const leftColX = left
   const rightColX = 112
 
@@ -420,17 +421,20 @@ export async function generateExtensionLetterPDF(
   doc.text('Issued For & On Behalf of', leftColX, sigTopY)
   doc.text('Acknowledged & Accepted By', rightColX, sigTopY)
 
-  doc.setFontSize(9.5)
+  doc.setFontSize(9)
   doc.setTextColor(15, 23, 42)
   doc.setFont('helvetica', 'bold')
-  doc.text(companyName, leftColX, sigTopY + 4.5)
-  doc.text(isOwner ? 'Vehicle Owner' : 'Customer / Authorized Signatory', rightColX, sigTopY + 4.5)
+  doc.text(companyName, leftColX, sigTopY + 4.2)
+  doc.text(isOwner ? 'Vehicle Owner' : 'Customer / Authorized Signatory', rightColX, sigTopY + 4.2)
 
-  // Render Staff Digital Signature & Official Company Seal
-  const imgAreaY = sigTopY + 7
+  // Signature line sits 20mm below sigTopY, clamped safely to keep >= 54mm footer margin (297 - 54 - 13 = 230)
+  const lineY = Math.min(sigTopY + 21, 229)
+
+  // Render Staff Digital Signature (height ~11.1mm = 42px) & Official Company Seal (height ~13.8mm = 52px)
+  let sealOffsetX = leftColX
   if (signatureImg) {
-    const maxH = 15
-    const maxW = 46
+    const maxH = 11.1
+    const maxW = 44
     const ratio = Math.min(maxW / signatureImg.width, maxH / signatureImg.height)
     const drawW = signatureImg.width * ratio
     const drawH = signatureImg.height * ratio
@@ -438,38 +442,57 @@ export async function generateExtensionLetterPDF(
       signatureImg.dataUrl,
       signatureImg.format,
       leftColX,
-      imgAreaY + (maxH - drawH) / 2,
+      lineY - drawH - 1.2,
+      drawW,
+      drawH
+    )
+    sealOffsetX = Math.max(leftColX + drawW - 3, leftColX + 32)
+  }
+
+  if (sealImg) {
+    const maxSeal = 13.8
+    const ratio = Math.min(maxSeal / sealImg.width, maxSeal / sealImg.height)
+    const drawW = sealImg.width * ratio
+    const drawH = sealImg.height * ratio
+    doc.addImage(sealImg.dataUrl, sealImg.format, sealOffsetX, lineY - drawH - 0.5, drawW, drawH)
+  }
+
+  // Render Recipient Saved E-Signature above right-hand signature line if included
+  if (recipientSigImg) {
+    const maxH = 11.1
+    const maxW = 44
+    const ratio = Math.min(maxW / recipientSigImg.width, maxH / recipientSigImg.height)
+    const drawW = recipientSigImg.width * ratio
+    const drawH = recipientSigImg.height * ratio
+    doc.addImage(
+      recipientSigImg.dataUrl,
+      recipientSigImg.format,
+      rightColX,
+      lineY - drawH - 1.2,
       drawW,
       drawH
     )
   }
 
-  if (sealImg) {
-    const maxSeal = 20
-    const ratio = Math.min(maxSeal / sealImg.width, maxSeal / sealImg.height)
-    const drawW = sealImg.width * ratio
-    const drawH = sealImg.height * ratio
-    doc.addImage(sealImg.dataUrl, sealImg.format, leftColX + 48, imgAreaY - 2, drawW, drawH)
-  }
-
-  const lineY = Math.min(sigTopY + 26, A4_MARGINS.bottom - 18)
   doc.setDrawColor(100, 116, 139)
   doc.setLineWidth(0.3)
+  doc.setLineDashPattern([1, 1], 0)
   doc.line(leftColX, lineY, leftColX + 74, lineY)
   doc.line(rightColX, lineY, rightColX + 74, lineY)
+  doc.setLineDashPattern([], 0)
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9.5)
+  doc.setFontSize(9)
   doc.setTextColor(15, 23, 42)
-  doc.text(extension?.issued_by_name || 'Authorized Officer', leftColX, lineY + 4.5)
-  doc.text(extension?.recipient_name || (isOwner ? 'Vehicle Owner' : 'Customer'), rightColX, lineY + 4.5)
+  doc.text(extension?.issued_by_name || 'Authorized Officer', leftColX, lineY + 4.2)
+  doc.text(extension?.recipient_name || (isOwner ? 'Vehicle Owner' : 'Customer'), rightColX, lineY + 4.2)
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
+  doc.setFontSize(8.2)
   doc.setTextColor(71, 85, 105)
-  doc.text(extension?.issued_by_designation || 'Management', leftColX, lineY + 9)
-  doc.text('Signature', rightColX, lineY + 9)
-  doc.text('Date / NIC: ________________________', rightColX, lineY + 14)
+  doc.text(extension?.issued_by_designation || 'Management', leftColX, lineY + 8.5)
+  doc.text('Signature', rightColX, lineY + 8.5)
+  doc.text('Date / NIC: ________________________', rightColX, lineY + 13)
 
   return doc
 }

@@ -31,6 +31,7 @@ export default async function OwnerAgreementPreviewPage({
       extensions={serialized.extensions || []}
       staffProfiles={serialized.staffProfiles || []}
       currentUserId={serialized.currentUserId || null}
+      companySettings={serialized.companySettings || null}
     />
   )
 }

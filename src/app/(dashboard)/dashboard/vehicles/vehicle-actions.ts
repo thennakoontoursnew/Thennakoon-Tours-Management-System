@@ -72,6 +72,7 @@ async function createInlineOwnerRecord(
       bank_name: d.bank_name?.trim() || null,
       bank_account_number: d.bank_account_number?.trim() || null,
       bank_branch: d.bank_branch?.trim() || null,
+      signature_url: d.signature_url?.trim() || null,
       notes: d.notes?.trim() || null,
       settlement_rule: d.revenue_share_pct && Number(d.revenue_share_pct) > 0 ? 'percentage' : 'fixed_monthly',
       is_active: true,

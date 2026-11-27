@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { updateCustomer, archiveCustomer } from '../../customer-actions'
 import { ArrowLeft, Save, AlertCircle, Archive } from 'lucide-react'
+import { SignatureUploadField } from '@/components/ui/signature-upload-field'
 
 interface Props {
   customer: any
@@ -34,6 +35,7 @@ export default function EditCustomerForm({ customer }: Props) {
     driving_license_number: customer.driving_license_number || '',
     driving_license_expiry: customer.driving_license_expiry || '',
     source: customer.source || 'walk_in',
+    signature_url: customer.signature_url || '',
     status: customer.status || 'active',
   })
 
@@ -212,6 +214,14 @@ export default function EditCustomerForm({ customer }: Props) {
             </div>
           </div>
         </div>
+
+        <SignatureUploadField
+          value={formData.signature_url}
+          onChange={(url) => setFormData((prev) => ({ ...prev, signature_url: url || '' }))}
+          entityFolder="customers"
+          entityId={customer.id}
+          label="Customer Saved E-Signature (Optional)"
+        />
 
         <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
           <Link

@@ -144,6 +144,7 @@ export default function EditVehicleForm({ vehicle, categories, owners }: Props) 
               bank_name: newOwner.bank_name || null,
               bank_account_number: newOwner.bank_account_number || null,
               bank_branch: newOwner.bank_branch || null,
+              signature_url: newOwner.signature_url || null,
               notes: newOwner.notes || null,
             }
           : null,

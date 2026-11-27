@@ -117,6 +117,8 @@ export function AgreementsClient({
         onClose={() => setShowNewOwnerModal(false)}
         initialOwnerId={initialOwnerId}
         initialVehicleId={initialVehicleId}
+        staffProfiles={staffProfiles}
+        currentUserId={currentUserId}
       />
 
       <SelectBookingModal

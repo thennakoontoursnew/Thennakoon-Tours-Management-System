@@ -6,13 +6,75 @@ import { AgreementSection } from './section-template-renderer'
 interface LegalDocumentViewerProps {
   content?: string
   sections?: AgreementSection[]
+  companyRepSignatureUrl?: string | null
+  companySealUrl?: string | null
+  recipientSignatureUrl?: string | null
+  companyRepName?: string | null
+  recipientName?: string | null
+  recipientRoleLabel?: string
 }
 
 /**
  * Parses and renders legal markdown text or structured sections into elegant, print-ready legal document sections.
  * Automatically styles headings, bold terms, bullet schedules, and preserves avoid-break on signature blocks.
  */
-export function LegalDocumentViewer({ content, sections }: LegalDocumentViewerProps) {
+export function LegalDocumentViewer({
+  content,
+  sections,
+  companyRepSignatureUrl,
+  companySealUrl,
+  recipientSignatureUrl,
+  companyRepName,
+  recipientName,
+  recipientRoleLabel = 'Authorized Signatory',
+}: LegalDocumentViewerProps) {
+  const renderSignatoriesVisualStrip = () => (
+    <div className="mt-4 pt-3 grid grid-cols-2 gap-10 font-sans text-[11px] text-slate-900 avoid-break">
+      <div className="flex flex-col">
+        <p className="text-[10px] font-bold uppercase text-slate-600">
+          For &amp; On Behalf of Thennakoon Tours (Pvt) Ltd
+        </p>
+        <div className="h-[54px] flex items-end my-1">
+          {companyRepSignatureUrl && (
+            <img
+              src={companyRepSignatureUrl}
+              alt="Company Representative Signature"
+              className="h-[42px] max-w-[160px] object-contain object-left pb-0.5"
+            />
+          )}
+          {companySealUrl && (
+            <img
+              src={companySealUrl}
+              alt="Official Company Seal"
+              className={`h-[52px] w-[52px] object-contain opacity-90 pointer-events-none select-none ${
+                companyRepSignatureUrl ? '-ml-3' : ''
+              }`}
+            />
+          )}
+        </div>
+        <div className="border-t border-dotted border-slate-500 pt-1">
+          <span className="font-bold text-slate-900">{companyRepName || 'Authorized Signatory'}</span>
+        </div>
+      </div>
+
+      <div className="flex flex-col">
+        <p className="text-[10px] font-bold uppercase text-slate-600">{recipientRoleLabel}</p>
+        <div className="h-[54px] flex items-end my-1">
+          {recipientSignatureUrl && (
+            <img
+              src={recipientSignatureUrl}
+              alt="Recipient Saved E-Signature"
+              className="h-[42px] max-w-[160px] object-contain object-left pb-0.5"
+            />
+          )}
+        </div>
+        <div className="border-t border-dotted border-slate-500 pt-1">
+          <span className="font-bold text-slate-900">{recipientName || 'Signature'}</span>
+        </div>
+      </div>
+    </div>
+  )
+
   if (sections && Array.isArray(sections) && sections.length > 0) {
     const sorted = [...sections].sort((a, b) => (a.order || 0) - (b.order || 0))
     return (
@@ -35,6 +97,7 @@ export function LegalDocumentViewer({ content, sections }: LegalDocumentViewerPr
                   {sec.title}
                 </h2>
               )}
+              {isSignatories && renderSignatoriesVisualStrip()}
               {renderParagraphs(sec.body)}
             </div>
           )
@@ -73,6 +136,7 @@ export function LegalDocumentViewer({ content, sections }: LegalDocumentViewerPr
               <h2 className="font-sans font-bold text-slate-900 uppercase tracking-wide text-[12px] border-b border-slate-300 pb-1 mt-3">
                 {heading}
               </h2>
+              {isSignatories && renderSignatoriesVisualStrip()}
               {renderParagraphs(body)}
             </div>
           )

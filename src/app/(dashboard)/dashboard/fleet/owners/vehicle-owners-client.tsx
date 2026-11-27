@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Users, Plus, Edit2, CheckCircle, XCircle, Building2, Phone, Banknote, Percent, ChevronRight, AlertCircle } from 'lucide-react'
 import { createVehicleOwnerAction, updateVehicleOwnerAction, toggleVehicleOwnerStatusAction } from './owner-actions'
+import { SignatureUploadField } from '@/components/ui/signature-upload-field'
 
 interface VehicleOwner {
   id: string
@@ -25,6 +26,7 @@ interface VehicleOwner {
   monthly_km_quota?: number
   owner_excess_km_rate?: number
   payment_terms: string
+  signature_url?: string | null
   notes?: string
   is_active: boolean
   vehicle_count?: number
@@ -59,6 +61,7 @@ function OwnerFormModal({ isOpen, onClose, editOwner }: { isOpen: boolean; onClo
     monthly_km_quota: editOwner?.monthly_km_quota?.toString() || '3000',
     owner_excess_km_rate: editOwner?.owner_excess_km_rate?.toString() || '0',
     payment_terms: editOwner?.payment_terms || 'monthly',
+    signature_url: editOwner?.signature_url || '',
     notes: editOwner?.notes || '',
   })
 
@@ -292,6 +295,16 @@ function OwnerFormModal({ isOpen, onClose, editOwner }: { isOpen: boolean; onClo
               />
             </div>
           </div>
+
+          {/* Saved E-Signature */}
+          <SignatureUploadField
+            value={form.signature_url}
+            onChange={(url) => setForm({ ...form, signature_url: url || '' })}
+            entityFolder="owners"
+            entityId={editOwner?.id || 'new-owner'}
+            label="Vehicle Owner Saved E-Signature (Optional)"
+            compact
+          />
 
           {/* Notes */}
           <div>

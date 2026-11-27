@@ -63,7 +63,7 @@ export async function getUserAgreements(supabase: any) {
   const { data } = await supabase
     .from('rental_agreements')
     .select(
-      '*, customer:customers(id, full_name, company_name, mobile, email), booking:bookings(id, booking_number, pickup_location, dropoff_location, vehicles:booking_vehicles(vehicle_rate, vehicle:vehicles(id, vehicle_name, registration_number, daily_rate))), extensions:agreement_extensions(id, extension_number, issue_date, extension_period_type, extension_duration_label, new_end_date, created_at)'
+      '*, customer:customers(id, full_name, company_name, mobile, email, signature_url), booking:bookings(id, booking_number, pickup_location, dropoff_location, vehicles:booking_vehicles(vehicle_rate, vehicle:vehicles(id, vehicle_name, registration_number, daily_rate))), extensions:agreement_extensions(id, extension_number, issue_date, extension_period_type, extension_duration_label, new_end_date, created_at)'
     )
     .order('created_at', { ascending: false })
 
@@ -179,7 +179,11 @@ export async function getUserAgreementById(supabase: any, id: string) {
     }
   }
 
-  const [{ data: companySettings }, { data: extensions }, { data: staffProfiles }] = await Promise.all([
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const [{ data: companySettings }, { data: extensions }, { data: staffRes }, { data: ownProf }] = await Promise.all([
     supabase.from('company_settings').select('*').limit(1).maybeSingle(),
     supabase
       .from('agreement_extensions')
@@ -191,11 +195,19 @@ export async function getUserAgreementById(supabase: any, id: string) {
       .select('id, full_name, role, designation, signature_url')
       .eq('is_active', true)
       .order('full_name', { ascending: true }),
+    user?.id
+      ? supabase
+          .from('profiles')
+          .select('id, full_name, role, designation, signature_url')
+          .eq('id', user.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const staffList = staffRes || []
+  if (ownProf && !staffList.some((p: any) => p.id === ownProf.id)) {
+    staffList.unshift(ownProf)
+  }
 
   return {
     agreement,
@@ -206,7 +218,7 @@ export async function getUserAgreementById(supabase: any, id: string) {
     companySettings,
     versionHistory: versionHistory || [],
     extensions: extensions || [],
-    staffProfiles: staffProfiles || [],
+    staffProfiles: staffList,
     currentUserId: user?.id || null,
   }
 }
@@ -215,7 +227,7 @@ export async function getOwnerAgreements(supabase: any, ownerId?: string) {
   let query = supabase
     .from('owner_agreements')
     .select(
-      '*, owner:vehicle_owners(id, owner_number, full_name, mobile, email, company_name), vehicles:owner_agreement_vehicles(id, vehicle_id, vehicle:vehicles(id, vehicle_name, registration_number)), extensions:agreement_extensions(id, extension_number, issue_date, extension_period_type, extension_duration_label, new_end_date, created_at)'
+      '*, owner:vehicle_owners(id, owner_number, full_name, mobile, email, company_name, signature_url), vehicles:owner_agreement_vehicles(id, vehicle_id, vehicle:vehicles(id, vehicle_name, registration_number)), extensions:agreement_extensions(id, extension_number, issue_date, extension_period_type, extension_duration_label, new_end_date, created_at)'
     )
     .eq('is_archived', false)
     .order('created_at', { ascending: false })
@@ -241,21 +253,31 @@ export async function getOwnerAgreementById(supabase: any, id: string) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Fetch related payouts, statements, extensions, and staff profiles
-  const [payoutsRes, statementsRes, extensionsRes, staffRes] = await Promise.all([
+  // Fetch related payouts, statements, extensions, staff profiles, and company settings
+  const [payoutsRes, statementsRes, extensionsRes, staffRes, ownProfRes, csRes] = await Promise.all([
     supabase.from('owner_payouts').select('*').eq('vehicle_owner_id', agreement.vehicle_owner_id).order('period_start', { ascending: false }).limit(10),
     supabase.from('owner_statements').select('*').eq('vehicle_owner_id', agreement.vehicle_owner_id).order('period_start', { ascending: false }).limit(10),
     supabase.from('agreement_extensions').select('*').eq('owner_agreement_id', id).order('created_at', { ascending: false }),
     supabase.from('profiles').select('id, full_name, role, designation, signature_url').eq('is_active', true).order('full_name', { ascending: true }),
+    user?.id
+      ? supabase.from('profiles').select('id, full_name, role, designation, signature_url').eq('id', user.id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase.from('company_settings').select('id, company_name, company_seal_url, letterhead_url').limit(1).maybeSingle(),
   ])
+
+  const staffList = staffRes.data || []
+  if (ownProfRes?.data && !staffList.some((p: any) => p.id === ownProfRes.data.id)) {
+    staffList.unshift(ownProfRes.data)
+  }
 
   return {
     agreement,
     payouts: payoutsRes.data || [],
     statements: statementsRes.data || [],
     extensions: extensionsRes.data || [],
-    staffProfiles: staffRes.data || [],
+    staffProfiles: staffList,
     currentUserId: user?.id || null,
+    companySettings: csRes.data || null,
   }
 }
 

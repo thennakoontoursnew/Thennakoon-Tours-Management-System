@@ -28,6 +28,7 @@ export interface ExtendAgreementModalProps {
   defaultCurrentEndDate?: string | null
   defaultRenewalAmount?: number | null
   defaultCurrency?: string
+  defaultRecipientSignatureUrl?: string | null
   staffProfiles?: any[]
   currentUserId?: string | null
   onCreated?: (extension: any) => void
@@ -56,6 +57,7 @@ export function ExtendAgreementModal({
   defaultCurrentEndDate,
   defaultRenewalAmount,
   defaultCurrency = 'LKR',
+  defaultRecipientSignatureUrl = null,
   staffProfiles = [],
   currentUserId,
   onCreated,
@@ -63,6 +65,9 @@ export function ExtendAgreementModal({
   const router = useRouter()
   const todayStr = new Date().toISOString().slice(0, 10)
   const baseDate = defaultCurrentEndDate && defaultCurrentEndDate.length >= 10 ? defaultCurrentEndDate.slice(0, 10) : todayStr
+
+  const formatRoleFallback = (role?: string | null) =>
+    role ? role.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) : 'Management'
 
   const defaultStaff =
     staffProfiles.find((p) => p.id === currentUserId) || staffProfiles[0] || null
@@ -80,8 +85,13 @@ export function ExtendAgreementModal({
   const [currency, setCurrency] = useState(defaultCurrency || 'LKR')
   const [selectedOfficerId, setSelectedOfficerId] = useState(defaultStaff?.id || '')
   const [officerName, setOfficerName] = useState(defaultStaff?.full_name || 'Authorized Officer')
-  const [officerDesignation, setOfficerDesignation] = useState(defaultStaff?.designation || 'Executive Operation')
+  const [officerDesignation, setOfficerDesignation] = useState(
+    defaultStaff?.designation || formatRoleFallback(defaultStaff?.role)
+  )
   const [officerSignatureUrl, setOfficerSignatureUrl] = useState<string | null>(defaultStaff?.signature_url || null)
+  const [includeRecipientSignature, setIncludeRecipientSignature] = useState<boolean>(
+    Boolean(defaultRecipientSignatureUrl)
+  )
   const [customNotes, setCustomNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -99,17 +109,18 @@ export function ExtendAgreementModal({
         defaultRenewalAmount && Number(defaultRenewalAmount) > 0 ? String(defaultRenewalAmount) : ''
       )
       setCurrency(defaultCurrency || 'LKR')
+      setIncludeRecipientSignature(Boolean(defaultRecipientSignatureUrl))
       setCustomNotes('')
       setError(null)
       const st = staffProfiles.find((p) => p.id === currentUserId) || staffProfiles[0] || null
       if (st) {
         setSelectedOfficerId(st.id)
         setOfficerName(st.full_name || 'Authorized Officer')
-        setOfficerDesignation(st.designation || 'Executive Operation')
+        setOfficerDesignation(st.designation || formatRoleFallback(st.role))
         setOfficerSignatureUrl(st.signature_url || null)
       }
     }
-  }, [isOpen, agreementId, defaultRecipientName, defaultVehicleRegNo, defaultOriginalRef, defaultCurrentEndDate, defaultRenewalAmount, defaultCurrency, currentUserId, staffProfiles])
+  }, [isOpen, agreementId, defaultRecipientName, defaultVehicleRegNo, defaultOriginalRef, defaultCurrentEndDate, defaultRenewalAmount, defaultCurrency, defaultRecipientSignatureUrl, currentUserId, staffProfiles])
 
   if (!isOpen) return null
 
@@ -166,6 +177,10 @@ export function ExtendAgreementModal({
       issued_by_name: officerName,
       issued_by_designation: officerDesignation,
       issued_by_signature_url: officerSignatureUrl,
+      recipient_signature_url:
+        includeRecipientSignature && defaultRecipientSignatureUrl
+          ? defaultRecipientSignatureUrl
+          : null,
     })
 
     setSubmitting(false)
@@ -497,6 +512,55 @@ export function ExtendAgreementModal({
                   : 'No digital signature saved on this officer’s profile yet. Space will remain clean above the signature line, or you can upload one in Users / Profile.'}
               </p>
             </div>
+          </div>
+
+          {/* Recipient Saved E-Signature Toggle */}
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <PenTool size={14} className="text-violet-500" />{' '}
+                {agreementType === 'owner' ? 'Vehicle Owner E-Signature' : 'Customer E-Signature'}
+              </span>
+              {defaultRecipientSignatureUrl ? (
+                <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800 dark:text-slate-100 select-none">
+                  <input
+                    type="checkbox"
+                    checked={includeRecipientSignature}
+                    onChange={(e) => setIncludeRecipientSignature(e.target.checked)}
+                    className="rounded border-slate-300 dark:border-slate-600 text-amber-500 focus:ring-amber-400"
+                  />
+                  <span>
+                    Include saved {agreementType === 'owner' ? 'Owner' : 'Customer'} E-Signature
+                  </span>
+                </label>
+              ) : (
+                <span className="text-[10px] font-semibold text-slate-400">
+                  No saved signature on file (blank for wet-ink)
+                </span>
+              )}
+            </div>
+
+            {defaultRecipientSignatureUrl && (
+              <div className="flex items-center gap-3 pt-0.5">
+                <div className="w-36 h-12 rounded-lg bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center p-1 overflow-hidden shrink-0">
+                  {includeRecipientSignature ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={defaultRecipientSignatureUrl}
+                      alt="Saved recipient signature"
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-[10px] text-slate-400">Left blank for wet-ink</span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  {includeRecipientSignature
+                    ? 'Saved E-signature will appear automatically above the right-hand acknowledgement line.'
+                    : 'Unchecked — the right-hand signature line will remain blank for manual signing.'}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Optional Additional Notes */}

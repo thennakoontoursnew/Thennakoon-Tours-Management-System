@@ -229,6 +229,43 @@ export function UserAgreementWizard({ initialData }: UserAgreementWizardProps) {
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
               />
             </div>
+            <div className="sm:col-span-2 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700/70 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-bold text-slate-700 dark:text-slate-200 text-xs">
+                  Saved Customer E-Signature
+                </span>
+                {form.lessee.saved_signature_url ? (
+                  <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800 dark:text-slate-100">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(form.lessee.include_signature)}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          lessee: { ...form.lessee, include_signature: e.target.checked },
+                        })
+                      }
+                      className="rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                    />
+                    <span>Include saved Customer E-Signature</span>
+                  </label>
+                ) : (
+                  <span className="text-[11px] text-slate-400">
+                    No saved E-signature on customer profile — line will stay blank for manual signing.
+                  </span>
+                )}
+              </div>
+              {form.lessee.saved_signature_url && form.lessee.include_signature && (
+                <div className="w-40 h-12 rounded-lg bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center p-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={form.lessee.saved_signature_url}
+                    alt="Customer E-Signature"
+                    className="max-h-full max-w-full object-contain"
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -362,6 +399,77 @@ export function UserAgreementWizard({ initialData }: UserAgreementWizardProps) {
         </div>
       )}
 
+      {/* SECTION I: LESSOR REPRESENTATIVE */}
+      {activeSection === 'I' && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-4 shadow-xs">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h2 className="font-bold text-slate-900 dark:text-white text-sm">I. Lessor Representative (Thennakoon Tours)</h2>
+            <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-600 px-2.5 py-0.5 rounded">AUTO-FILLED FROM LOGGED-IN USER</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+            <div>
+              <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Authorized Officer Name</label>
+              <input
+                value={form.lessor_representative.name}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    lessor_representative: { ...form.lessor_representative, name: e.target.value },
+                  })
+                }
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Designation / Role</label>
+              <input
+                value={form.lessor_representative.position}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    lessor_representative: { ...form.lessor_representative, position: e.target.value },
+                  })
+                }
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">NIC Number (Optional)</label>
+              <input
+                value={form.lessor_representative.nic || ''}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    lessor_representative: { ...form.lessor_representative, nic: e.target.value },
+                  })
+                }
+                placeholder="Representative NIC"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 pt-1">
+            <div className="w-36 h-12 rounded-lg bg-slate-50 dark:bg-slate-850 border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center p-1 overflow-hidden">
+              {form.lessor_representative.signature_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={form.lessor_representative.signature_url}
+                  alt="Lessor officer signature"
+                  className="max-h-full max-w-full object-contain"
+                />
+              ) : (
+                <span className="text-[10px] text-slate-400">No profile signature</span>
+              )}
+            </div>
+            <span className="text-[11px] text-slate-500">
+              Loaded from the currently logged-in officer’s profile. Manage signatures under Users / My Profile.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* SECTION K: REVIEW & GENERATE */}
       {activeSection === 'K' && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-4 shadow-xs">
@@ -371,6 +479,28 @@ export function UserAgreementWizard({ initialData }: UserAgreementWizardProps) {
               {validation.isValid ? 'VALIDATED — READY TO LOCK' : 'UNRESOLVED REQUIRED TOKENS'}
             </span>
           </div>
+
+          {form.lessee.saved_signature_url && (
+            <label className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 text-xs cursor-pointer">
+              <div className="flex items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  checked={Boolean(form.lessee.include_signature)}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      lessee: { ...form.lessee, include_signature: e.target.checked },
+                    })
+                  }
+                  className="rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                />
+                <span className="font-bold text-slate-800 dark:text-slate-100">
+                  Include saved Customer E-Signature on User Agreement PDF
+                </span>
+              </div>
+              <span className="text-[11px] text-emerald-600 font-semibold">Saved on profile</span>
+            </label>
+          )}
 
           {!validation.isValid && (
             <div className="p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 rounded-xl text-rose-600 dark:text-rose-400 text-xs space-y-1">

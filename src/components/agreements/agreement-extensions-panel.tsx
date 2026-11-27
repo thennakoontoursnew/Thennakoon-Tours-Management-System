@@ -21,6 +21,7 @@ export interface ExtensionDefaults {
   defaultCurrentEndDate?: string | null
   defaultRenewalAmount?: number | null
   defaultCurrency?: string
+  defaultRecipientSignatureUrl?: string | null
 }
 
 export function buildExtensionModalDefaults({
@@ -58,6 +59,10 @@ export function buildExtensionModalDefaults({
       defaultCurrentEndDate: agreement?.agreement_end_date ? String(agreement.agreement_end_date).slice(0, 10) : null,
       defaultRenewalAmount: agreement?.fixed_monthly_amount ? Number(agreement.fixed_monthly_amount) : null,
       defaultCurrency: agreement?.currency || 'LKR',
+      defaultRecipientSignatureUrl:
+        resolvedOwner?.signature_url ||
+        agreement?.agreement_data?.signatories?.owner_signature_url ||
+        null,
     }
   }
 
@@ -89,6 +94,11 @@ export function buildExtensionModalDefaults({
     defaultCurrentEndDate: agreement?.rental_end_at ? String(agreement.rental_end_at).slice(0, 10) : null,
     defaultRenewalAmount: null,
     defaultCurrency: rentalSnap?.currency || booking?.currency || agreement?.currency || 'LKR',
+    defaultRecipientSignatureUrl:
+      resolvedCustomer?.signature_url ||
+      agreement?.customer_signature_path ||
+      agreement?.lessee_snapshot?.saved_signature_url ||
+      null,
   }
 }
 
@@ -158,6 +168,7 @@ export function ExtendAgreementButton({
         defaultCurrentEndDate={defaults.defaultCurrentEndDate}
         defaultRenewalAmount={defaults.defaultRenewalAmount}
         defaultCurrency={defaults.defaultCurrency}
+        defaultRecipientSignatureUrl={defaults.defaultRecipientSignatureUrl}
         staffProfiles={staffProfiles}
         currentUserId={currentUserId}
       />

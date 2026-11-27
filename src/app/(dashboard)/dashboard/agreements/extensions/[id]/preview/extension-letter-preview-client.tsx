@@ -168,9 +168,9 @@ export function ExtensionLetterPreviewClient({
 
         {/* Safe Foreground Letter Content Area (clears header & footer artwork cleanly) */}
         <div
-          className="relative z-10 flex flex-col justify-between min-h-[297mm]"
+          className="relative z-10"
           style={{
-            padding: '47mm 18mm 54mm 18mm',
+            padding: '38mm 18mm 54mm 18mm',
             fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif',
           }}
         >
@@ -181,30 +181,30 @@ export function ExtensionLetterPreviewClient({
               content={extension?.rendered_content_snapshot}
             />
           ) : (
-            <div className="space-y-4 text-[13.5px] leading-[1.7] text-slate-800">
+            <div className="space-y-2.5 text-[12.5px] leading-[1.55] text-slate-800">
               {/* Reference & Date Header */}
-              <div className="flex items-center justify-between border-b border-slate-300/80 pb-2 text-[12.5px] font-sans font-bold text-slate-900">
+              <div className="flex items-center justify-between border-b border-slate-300/80 pb-1.5 mb-2 text-[12px] font-sans font-bold text-slate-900">
                 <span>Ref: {extension?.extension_number}</span>
                 <span>Date: {formatDateOrdinal(extension?.issue_date) || 'N/A'}</span>
               </div>
 
               {/* Recipient Block */}
-              <div className="pt-1 font-sans">
-                <p className="text-[13.5px] font-bold text-slate-900">
+              <div className="pt-0.5 font-sans">
+                <p className="text-[12.5px] font-bold text-slate-900">
                   To: {extension?.recipient_name}
                 </p>
               </div>
 
               {/* Subject Line */}
-              <div className="pt-1 pb-1">
-                <h1 className="font-sans text-[14px] font-extrabold uppercase tracking-tight text-slate-950 underline underline-offset-4 decoration-slate-800">
+              <div className="pt-0.5 pb-0.5 mb-2">
+                <h1 className="font-sans text-[13px] font-extrabold uppercase tracking-tight text-slate-950 underline underline-offset-4 decoration-slate-800">
                   {isOwner
                     ? `RE: EXTENSION OF VEHICLE OWNER AGREEMENT – VEHICLE NO: ${regNo}`
                     : `RE: EXTENSION OF VEHICLE RENTAL AGREEMENT – VEHICLE NO: ${regNo}`}
                 </h1>
               </div>
 
-              <p className="font-sans text-[13.5px] text-slate-900">
+              <p className="font-sans text-[12.5px] text-slate-900">
                 Dear {extension?.recipient_name || 'Sir / Madam'},
               </p>
 
@@ -290,7 +290,7 @@ export function ExtensionLetterPreviewClient({
               )}
 
               {extension?.custom_notes && (
-                <p className="text-justify bg-slate-50/80 border-l-2 border-slate-400 pl-3 py-1.5 text-[12.5px]">
+                <p className="text-justify bg-slate-50/80 border-l-2 border-slate-400 pl-3 py-1 text-[12px]">
                   <strong className="font-sans text-slate-900">
                     {isOwner ? 'Special Notes: ' : 'Additional Notes / Agreed Terms: '}
                   </strong>
@@ -298,7 +298,7 @@ export function ExtensionLetterPreviewClient({
                 </p>
               )}
 
-              <p className="text-justify pt-1">
+              <p className="text-justify pt-0.5">
                 Kindly sign and return a copy of this letter as your formal acknowledgment and
                 acceptance of this extension.
               </p>
@@ -306,36 +306,34 @@ export function ExtensionLetterPreviewClient({
           )}
 
           {/* Two-Column Signature & Company Seal Block */}
-          <div className="mt-10 pt-4 grid grid-cols-2 gap-12 font-sans text-slate-900">
+          <div className="mt-6 pt-2 grid grid-cols-2 gap-12 font-sans text-slate-900 break-inside-avoid page-break-inside-avoid">
             {/* Column 1: Company / Staff Digital Signature & Official Seal */}
             <div className="flex flex-col">
               <p className="text-[11px] text-slate-600 font-medium">Issued For &amp; On Behalf of</p>
-              <p className="text-[12.5px] font-bold text-slate-950">{companyName}</p>
+              <p className="text-[12px] font-bold text-slate-950">{companyName}</p>
 
-              <div className="relative h-20 flex items-end gap-2 my-1">
-                {extension?.issued_by_signature_url ? (
+              <div className="relative h-[54px] flex items-end my-1">
+                {extension?.issued_by_signature_url && (
                   <img
                     src={extension.issued_by_signature_url}
                     alt={`${extension.issued_by_name} Signature`}
-                    className="max-h-16 max-w-[165px] object-contain object-left pb-1"
+                    className="h-[42px] max-w-[165px] object-contain object-left pb-0.5"
                   />
-                ) : (
-                  <span className="text-[11px] italic text-slate-400 pb-2">
-                    Authorized Signatory
-                  </span>
                 )}
 
                 {sealUrl && (
                   <img
                     src={sealUrl}
                     alt="Official Company Seal"
-                    className="h-20 w-20 object-contain opacity-90 -ml-2 pointer-events-none select-none"
+                    className={`h-[52px] w-[52px] object-contain opacity-90 pointer-events-none select-none ${
+                      extension?.issued_by_signature_url ? '-ml-3' : ''
+                    }`}
                   />
                 )}
               </div>
 
-              <div className="border-t border-slate-500 pt-1.5">
-                <p className="text-[12.5px] font-bold text-slate-950">
+              <div className="border-t border-dotted border-slate-500 pt-1.5">
+                <p className="text-[12px] font-bold text-slate-950">
                   {extension?.issued_by_name}
                 </p>
                 <p className="text-[11px] text-slate-600 font-medium">
@@ -349,18 +347,26 @@ export function ExtensionLetterPreviewClient({
               <p className="text-[11px] text-slate-600 font-medium">
                 Acknowledged &amp; Accepted By
               </p>
-              <p className="text-[12.5px] font-bold text-slate-950">
+              <p className="text-[12px] font-bold text-slate-950">
                 {isOwner ? 'Vehicle Owner' : 'Customer / Authorized Signatory'}
               </p>
 
-              <div className="h-20" />
+              <div className="relative h-[54px] flex items-end my-1">
+                {extension?.recipient_signature_url && (
+                  <img
+                    src={extension.recipient_signature_url}
+                    alt={`${extension.recipient_name} Signature`}
+                    className="h-[42px] max-w-[165px] object-contain object-left pb-0.5"
+                  />
+                )}
+              </div>
 
-              <div className="border-t border-slate-500 pt-1.5 space-y-0.5">
-                <p className="text-[12.5px] font-bold text-slate-950">
+              <div className="border-t border-dotted border-slate-500 pt-1.5 space-y-0.5">
+                <p className="text-[12px] font-bold text-slate-950">
                   {extension?.recipient_name}
                 </p>
                 <p className="text-[11px] text-slate-600 font-medium">Signature</p>
-                <p className="text-[11px] text-slate-600 pt-1">
+                <p className="text-[11px] text-slate-600 pt-0.5">
                   Date / NIC: ______________________
                 </p>
               </div>

@@ -44,6 +44,14 @@ import {
 
 interface Props {
   template: any
+  previewBranding?: {
+    officerName?: string
+    officerDesignation?: string
+    officerSignatureUrl?: string | null
+    companySealUrl?: string | null
+    letterheadUrl?: string | null
+    companyName?: string | null
+  }
 }
 
 // Sample variables for live preview rendering
@@ -84,9 +92,9 @@ const SAMPLE_PREVIEW_VARS: Record<string, string> = {
   bank_name: 'Commercial Bank of Ceylon',
   bank_branch: 'Maharagama Branch',
   bank_account_no: '800492018402',
-  company_rep_name: 'HBNK Dissanayaka',
-  company_rep_designation: 'Technical Officer',
-  company_rep_nic: '881843935V',
+  company_rep_name: 'Authorized Officer',
+  company_rep_designation: 'Operations Manager',
+  company_rep_nic: '—',
   company_witness_name: 'Kavindu Senanayake',
   company_witness_nic: '961029482V',
   owner_witness_name: 'Dinesh Perera',
@@ -170,7 +178,7 @@ function getBuilderConfig(documentType: string): BuilderConfig {
   }
 }
 
-export default function SectionCardBuilder({ template }: Props) {
+export default function SectionCardBuilder({ template, previewBranding }: Props) {
   const {
     isOwner,
     isExtension,
@@ -401,7 +409,14 @@ export default function SectionCardBuilder({ template }: Props) {
   }
 
   // Resolved sections for live preview
-  const resolvedPreviewSections = resolveAgreementSections(sections, SAMPLE_PREVIEW_VARS)
+  const effectivePreviewVars: Record<string, string> = {
+    ...SAMPLE_PREVIEW_VARS,
+    ...(previewBranding?.officerName ? { company_rep_name: previewBranding.officerName } : {}),
+    ...(previewBranding?.officerDesignation
+      ? { company_rep_designation: previewBranding.officerDesignation }
+      : {}),
+  }
+  const resolvedPreviewSections = resolveAgreementSections(sections, effectivePreviewVars)
 
   return (
     <div className="space-y-6">
@@ -507,49 +522,64 @@ export default function SectionCardBuilder({ template }: Props) {
           {isExtension ? (
             <div className="relative w-full max-w-[210mm] min-h-[297mm] mx-auto bg-white text-slate-900 shadow-2xl overflow-hidden rounded-sm">
               <img
-                src="/documents/thennakoon-tours-letterhead.png"
+                src={previewBranding?.letterheadUrl || '/documents/thennakoon-tours-letterhead.png'}
                 alt="Thennakoon Tours Official Letterhead"
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
               />
               <div
-                className="relative z-10 flex flex-col justify-between min-h-[297mm]"
+                className="relative z-10"
                 style={{
-                  padding: '47mm 18mm 54mm 18mm',
+                  padding: '38mm 18mm 54mm 18mm',
                   fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif',
                 }}
               >
                 <ExtensionLetterContentRenderer sections={resolvedPreviewSections} />
 
-                <div className="mt-10 pt-4 grid grid-cols-2 gap-12 font-sans text-slate-900">
+                <div className="mt-6 pt-2 grid grid-cols-2 gap-12 font-sans text-slate-900">
                   <div className="flex flex-col">
                     <p className="text-[11px] text-slate-600 font-medium">Issued For &amp; On Behalf of</p>
-                    <p className="text-[12.5px] font-bold text-slate-950">Thennakoon Tours (Pvt) Ltd</p>
-                    <div className="h-16 flex items-end my-1">
-                      <span className="text-[11px] italic text-slate-400 pb-2">
-                        [Staff Digital Signature + Official Seal]
-                      </span>
+                    <p className="text-[12px] font-bold text-slate-950">
+                      {previewBranding?.companyName || 'Thennakoon Tours (Pvt) Ltd'}
+                    </p>
+                    <div className="h-[54px] flex items-end my-1.5">
+                      {previewBranding?.officerSignatureUrl && (
+                        <img
+                          src={previewBranding.officerSignatureUrl}
+                          alt="Officer Signature"
+                          className="h-[42px] max-w-[165px] object-contain object-left pb-0.5"
+                        />
+                      )}
+                      {previewBranding?.companySealUrl && (
+                        <img
+                          src={previewBranding.companySealUrl}
+                          alt="Official Company Seal"
+                          className={`h-[52px] w-[52px] object-contain opacity-90 pointer-events-none select-none ${
+                            previewBranding?.officerSignatureUrl ? '-ml-3' : ''
+                          }`}
+                        />
+                      )}
                     </div>
-                    <div className="border-t border-slate-500 pt-1.5">
-                      <p className="text-[12.5px] font-bold text-slate-950">
-                        {SAMPLE_PREVIEW_VARS.company_rep_name}
+                    <div className="border-t border-dotted border-slate-500 pt-1.5">
+                      <p className="text-[12px] font-bold text-slate-950">
+                        {effectivePreviewVars.company_rep_name}
                       </p>
                       <p className="text-[11px] text-slate-600 font-medium">
-                        {SAMPLE_PREVIEW_VARS.company_rep_designation}
+                        {effectivePreviewVars.company_rep_designation}
                       </p>
                     </div>
                   </div>
                   <div className="flex flex-col">
                     <p className="text-[11px] text-slate-600 font-medium">Acknowledged &amp; Accepted By</p>
-                    <p className="text-[12.5px] font-bold text-slate-950">
+                    <p className="text-[12px] font-bold text-slate-950">
                       {isOwner ? 'Vehicle Owner' : 'Customer / Authorized Signatory'}
                     </p>
-                    <div className="h-16" />
-                    <div className="border-t border-slate-500 pt-1.5 space-y-0.5">
-                      <p className="text-[12.5px] font-bold text-slate-950">
-                        {SAMPLE_PREVIEW_VARS.recipient_name}
+                    <div className="h-[54px] my-1.5" />
+                    <div className="border-t border-dotted border-slate-500 pt-1.5 space-y-0.5">
+                      <p className="text-[12px] font-bold text-slate-950">
+                        {effectivePreviewVars.recipient_name}
                       </p>
                       <p className="text-[11px] text-slate-600 font-medium">Signature</p>
-                      <p className="text-[11px] text-slate-600 pt-1">Date / NIC: ______________________</p>
+                      <p className="text-[11px] text-slate-600 pt-0.5">Date / NIC: ______________________</p>
                     </div>
                   </div>
                 </div>

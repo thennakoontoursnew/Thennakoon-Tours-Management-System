@@ -26,7 +26,7 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, is_active')
+    .select('full_name, role, designation, signature_url, is_active')
     .eq('id', user.id)
     .single()
 
@@ -48,9 +48,20 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
     )
   }
 
-  // 2. Fetch or Auto-Create Document Template
-  const res = await getDocumentTemplateByType(type)
+  // 2. Fetch or Auto-Create Document Template & Current User/Seal Preview Branding
+  const [res, csRes] = await Promise.all([
+    getDocumentTemplateByType(type),
+    supabase.from('company_settings').select('company_seal_url, letterhead_url, company_name').limit(1).maybeSingle(),
+  ])
   const activeTemplate = res.template
+  const previewBranding = {
+    officerName: profile?.full_name || 'Authorized Officer',
+    officerDesignation: profile?.designation || profile?.role?.replace(/_/g, ' ') || 'Management',
+    officerSignatureUrl: profile?.signature_url || null,
+    companySealUrl: csRes.data?.company_seal_url || null,
+    letterheadUrl: csRes.data?.letterhead_url || '/documents/thennakoon-tours-letterhead.png',
+    companyName: csRes.data?.company_name || 'Thennakoon Tours (Pvt) Ltd',
+  }
 
   const tabs = [
     { type: 'owner_agreement', label: 'Owner Agreement Template', icon: FileText },
@@ -105,7 +116,11 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
 
       {/* Template Editor */}
       {activeTemplate ? (
-        <TemplateForm key={activeTemplate.document_type} template={activeTemplate} />
+        <TemplateForm
+          key={activeTemplate.document_type}
+          template={activeTemplate}
+          previewBranding={previewBranding}
+        />
       ) : (
         <div className="p-8 text-center text-xs text-rose-500">Failed to load template.</div>
       )}

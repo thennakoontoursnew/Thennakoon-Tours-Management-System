@@ -104,6 +104,16 @@ export async function createAgreementFromBooking(bookingId: string) {
       }
     } catch (_) {}
 
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('id, full_name, role, designation, signature_url')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const defaultRoleTitle = userProfile?.role
+      ? userProfile.role.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+      : 'Authorized Officer'
+
     const rentalPeriodText = `${initialForm.rental_period_days} Days`
     const userVariables: Record<string, any> = {
       agreement_number: initialForm.agreement_number,
@@ -123,8 +133,8 @@ export async function createAgreementFromBooking(bookingId: string) {
       deposit_amount: initialForm.rental?.security_deposit ? String(initialForm.rental.security_deposit) : '',
       km_limit: initialForm.rental?.allowed_km_per_day ? String(initialForm.rental.allowed_km_per_day * initialForm.rental_period_days) : '',
       excess_km_rate: initialForm.rental?.extra_km_rate ? String(initialForm.rental.extra_km_rate) : '',
-      company_rep_name: initialForm.lessor_representative?.name || 'HBNK Dissanayaka',
-      company_rep_designation: initialForm.lessor_representative?.position || 'Technical Officer',
+      company_rep_name: initialForm.lessor_representative?.name || userProfile?.full_name || 'Authorized Officer',
+      company_rep_designation: initialForm.lessor_representative?.position || userProfile?.designation || defaultRoleTitle,
       special_notes: initialForm.special_notes || '',
     }
 
@@ -148,6 +158,8 @@ export async function createAgreementFromBooking(bookingId: string) {
       witnesses_snapshot: initialForm.witnesses,
       lessor_representative_snapshot: initialForm.lessor_representative,
       pickup_delivery_snapshot: initialForm.pickup_delivery,
+      customer_signature_path: initialForm.lessee?.include_signature ? initialForm.lessee?.saved_signature_url || null : null,
+      company_signature_path: initialForm.lessor_representative?.signature_url || userProfile?.signature_url || null,
       special_notes: initialForm.special_notes || null,
       inventory_remarks: initialForm.inventory_remarks || null,
       terms_snapshot: `Standard User Agreement V1 terms applied for ${initialForm.agreement_number}`,
@@ -293,6 +305,16 @@ export async function createOwnerAgreementAction(data: {
       }
     } catch (_) {}
 
+    const { data: callerProfile } = await supabase
+      .from('profiles')
+      .select('id, full_name, role, designation, signature_url')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const callerRoleTitle = callerProfile?.role
+      ? callerProfile.role.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+      : 'Authorized Officer'
+
     const agrData = data.agreement_data || {}
     const ownerTemplateVariables: Record<string, any> = {
       agreement_date: agrData.execution_date_formatted || agrData.execution_date || data.agreement_start_date,
@@ -319,9 +341,9 @@ export async function createOwnerAgreementAction(data: {
       bank_name: agrData.bank_details?.bank_name || '',
       bank_branch: agrData.bank_details?.bank_branch || '',
       bank_account_no: agrData.bank_details?.bank_account_number || '',
-      company_rep_name: agrData.signatories?.company_rep_name || 'HBNK Dissanayaka',
-      company_rep_designation: agrData.signatories?.company_rep_designation || 'Technical Officer',
-      company_rep_nic: agrData.signatories?.company_rep_nic || '881843935V',
+      company_rep_name: agrData.signatories?.company_rep_name || callerProfile?.full_name || 'Authorized Officer',
+      company_rep_designation: agrData.signatories?.company_rep_designation || callerProfile?.designation || callerRoleTitle,
+      company_rep_nic: agrData.signatories?.company_rep_nic || '',
       company_witness_name: agrData.signatories?.company_witness_name || '',
       company_witness_nic: agrData.signatories?.company_witness_nic || '',
       owner_witness_name: agrData.signatories?.owner_witness_name || '',

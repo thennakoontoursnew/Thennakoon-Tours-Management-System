@@ -18,6 +18,7 @@ interface OwnerAgreementPreviewClientProps {
   extensions?: any[]
   staffProfiles?: any[]
   currentUserId?: string | null
+  companySettings?: any
 }
 
 function getOrdinal(n: number): string {
@@ -61,6 +62,7 @@ export function OwnerAgreementPreviewClient({
   extensions = [],
   staffProfiles = [],
   currentUserId = null,
+  companySettings = null,
 }: OwnerAgreementPreviewClientProps) {
   const data = agreement?.agreement_data || {}
   const firstCovered = vehicles?.[0]?.vehicle || {}
@@ -115,9 +117,14 @@ export function OwnerAgreementPreviewClient({
   const bankAccountNo = data.bank_details?.bank_account_number || owner?.bank_account_number || '_______________'
 
   // 6. Signatories & Witnesses
-  const companyRepName = data.signatories?.company_rep_name || 'HBNK Dissanayaka'
-  const companyRepDesignation = data.signatories?.company_rep_designation || 'Technical Officer'
-  const companyRepNic = data.signatories?.company_rep_nic || '881843935V'
+  const companyRepName = data.signatories?.company_rep_name || 'Authorized Officer'
+  const companyRepDesignation = data.signatories?.company_rep_designation || 'Management'
+  const companyRepNic = data.signatories?.company_rep_nic || '_________________'
+  const companyRepSignatureUrl = data.signatories?.company_rep_signature_url || null
+  const companySealUrl = companySettings?.company_seal_url || null
+  const ownerSignatureUrl =
+    data.signatories?.owner_signature_url ||
+    (data.signatories?.include_owner_signature === false ? null : owner?.signature_url || null)
   const companyWitnessName = data.signatories?.company_witness_name || ''
   const companyWitnessNic = data.signatories?.company_witness_nic || ''
 
@@ -260,9 +267,25 @@ export function OwnerAgreementPreviewClient({
         </div>
 
         {agreement.rendered_sections_snapshot && Array.isArray(agreement.rendered_sections_snapshot) && agreement.rendered_sections_snapshot.length > 0 ? (
-          <LegalDocumentViewer sections={agreement.rendered_sections_snapshot} />
+          <LegalDocumentViewer
+            sections={agreement.rendered_sections_snapshot}
+            companyRepSignatureUrl={companyRepSignatureUrl}
+            companySealUrl={companySealUrl}
+            recipientSignatureUrl={ownerSignatureUrl}
+            companyRepName={companyRepName}
+            recipientName={ownerFullName}
+            recipientRoleLabel="Signed by the VEHICLE OWNER"
+          />
         ) : agreement.rendered_content_snapshot ? (
-          <LegalDocumentViewer content={agreement.rendered_content_snapshot} />
+          <LegalDocumentViewer
+            content={agreement.rendered_content_snapshot}
+            companyRepSignatureUrl={companyRepSignatureUrl}
+            companySealUrl={companySealUrl}
+            recipientSignatureUrl={ownerSignatureUrl}
+            companyRepName={companyRepName}
+            recipientName={ownerFullName}
+            recipientRoleLabel="Signed by the VEHICLE OWNER"
+          />
         ) : (
           <>
             {/* Preamble */}
@@ -639,7 +662,24 @@ export function OwnerAgreementPreviewClient({
                 <p className="font-black text-slate-900">THENNAKOON TOURS (PVT) LTD</p>
               </div>
 
-              <div className="pt-10 border-b border-slate-400"></div>
+              <div className="h-[54px] flex items-end border-b border-dotted border-slate-400 pb-1">
+                {companyRepSignatureUrl && (
+                  <img
+                    src={companyRepSignatureUrl}
+                    alt={`${companyRepName} Signature`}
+                    className="h-[42px] max-w-[160px] object-contain object-left"
+                  />
+                )}
+                {companySealUrl && (
+                  <img
+                    src={companySealUrl}
+                    alt="Official Company Seal"
+                    className={`h-[52px] w-[52px] object-contain opacity-90 pointer-events-none select-none ${
+                      companyRepSignatureUrl ? '-ml-3' : ''
+                    }`}
+                  />
+                )}
+              </div>
               <div className="space-y-1 text-[11px]">
                 <p>
                   <strong>Authorized Signatory:</strong> {companyRepName}
@@ -678,7 +718,15 @@ export function OwnerAgreementPreviewClient({
                 <p className="font-black text-slate-900">VEHICLE OWNER</p>
               </div>
 
-              <div className="pt-10 border-b border-slate-400"></div>
+              <div className="h-[54px] flex items-end border-b border-dotted border-slate-400 pb-1">
+                {ownerSignatureUrl && (
+                  <img
+                    src={ownerSignatureUrl}
+                    alt={`${ownerFullName} Signature`}
+                    className="h-[42px] max-w-[160px] object-contain object-left"
+                  />
+                )}
+              </div>
               <div className="space-y-1 text-[11px]">
                 <p>
                   <strong>Owner Name:</strong> {ownerFullName}

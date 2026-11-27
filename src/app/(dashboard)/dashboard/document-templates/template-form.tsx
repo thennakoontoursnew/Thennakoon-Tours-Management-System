@@ -26,9 +26,17 @@ import SectionCardBuilder from './section-card-builder'
 
 interface Props {
   template: any
+  previewBranding?: {
+    officerName?: string
+    officerDesignation?: string
+    officerSignatureUrl?: string | null
+    companySealUrl?: string | null
+    letterheadUrl?: string | null
+    companyName?: string | null
+  }
 }
 
-export default function TemplateForm({ template }: Props) {
+export default function TemplateForm({ template, previewBranding }: Props) {
   const isAgreementTemplate =
     template.document_type === 'owner_agreement' ||
     template.document_type === 'user_agreement' ||
@@ -36,7 +44,7 @@ export default function TemplateForm({ template }: Props) {
     template.document_type === 'owner_extension_letter'
 
   if (isAgreementTemplate) {
-    return <SectionCardBuilder template={template} />
+    return <SectionCardBuilder template={template} previewBranding={previewBranding} />
   }
 
   const [loading, setLoading] = useState(false)

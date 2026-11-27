@@ -64,6 +64,7 @@ export async function createVehicleOwnerAction(data: any) {
       monthly_km_quota: data.monthly_km_quota !== undefined && data.monthly_km_quota !== '' ? Number(data.monthly_km_quota) : 3000,
       owner_excess_km_rate: data.owner_excess_km_rate !== undefined && data.owner_excess_km_rate !== '' ? Number(data.owner_excess_km_rate) : 0,
       payment_terms: data.payment_terms || 'monthly',
+      signature_url: data.signature_url?.trim() || null,
       notes: data.notes || null,
       is_active: true,
     })
@@ -117,6 +118,7 @@ export async function updateVehicleOwnerAction(id: string, data: any) {
       monthly_km_quota: data.monthly_km_quota !== undefined && data.monthly_km_quota !== '' ? Number(data.monthly_km_quota) : (old?.monthly_km_quota ?? 3000),
       owner_excess_km_rate: data.owner_excess_km_rate !== undefined && data.owner_excess_km_rate !== '' ? Number(data.owner_excess_km_rate) : (old?.owner_excess_km_rate ?? 0),
       payment_terms: data.payment_terms || 'monthly',
+      signature_url: data.signature_url !== undefined ? (data.signature_url?.trim() || null) : (old?.signature_url ?? null),
       notes: data.notes || null,
       updated_at: new Date().toISOString(),
     })

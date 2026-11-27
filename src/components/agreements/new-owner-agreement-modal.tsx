@@ -24,6 +24,8 @@ interface NewOwnerAgreementModalProps {
   onClose: () => void
   initialOwnerId?: string
   initialVehicleId?: string
+  staffProfiles?: any[]
+  currentUserId?: string | null
 }
 
 function getOrdinal(n: number): string {
@@ -83,22 +85,37 @@ export function NewOwnerAgreementModal({
   onClose,
   initialOwnerId,
   initialVehicleId,
+  staffProfiles = [],
+  currentUserId = null,
 }: NewOwnerAgreementModalProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<'parties' | 'term' | 'financials' | 'signatories'>('parties')
   const [submitting, setSubmitting] = useState(false)
 
+  const formatRoleTitle = (role?: string | null) =>
+    role ? role.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) : 'Authorized Officer'
+
+  const defaultStaffRep =
+    staffProfiles.find((p) => p.id === currentUserId) || staffProfiles[0] || null
+
   // 1. Owner & Vehicle Selection
   const [selectedOwnerId, setSelectedOwnerId] = useState(initialOwnerId || '')
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>(initialVehicleId ? [initialVehicleId] : [])
 
-  // Sync initial selection whenever modal opens with pre-selected owner/vehicle
+  // Sync initial selection & current logged-in staff rep whenever modal opens
   useEffect(() => {
     if (isOpen) {
       if (initialOwnerId) setSelectedOwnerId(initialOwnerId)
       if (initialVehicleId) setSelectedVehicleIds([initialVehicleId])
+      const rep = staffProfiles.find((p) => p.id === currentUserId) || staffProfiles[0] || null
+      if (rep) {
+        setCompanyRepId(rep.id)
+        setCompanyRepName(rep.full_name || 'Authorized Officer')
+        setCompanyRepDesignation(rep.designation || formatRoleTitle(rep.role))
+        setCompanyRepSignatureUrl(rep.signature_url || null)
+      }
     }
-  }, [isOpen, initialOwnerId, initialVehicleId])
+  }, [isOpen, initialOwnerId, initialVehicleId, currentUserId, staffProfiles])
 
   // Owner editable fields
   const [ownerFullName, setOwnerFullName] = useState('')
@@ -106,6 +123,8 @@ export function NewOwnerAgreementModal({
   const [ownerAddress, setOwnerAddress] = useState('')
   const [ownerPhone, setOwnerPhone] = useState('')
   const [ownerEmail, setOwnerEmail] = useState('')
+  const [ownerSavedSignatureUrl, setOwnerSavedSignatureUrl] = useState<string | null>(null)
+  const [includeOwnerSignature, setIncludeOwnerSignature] = useState<boolean>(true)
 
   // Vehicle editable fields
   const [vehicleMakeModel, setVehicleMakeModel] = useState('')
@@ -142,10 +161,16 @@ export function NewOwnerAgreementModal({
   const [bankAccountNo, setBankAccountNo] = useState('')
   const [accountHolderName, setAccountHolderName] = useState('')
 
-  // 4. Signatories & Remarks
-  const [companyRepName, setCompanyRepName] = useState('HBNK Dissanayaka')
-  const [companyRepDesignation, setCompanyRepDesignation] = useState('Technical Officer')
-  const [companyRepNic, setCompanyRepNic] = useState('881843935V')
+  // 4. Signatories & Remarks (Auto-filled from Logged-In User)
+  const [companyRepId, setCompanyRepId] = useState(defaultStaffRep?.id || '')
+  const [companyRepName, setCompanyRepName] = useState(defaultStaffRep?.full_name || 'Authorized Officer')
+  const [companyRepDesignation, setCompanyRepDesignation] = useState(
+    defaultStaffRep?.designation || formatRoleTitle(defaultStaffRep?.role)
+  )
+  const [companyRepNic, setCompanyRepNic] = useState('')
+  const [companyRepSignatureUrl, setCompanyRepSignatureUrl] = useState<string | null>(
+    defaultStaffRep?.signature_url || null
+  )
   const [companyWitnessName, setCompanyWitnessName] = useState('')
   const [companyWitnessNic, setCompanyWitnessNic] = useState('')
 
@@ -169,6 +194,8 @@ export function NewOwnerAgreementModal({
       setBankBranch('')
       setBankAccountNo('')
       setAccountHolderName('')
+      setOwnerSavedSignatureUrl(null)
+      setIncludeOwnerSignature(false)
       return
     }
 
@@ -183,6 +210,8 @@ export function NewOwnerAgreementModal({
       setBankBranch(o.bank_branch || '')
       setBankAccountNo(o.bank_account_number || '')
       setAccountHolderName(o.bank_account_name || o.full_name || '')
+      setOwnerSavedSignatureUrl(o.signature_url || null)
+      setIncludeOwnerSignature(Boolean(o.signature_url))
       if (o.revenue_share_pct) setRevenueSharePct(String(o.revenue_share_pct))
       if (o.monthly_km_quota) setMonthlyMileageQuota(String(o.monthly_km_quota))
       if (o.owner_excess_km_rate) setExcessMileageRate(String(o.owner_excess_km_rate))
@@ -318,9 +347,14 @@ export function NewOwnerAgreementModal({
         },
 
         signatories: {
+          company_rep_id: companyRepId || currentUserId || null,
           company_rep_name: companyRepName,
           company_rep_designation: companyRepDesignation,
           company_rep_nic: companyRepNic,
+          company_rep_signature_url: companyRepSignatureUrl || null,
+          include_owner_signature: Boolean(includeOwnerSignature && ownerSavedSignatureUrl),
+          owner_signature_url:
+            includeOwnerSignature && ownerSavedSignatureUrl ? ownerSavedSignatureUrl : null,
           company_witness_name: companyWitnessName,
           company_witness_nic: companyWitnessNic,
           owner_witness_name: ownerWitnessName,
@@ -922,6 +956,32 @@ export function NewOwnerAgreementModal({
                 <span className="font-bold text-slate-800 dark:text-slate-200 block border-b border-slate-200 dark:border-slate-800 pb-1">
                   Thennakoon Tours (Pvt) Ltd Representative (First Party)
                 </span>
+                {staffProfiles.length > 0 && (
+                  <div>
+                    <label className="font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                      Select Authorized Staff Officer
+                    </label>
+                    <select
+                      value={companyRepId}
+                      onChange={(e) => {
+                        const found = staffProfiles.find((p) => p.id === e.target.value)
+                        setCompanyRepId(e.target.value)
+                        if (found) {
+                          setCompanyRepName(found.full_name || '')
+                          setCompanyRepDesignation(found.designation || formatRoleTitle(found.role))
+                          setCompanyRepSignatureUrl(found.signature_url || null)
+                        }
+                      }}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    >
+                      {staffProfiles.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.full_name} {p.designation ? `— ${p.designation}` : `(${p.role})`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="font-semibold text-slate-600 dark:text-slate-400 block mb-1">Authorized Officer Name</label>
@@ -947,12 +1007,58 @@ export function NewOwnerAgreementModal({
                     <label className="font-semibold text-slate-600 dark:text-slate-400 block mb-1">NIC Number</label>
                     <input
                       type="text"
-                      required
                       value={companyRepNic}
                       onChange={(e) => setCompanyRepNic(e.target.value)}
+                      placeholder="Representative NIC"
                       className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono"
                     />
                   </div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-1">
+                  <div className="w-32 h-11 rounded-lg bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center p-1 overflow-hidden shrink-0">
+                    {companyRepSignatureUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={companyRepSignatureUrl} alt="Staff signature" className="max-h-full max-w-full object-contain" />
+                    ) : (
+                      <span className="text-[10px] text-slate-400">No signature saved</span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-slate-500">
+                    {companyRepSignatureUrl
+                      ? 'Company representative digital signature loaded for agreement PDF.'
+                      : 'Blank space above signature line for manual signing.'}
+                  </span>
+                </div>
+
+                {/* Vehicle Owner Saved E-Signature Auto-Apply */}
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-bold text-slate-700 dark:text-slate-200 text-xs">
+                      Vehicle Owner E-Signature (Second Party)
+                    </span>
+                    {ownerSavedSignatureUrl ? (
+                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800 dark:text-slate-100">
+                        <input
+                          type="checkbox"
+                          checked={includeOwnerSignature}
+                          onChange={(e) => setIncludeOwnerSignature(e.target.checked)}
+                          className="rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                        />
+                        <span>Include saved Owner E-Signature</span>
+                      </label>
+                    ) : (
+                      <span className="text-[10px] text-slate-400">
+                        No saved E-signature on selected Owner profile
+                      </span>
+                    )}
+                  </div>
+                  {ownerSavedSignatureUrl && includeOwnerSignature && (
+                    <div className="w-32 h-11 rounded-lg bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center p-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={ownerSavedSignatureUrl} alt="Owner E-Signature" className="max-h-full max-w-full object-contain" />
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">

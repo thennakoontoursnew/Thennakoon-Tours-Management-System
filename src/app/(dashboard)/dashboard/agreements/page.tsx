@@ -42,6 +42,17 @@ export default async function AgreementsPage({ searchParams }: PageProps) {
     supabase.auth.getUser(),
   ])
 
+  const loggedInUserId = authRes.data?.user?.id || null
+  const staffProfiles = staffRes.data || []
+  if (loggedInUserId && !staffProfiles.some((p: any) => p.id === loggedInUserId)) {
+    const { data: ownProf } = await supabase
+      .from('profiles')
+      .select('id, full_name, role, designation, signature_url')
+      .eq('id', loggedInUserId)
+      .maybeSingle()
+    if (ownProf) staffProfiles.unshift(ownProf)
+  }
+
   const vehiclesList = vehiclesRes.data || []
   const preselectedVehicleId = params.vehicle_id || undefined
   const matchedVehicle = preselectedVehicleId ? vehiclesList.find((v: any) => v.id === preselectedVehicleId) : null
@@ -56,8 +67,8 @@ export default async function AgreementsPage({ searchParams }: PageProps) {
         owners={ownersRes.data || []}
         vehicles={vehiclesList}
         bookings={bookingsRes.data || []}
-        staffProfiles={staffRes.data || []}
-        currentUserId={authRes.data?.user?.id || null}
+        staffProfiles={staffProfiles}
+        currentUserId={loggedInUserId}
         initialTab={params.tab === 'owner' ? 'owner' : 'user'}
         initialOpenOwnerModal={params.new_owner === '1'}
         initialOwnerId={preselectedOwnerId}

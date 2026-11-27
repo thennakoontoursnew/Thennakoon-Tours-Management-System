@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import { Building2, Users, UserPlus, Search, CheckCircle2, Phone, Landmark, Percent } from 'lucide-react'
 import type { OwnershipMode } from '@/app/(dashboard)/dashboard/vehicles/vehicle-actions'
+import { SignatureUploadField } from '@/components/ui/signature-upload-field'
 
 export interface InlineOwnerState {
   full_name: string
@@ -22,6 +23,7 @@ export interface InlineOwnerState {
   bank_name: string
   bank_account_number: string
   bank_branch: string
+  signature_url: string
   notes: string
 }
 
@@ -43,6 +45,7 @@ export const INITIAL_INLINE_OWNER: InlineOwnerState = {
   bank_name: '',
   bank_account_number: '',
   bank_branch: '',
+  signature_url: '',
   notes: '',
 }
 
@@ -475,6 +478,16 @@ export function VehicleOwnershipSection({
               </div>
             </div>
           </div>
+
+          {/* Saved E-Signature */}
+          <SignatureUploadField
+            value={newOwner.signature_url}
+            onChange={(url) => onNewOwnerChange({ signature_url: url || '' })}
+            entityFolder="owners"
+            entityId="inline-owner"
+            label="Owner Saved E-Signature (Optional)"
+            compact
+          />
 
           {/* Internal Notes */}
           <div>

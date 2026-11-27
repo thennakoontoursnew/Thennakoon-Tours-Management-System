@@ -55,6 +55,7 @@ export async function createCustomer(values: CustomerInput, tagIds: string[] = [
       driving_license_number: values.driving_license_number?.trim() || null,
       source: (values.source?.trim() as any) || null,
       preferred_vehicle_id: values.preferred_vehicle_id?.trim() || null,
+      signature_url: values.signature_url?.trim() || null,
       notes: values.notes?.trim() || null,
       created_by: user.id,
       updated_by: user.id,
@@ -149,6 +150,7 @@ export async function updateCustomer(id: string, values: CustomerInput, tagIds?:
       driving_license_number: values.driving_license_number?.trim() || null,
       source: (values.source?.trim() as any) || null,
       preferred_vehicle_id: values.preferred_vehicle_id?.trim() || null,
+      signature_url: values.signature_url?.trim() || null,
       notes: values.notes?.trim() || null,
       updated_by: user.id,
     }

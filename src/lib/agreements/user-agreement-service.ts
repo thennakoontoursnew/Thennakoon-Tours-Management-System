@@ -35,6 +35,8 @@ export interface UserAgreementFormData {
     nationality?: string
     driving_license_number?: string
     driving_license_expiry?: string
+    saved_signature_url?: string | null
+    include_signature?: boolean
   }
 
   // Section C: Vehicle Info
@@ -86,8 +88,11 @@ export interface UserAgreementFormData {
 
   // Section I: Lessor Representative
   lessor_representative: {
+    id?: string | null
     name: string
     position: string
+    nic?: string
+    signature_url?: string | null
     signature_date: string
   }
 
@@ -154,12 +159,26 @@ export async function getInitialUserAgreementFormData(
     quotation = q
   }
 
-  // 4. Fetch Company Settings
-  const { data: companySettings } = await supabase
-    .from('company_settings')
-    .select('*')
-    .limit(1)
-    .maybeSingle()
+  // 4. Fetch Company Settings & Logged-In Staff Officer
+  const [{ data: companySettings }, authRes] = await Promise.all([
+    supabase.from('company_settings').select('*').limit(1).maybeSingle(),
+    supabase.auth.getUser(),
+  ])
+
+  let currentStaff: any = null
+  const currentUserId = authRes?.data?.user?.id || null
+  if (currentUserId) {
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('id, full_name, role, designation, signature_url')
+      .eq('id', currentUserId)
+      .maybeSingle()
+    currentStaff = prof
+  }
+
+  const formattedRole = currentStaff?.role
+    ? currentStaff.role.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+    : 'Authorized Officer'
 
   // 5. Generate Next Agreement Number
   let agreementNumber = `AGR-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`
@@ -206,6 +225,8 @@ export async function getInitialUserAgreementFormData(
       nationality: customer.nationality || 'Sri Lankan',
       driving_license_number: customer.driving_license_number || '',
       driving_license_expiry: customer.driving_license_expiry || '',
+      saved_signature_url: customer.signature_url || null,
+      include_signature: Boolean(customer.signature_url),
     },
 
     vehicle: {
@@ -253,8 +274,11 @@ export async function getInitialUserAgreementFormData(
     inventory_remarks: 'Vehicle inspected with spare wheel, jack, and tools.',
 
     lessor_representative: {
-      name: 'Authorized Officer',
-      position: 'Operations Executive',
+      id: currentStaff?.id || null,
+      name: currentStaff?.full_name || 'Authorized Officer',
+      position: currentStaff?.designation || formattedRole,
+      nic: '',
+      signature_url: currentStaff?.signature_url || null,
       signature_date: todayStr,
     },
 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createCustomer } from '../customer-actions'
 import { ArrowLeft, Save, AlertCircle } from 'lucide-react'
+import { SignatureUploadField } from '@/components/ui/signature-upload-field'
 
 export default function NewCustomerPage() {
   const router = useRouter()
@@ -30,6 +31,7 @@ export default function NewCustomerPage() {
     driving_license_number: '',
     driving_license_expiry: '',
     source: 'walk_in',
+    signature_url: '',
     notes: '',
     status: 'active',
   })
@@ -255,6 +257,15 @@ export default function NewCustomerPage() {
             </div>
           </div>
         </div>
+
+        {/* Section 4: Saved E-Signature */}
+        <SignatureUploadField
+          value={formData.signature_url}
+          onChange={(url) => setFormData((prev) => ({ ...prev, signature_url: url || '' }))}
+          entityFolder="customers"
+          entityId="new-customer"
+          label="Customer Saved E-Signature (Optional)"
+        />
 
         {/* Form Action */}
         <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">

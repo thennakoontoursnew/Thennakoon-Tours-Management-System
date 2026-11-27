@@ -28,6 +28,7 @@ const createExtensionSchema = z.object({
   issued_by_name: z.string().min(2, 'Issuing officer name is required'),
   issued_by_designation: z.string().min(2, 'Issuing officer designation is required'),
   issued_by_signature_url: z.string().optional().nullable(),
+  recipient_signature_url: z.string().optional().nullable(),
 })
 
 export type CreateExtensionInput = z.infer<typeof createExtensionSchema>
@@ -141,6 +142,7 @@ export async function createAgreementExtensionAction(values: CreateExtensionInpu
       issued_by_name: d.issued_by_name.trim(),
       issued_by_designation: d.issued_by_designation.trim(),
       issued_by_signature_url: resolvedSignatureUrl,
+      recipient_signature_url: d.recipient_signature_url?.trim() || null,
       rendered_content_snapshot: resolvedMarkdown,
       rendered_sections_snapshot: resolvedSections,
     }
