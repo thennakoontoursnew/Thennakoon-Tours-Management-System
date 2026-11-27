@@ -306,7 +306,7 @@ export function ExtensionLetterPreviewClient({
           )}
 
           {/* Two-Column Signature & Company Seal Block */}
-          <div className="mt-8 pt-3 grid grid-cols-2 gap-12 font-sans text-slate-900 break-inside-avoid page-break-inside-avoid">
+          <div className="mt-6 grid grid-cols-2 gap-12 font-sans text-slate-900 break-inside-avoid page-break-inside-avoid">
             {/* Column 1: Company / Staff Digital Signature & Official Seal */}
             <div className="flex flex-col">
               <p className="text-[11px] text-slate-600 font-medium">Issued For &amp; On Behalf of</p>

@@ -411,8 +411,9 @@ export async function generateExtensionLetterPDF(
     )
   }
 
-  // Signature & Seal Block positioned ~14mm below final body paragraph baseline, clamped above footer (~241mm Y)
-  const sigTopY = Math.min(hasLockedSnapshot ? y + 2 : y + 8, 214)
+  // Position signature & seal block ~12mm below final body paragraph (safely above bottom footer)
+  const finalBodyY = hasLockedSnapshot ? Math.max(44, y - 6) : y
+  const sigTopY = Math.min(finalBodyY + 6, 220)
   const leftColX = left
   const rightColX = 112
 

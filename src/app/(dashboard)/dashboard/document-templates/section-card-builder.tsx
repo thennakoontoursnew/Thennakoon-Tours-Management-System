@@ -525,7 +525,7 @@ export default function SectionCardBuilder({ template, previewBranding }: Props)
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
               />
               <div
-                className="relative z-10 min-h-[297mm] flex flex-col justify-between"
+                className="relative z-10"
                 style={{
                   padding: '44mm 18mm 56mm 18mm',
                   fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif',
@@ -533,7 +533,7 @@ export default function SectionCardBuilder({ template, previewBranding }: Props)
               >
                 <ExtensionLetterContentRenderer sections={resolvedPreviewSections} />
 
-                <div className="mt-auto pt-8 grid grid-cols-2 gap-12 font-sans text-slate-900">
+                <div className="mt-6 grid grid-cols-2 gap-12 font-sans text-slate-900">
                   <div className="flex flex-col">
                     <p className="text-[11px] text-slate-600 font-medium">Issued For &amp; On Behalf of</p>
                     <p className="text-[12px] font-bold text-slate-950">
@@ -577,7 +577,6 @@ export default function SectionCardBuilder({ template, previewBranding }: Props)
                         {effectivePreviewVars.recipient_name}
                       </p>
                       <p className="text-[11px] text-slate-600 font-medium">Signature</p>
-                      <p className="text-[11px] text-slate-600 pt-0.5">Date / NIC: ______________________</p>
                     </div>
                   </div>
                 </div>

@@ -277,6 +277,15 @@ export function parseExtensionLetterBlocks(
       const para = rawPara.trim()
       if (!para) continue
 
+      // Ignore any legacy hardcoded signature footer lines so component layout always renders signatures cleanly
+      if (
+        /^(Issued For\s*&?\s*On Behalf of|Acknowledged\s*&?\s*Accepted By|Date\s*\/\s*NIC\s*:)/i.test(
+          para
+        )
+      ) {
+        continue
+      }
+
       // 1. Split Ref / Date bar ("Ref: ... | Date: ...")
       if (para.includes('|') && /^ref\s*:/i.test(para)) {
         const [leftPart, ...rest] = para.split('|')
