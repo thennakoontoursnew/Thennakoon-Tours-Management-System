@@ -39,13 +39,13 @@ export function ExtensionLetterContentRenderer({
   if (blocks.length === 0) return null
 
   return (
-    <div className="space-y-2.5 text-[12.5px] leading-[1.55] text-slate-800">
+    <div className="space-y-4 text-[13.5px] leading-[1.75] text-slate-800">
       {blocks.map((block, idx) => {
         if (block.type === 'ref_date_row') {
           return (
             <div
               key={idx}
-              className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-300/80 pb-1.5 mb-2 text-[12px] font-sans font-bold text-slate-900"
+              className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-300/80 pb-2 text-[12.5px] font-sans font-bold text-slate-900"
             >
               <span>{renderInlineMarkdown(block.left)}</span>
               <span>{renderInlineMarkdown(block.right)}</span>
@@ -55,8 +55,8 @@ export function ExtensionLetterContentRenderer({
 
         if (block.type === 'subject') {
           return (
-            <div key={idx} className="pt-0.5 pb-0.5 mb-2">
-              <h1 className="font-sans text-[13px] font-extrabold uppercase tracking-tight text-slate-950 underline underline-offset-4 decoration-slate-800">
+            <div key={idx} className="mt-5 mb-4">
+              <h1 className="font-sans text-[14px] font-extrabold uppercase tracking-tight text-slate-950 underline underline-offset-4 decoration-slate-800">
                 {renderInlineMarkdown(block.text)}
               </h1>
             </div>
@@ -67,7 +67,7 @@ export function ExtensionLetterContentRenderer({
           return (
             <p
               key={idx}
-              className="text-justify bg-slate-50/85 border-l-2 border-slate-400 pl-3 py-1 mb-2.5 text-[12px] whitespace-pre-line"
+              className="text-justify bg-slate-50/85 border-l-2 border-slate-400 pl-3 py-1.5 text-[13px] whitespace-pre-line"
             >
               {renderInlineMarkdown(block.text)}
             </p>
@@ -82,8 +82,8 @@ export function ExtensionLetterContentRenderer({
             key={idx}
             className={
               isRecipientOrGreeting
-                ? 'font-sans text-[12.5px] text-slate-900 mb-2 whitespace-pre-line'
-                : 'text-justify mb-2.5 whitespace-pre-line'
+                ? 'font-sans text-[13.5px] text-slate-900 whitespace-pre-line'
+                : 'text-justify whitespace-pre-line'
             }
           >
             {renderInlineMarkdown(block.text)}
