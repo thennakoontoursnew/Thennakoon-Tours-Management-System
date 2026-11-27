@@ -48,9 +48,11 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
     )
   }
 
+  const normalizedType = type === 'rental_agreement' ? 'user_agreement' : type
+
   // 2. Fetch or Auto-Create Document Template & Current User/Seal Preview Branding
   const [res, csRes] = await Promise.all([
-    getDocumentTemplateByType(type),
+    getDocumentTemplateByType(normalizedType),
     supabase.from('company_settings').select('company_seal_url, letterhead_url, company_name').limit(1).maybeSingle(),
   ])
   const activeTemplate = res.template
@@ -64,13 +66,13 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
   }
 
   const tabs = [
-    { type: 'owner_agreement', label: 'Owner Agreement Template', icon: FileText },
-    { type: 'user_agreement', label: 'User Agreement Template', icon: FileCheck },
-    { type: 'user_extension_letter', label: 'User Extension Letter Template', icon: CalendarPlus },
-    { type: 'owner_extension_letter', label: 'Owner Extension Letter Template', icon: FileSignature },
     { type: 'quotation', label: 'Quotation Template', icon: FileSpreadsheet },
     { type: 'invoice', label: 'Invoice Template', icon: Receipt },
     { type: 'receipt', label: 'Receipt Template', icon: CheckCircle2 },
+    { type: 'user_agreement', label: 'User Agreement', icon: FileCheck },
+    { type: 'owner_agreement', label: 'Owner Agreement', icon: FileText },
+    { type: 'user_extension_letter', label: 'User Extension Letter', icon: CalendarPlus },
+    { type: 'owner_extension_letter', label: 'Owner Extension Letter', icon: FileSignature },
   ]
 
   return (
@@ -86,7 +88,7 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
         {tabs.map((tab) => {
           const Icon = tab.icon
-          const isActive = (type || 'owner_agreement') === tab.type
+          const isActive = (normalizedType || 'owner_agreement') === tab.type
           return (
             <Link
               key={tab.type}
@@ -109,7 +111,7 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
         <ShieldAlert size={18} className="shrink-0" />
         <span>
           <strong>Template Safety & Snapshot Locking:</strong> Saved template settings auto-fill new agreements and documents.
-          Once generated, each agreement permanently locks an immutable snapshot (`rendered_content_snapshot`).
+          Once generated, each agreement permanently locks an immutable snapshot (<code>rendered_content_snapshot</code>).
           Future edits to master templates here will <strong>never</strong> alter previously issued or signed agreements.
         </span>
       </div>

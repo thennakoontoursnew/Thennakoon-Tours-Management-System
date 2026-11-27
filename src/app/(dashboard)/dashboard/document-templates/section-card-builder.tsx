@@ -37,9 +37,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Loader2,
-  FileText,
   Search,
-  SlidersHorizontal,
 } from 'lucide-react'
 
 interface Props {
@@ -216,7 +214,7 @@ export default function SectionCardBuilder({ template, previewBranding }: Props)
     el.style.height = `${Math.max(100, el.scrollHeight)}px`
   }
 
-  // Adjust all visible card textareas on mount, tab changes, or section count changes
+  // Adjust all visible card textareas on mount, tab changes, or section edits
   useEffect(() => {
     const timer = setTimeout(() => {
       sections.forEach((sec) => {
@@ -227,7 +225,7 @@ export default function SectionCardBuilder({ template, previewBranding }: Props)
       })
     }, 50)
     return () => clearTimeout(timer)
-  }, [sections.length, previewMode])
+  }, [sections, previewMode])
 
   const categories = [
     { id: 'all', label: 'All Tags' },
@@ -459,7 +457,7 @@ export default function SectionCardBuilder({ template, previewBranding }: Props)
               className="px-4 py-2 rounded-xl text-xs font-black bg-amber-400 text-slate-950 hover:bg-amber-300 transition-all flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {saving ? 'Saving...' : 'Save Master Template'}
+              {saving ? 'Saving...' : 'Save Template'}
             </button>
           </div>
         </div>
@@ -527,33 +525,33 @@ export default function SectionCardBuilder({ template, previewBranding }: Props)
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
               />
               <div
-                className="relative z-10"
+                className="relative z-10 min-h-[297mm] flex flex-col justify-between"
                 style={{
-                  padding: '38mm 18mm 54mm 18mm',
+                  padding: '44mm 18mm 56mm 18mm',
                   fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif',
                 }}
               >
                 <ExtensionLetterContentRenderer sections={resolvedPreviewSections} />
 
-                <div className="mt-6 pt-2 grid grid-cols-2 gap-12 font-sans text-slate-900">
+                <div className="mt-auto pt-8 grid grid-cols-2 gap-12 font-sans text-slate-900">
                   <div className="flex flex-col">
                     <p className="text-[11px] text-slate-600 font-medium">Issued For &amp; On Behalf of</p>
                     <p className="text-[12px] font-bold text-slate-950">
                       {previewBranding?.companyName || 'Thennakoon Tours (Pvt) Ltd'}
                     </p>
-                    <div className="h-[54px] flex items-end my-1.5">
+                    <div className="relative h-16 flex items-end my-1.5">
                       {previewBranding?.officerSignatureUrl && (
                         <img
                           src={previewBranding.officerSignatureUrl}
                           alt="Officer Signature"
-                          className="h-[42px] max-w-[165px] object-contain object-left pb-0.5"
+                          className="h-14 max-w-[180px] object-contain object-left pb-0.5"
                         />
                       )}
                       {previewBranding?.companySealUrl && (
                         <img
                           src={previewBranding.companySealUrl}
                           alt="Official Company Seal"
-                          className={`h-[52px] w-[52px] object-contain opacity-90 pointer-events-none select-none ${
+                          className={`h-16 w-16 object-contain opacity-90 pointer-events-none select-none ${
                             previewBranding?.officerSignatureUrl ? '-ml-3' : ''
                           }`}
                         />
@@ -563,7 +561,7 @@ export default function SectionCardBuilder({ template, previewBranding }: Props)
                       <p className="text-[12px] font-bold text-slate-950">
                         {effectivePreviewVars.company_rep_name}
                       </p>
-                      <p className="text-[11px] text-slate-600 font-medium">
+                      <p className="text-[11px] text-slate-600 font-medium capitalize">
                         {effectivePreviewVars.company_rep_designation}
                       </p>
                     </div>
@@ -573,7 +571,7 @@ export default function SectionCardBuilder({ template, previewBranding }: Props)
                     <p className="text-[12px] font-bold text-slate-950">
                       {isOwner ? 'Vehicle Owner' : 'Customer / Authorized Signatory'}
                     </p>
-                    <div className="h-[54px] my-1.5" />
+                    <div className="h-16 my-1.5" />
                     <div className="border-t border-dotted border-slate-500 pt-1.5 space-y-0.5">
                       <p className="text-[12px] font-bold text-slate-950">
                         {effectivePreviewVars.recipient_name}
@@ -867,13 +865,13 @@ export default function SectionCardBuilder({ template, previewBranding }: Props)
                 className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
               >
                 {resetting ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}
-                Reset to Default Legal Template
+                Reset to Default
               </button>
             </div>
 
             <div className="flex items-center gap-3">
               <span className="text-xs text-slate-500 dark:text-slate-400 font-mono hidden md:inline">
-                {sections.length} total clauses
+                {sections.length} total {isExtension ? 'sections' : 'clauses'}
               </span>
               <button
                 type="button"
@@ -882,7 +880,7 @@ export default function SectionCardBuilder({ template, previewBranding }: Props)
                 className="w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-black bg-amber-400 text-slate-950 hover:bg-amber-300 transition-all flex items-center justify-center gap-2 shadow-xl shadow-amber-400/20 cursor-pointer disabled:opacity-50"
               >
                 {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                {saving ? 'Saving...' : 'Save Master Template'}
+                {saving ? 'Saving...' : 'Save Template'}
               </button>
             </div>
           </div>

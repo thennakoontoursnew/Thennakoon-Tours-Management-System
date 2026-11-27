@@ -195,16 +195,21 @@ export async function getDocumentTemplates() {
   }
 }
 
+function normalizeTemplateType(type: string): string {
+  return type === 'rental_agreement' ? 'user_agreement' : type
+}
+
 export async function getDocumentTemplateByType(type: string) {
   try {
+    const normalizedType = normalizeTemplateType(type)
     const supabase = await createClient()
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('document_templates')
       .select('*')
-      .eq('document_type', type)
+      .eq('document_type', normalizedType)
       .maybeSingle()
 
-    const defaultTemplate = DEFAULT_TEMPLATE_MAP[type] || DEFAULT_QUOTATION_TEMPLATE
+    const defaultTemplate = DEFAULT_TEMPLATE_MAP[normalizedType] || DEFAULT_QUOTATION_TEMPLATE
 
     if (data) {
       const cleaned = cleanTemplateRecord(data)
@@ -223,6 +228,7 @@ export async function getDocumentTemplateByType(type: string) {
 
 export async function updateDocumentTemplate(type: string, values: Partial<TemplateInput> & { sections_json?: AgreementSection[] }) {
   try {
+    const normalizedType = normalizeTemplateType(type)
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated.' }
@@ -232,10 +238,13 @@ export async function updateDocumentTemplate(type: string, values: Partial<Templ
       return { success: false, error: 'Unauthorized: Only owner, admin, or manager roles can edit document templates.' }
     }
 
+    const defaultTitle = DEFAULT_TEMPLATE_MAP[normalizedType]?.title
+
     const payload: any = {
-      document_type: type,
-      template_type: type,
-      display_name: values.display_name?.trim() || `${type.toUpperCase()} Template`,
+      document_type: normalizedType,
+      template_type: normalizedType,
+      display_name: values.display_name?.trim() || `${normalizedType.toUpperCase()} Template`,
+      ...(defaultTitle ? { title: defaultTitle } : {}),
       special_notes: normalizeNewlines(values.special_notes),
       important_message: normalizeNewlines(values.important_message),
       bank_account_name: values.bank_account_name?.trim() || null,
@@ -271,8 +280,8 @@ export async function updateDocumentTemplate(type: string, values: Partial<Templ
     await supabase.rpc('log_audit_action_internal', {
       p_action: 'UPDATE_DOCUMENT_TEMPLATE',
       p_entity_type: 'document_template',
-      p_entity_id: type,
-      p_description: `Updated document template for ${type}`,
+      p_entity_id: normalizedType,
+      p_description: `Updated document template for ${normalizedType}`,
     })
 
     revalidatePath('/dashboard/document-templates')
@@ -284,6 +293,7 @@ export async function updateDocumentTemplate(type: string, values: Partial<Templ
 
 export async function resetDocumentTemplateToDefault(type: string) {
   try {
+    const normalizedType = normalizeTemplateType(type)
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Not authenticated.' }
@@ -293,7 +303,7 @@ export async function resetDocumentTemplateToDefault(type: string) {
       return { success: false, error: 'Unauthorized: Only owner, admin, or manager roles can edit document templates.' }
     }
 
-    const defaultObj: any = DEFAULT_TEMPLATE_MAP[type] || DEFAULT_QUOTATION_TEMPLATE
+    const defaultObj: any = DEFAULT_TEMPLATE_MAP[normalizedType] || DEFAULT_QUOTATION_TEMPLATE
 
     const { error } = await supabase
       .from('document_templates')

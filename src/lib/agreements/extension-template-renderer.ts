@@ -204,8 +204,16 @@ export function resolveExtensionLetterSections(
         .map((para) => para.trim())
         .filter((para) => {
           if (!para) return false
-          if (!hasRenewalAmount && /{{\s*renewal_amount\s*}}/i.test(para)) return false
-          if (!hasCustomNotes && /{{\s*custom_notes\s*}}/i.test(para)) return false
+          const hasCoreExtensionTags =
+            /{{\s*(extension_duration_label|new_end_date|recipient_name|vehicle_reg_no|original_agreement_ref)\s*}}/i.test(
+              para
+            )
+          if (!hasRenewalAmount && /{{\s*renewal_amount\s*}}/i.test(para) && !hasCoreExtensionTags) {
+            return false
+          }
+          if (!hasCustomNotes && /{{\s*custom_notes\s*}}/i.test(para) && !hasCoreExtensionTags) {
+            return false
+          }
           return true
         })
 
