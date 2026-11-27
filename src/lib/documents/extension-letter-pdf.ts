@@ -1,5 +1,20 @@
 import { jsPDF, A4_MARGINS, getLetterheadBase64, drawLetterheadOnPage } from './pdf-engine'
 import { formatCurrency, formatDateOrdinal } from '@/lib/utils/formatters'
+import { parseExtensionLetterBlocks } from '@/lib/agreements/extension-template-renderer'
+
+function markdownToRichSegments(text: string): TextSegment[] {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  const segments: TextSegment[] = []
+  for (const part of parts) {
+    if (!part) continue
+    if (part.startsWith('**') && part.endsWith('**')) {
+      segments.push({ text: part.slice(2, -2), bold: true })
+    } else {
+      segments.push({ text: part.replace(/\*([^*]+)\*/g, '$1'), bold: false })
+    }
+  }
+  return segments
+}
 
 interface LoadedImage {
   dataUrl: string
@@ -48,14 +63,18 @@ function drawRichParagraph(
   maxWidth: number,
   lineHeight: number
 ): number {
-  const words: Array<{ text: string; bold: boolean }> = []
+  const words: Array<{ text: string; bold: boolean; newline?: boolean }> = []
   for (const seg of segments) {
-    const parts = seg.text.split(/(\s+)/)
-    for (const part of parts) {
-      if (part.length > 0) {
-        words.push({ text: part, bold: Boolean(seg.bold) })
+    const subLines = seg.text.split(/\n/)
+    subLines.forEach((lineText, idx) => {
+      if (idx > 0) words.push({ text: '\n', bold: false, newline: true })
+      const parts = lineText.split(/(\s+)/)
+      for (const part of parts) {
+        if (part.length > 0) {
+          words.push({ text: part, bold: Boolean(seg.bold) })
+        }
       }
-    }
+    })
   }
 
   const lines: Array<Array<{ text: string; bold: boolean }>> = []
@@ -63,6 +82,16 @@ function drawRichParagraph(
   let currentWidth = 0
 
   for (const token of words) {
+    if (token.newline) {
+      while (currentLine.length > 0 && /^\s+$/.test(currentLine[currentLine.length - 1].text)) {
+        currentLine.pop()
+      }
+      lines.push(currentLine)
+      currentLine = []
+      currentWidth = 0
+      continue
+    }
+
     const isWhitespace = /^\s+$/.test(token.text)
     if (isWhitespace && currentLine.length === 0) continue
 
@@ -70,7 +99,6 @@ function drawRichParagraph(
     const tokenWidth = doc.getTextWidth(token.text)
 
     if (!isWhitespace && currentWidth + tokenWidth > maxWidth && currentLine.length > 0) {
-      // Trim trailing whitespace on wrapped line
       while (currentLine.length > 0 && /^\s+$/.test(currentLine[currentLine.length - 1].text)) {
         currentLine.pop()
       }
@@ -145,170 +173,241 @@ export async function generateExtensionLetterPDF(
 
   let y = 47
 
-  // 1. Reference & Date Row
-  doc.setTextColor(15, 23, 42)
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'bold')
-  doc.text(`Ref: ${extension?.extension_number || 'EXT'}`, left, y)
-  doc.text(`Date: ${formatDateOrdinal(extension?.issue_date) || 'N/A'}`, right, y, { align: 'right' })
+  const hasLockedSnapshot =
+    (Array.isArray(extension?.rendered_sections_snapshot) &&
+      extension.rendered_sections_snapshot.length > 0) ||
+    Boolean(extension?.rendered_content_snapshot)
 
-  y += 10
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10.5)
-  doc.text(`To: ${extension?.recipient_name || ''}`, left, y)
-
-  y += 10
-  const subjectText = isOwner
-    ? `RE: EXTENSION OF VEHICLE OWNER AGREEMENT – VEHICLE NO: ${regNo}`
-    : `RE: EXTENSION OF VEHICLE RENTAL AGREEMENT – VEHICLE NO: ${regNo}`
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10.5)
-  const subjectLines = doc.splitTextToSize(subjectText, contentWidth)
-  doc.text(subjectLines, left, y)
-  const firstLineWidth = Math.min(doc.getTextWidth(subjectLines[0] || ''), contentWidth)
-  doc.setDrawColor(15, 23, 42)
-  doc.setLineWidth(0.35)
-  doc.line(left, y + 1.4, left + firstLineWidth, y + 1.4)
-  y += subjectLines.length * 5.5 + 5
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.text(`Dear ${extension?.recipient_name || 'Sir / Madam'},`, left, y)
-  y += 8
-
-  doc.setFontSize(10)
-  doc.setTextColor(30, 41, 59)
-
-  // Paragraph 1
-  if (isOwner) {
-    y = drawRichParagraph(
-      doc,
-      [
-        { text: 'This letter formally confirms the mutual extension of the Vehicle Owner Agreement between ' },
-        { text: companyName, bold: true },
-        { text: ' and ' },
-        { text: extension?.recipient_name || 'the Vehicle Owner', bold: true },
-        { text: ' regarding the vehicle bearing registration number ' },
-        { text: regNo, bold: true },
-        { text: ' (Reference Agreement No. ' },
-        { text: origRef, bold: true },
-        { text: ').' },
-      ],
-      left,
-      y,
-      contentWidth,
-      5.3
+  if (hasLockedSnapshot) {
+    const blocks = parseExtensionLetterBlocks(
+      extension?.rendered_sections_snapshot,
+      extension?.rendered_content_snapshot
     )
-  } else {
-    y = drawRichParagraph(
-      doc,
-      [
-        { text: 'We are pleased to confirm the extension of your vehicle rental agreement with ' },
-        { text: companyName, bold: true },
-        { text: ' for the vehicle bearing registration number ' },
-        { text: regNo, bold: true },
-        { text: ' (originally commenced under Agreement No. ' },
-        { text: origRef, bold: true },
-        { text: ').' },
-      ],
-      left,
-      y,
-      contentWidth,
-      5.3
-    )
-  }
 
-  y += 4
+    for (const block of blocks) {
+      if (block.type === 'ref_date_row') {
+        doc.setTextColor(15, 23, 42)
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.text(block.left.replace(/\*\*/g, ''), left, y)
+        doc.text(block.right.replace(/\*\*/g, ''), right, y, { align: 'right' })
+        doc.setDrawColor(203, 213, 225)
+        doc.setLineWidth(0.25)
+        doc.line(left, y + 2, right, y + 2)
+        y += 8
+        continue
+      }
 
-  // Paragraph 2
-  const para2Segments: TextSegment[] = []
-  if (isOwner) {
-    if (isIndefinite) {
-      para2Segments.push(
-        { text: 'Both parties have mutually agreed to extend the operational engagement of the above vehicle ' },
-        { text: 'until further notice', bold: true },
-        { text: '.' }
+      if (block.type === 'subject') {
+        const cleanSubject = block.text.replace(/\*\*/g, '').toUpperCase()
+        doc.setTextColor(15, 23, 42)
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(10.5)
+        const subjectLines = doc.splitTextToSize(cleanSubject, contentWidth)
+        doc.text(subjectLines, left, y)
+        const firstLineWidth = Math.min(doc.getTextWidth(subjectLines[0] || ''), contentWidth)
+        doc.setDrawColor(15, 23, 42)
+        doc.setLineWidth(0.35)
+        doc.line(left, y + 1.4, left + firstLineWidth, y + 1.4)
+        y += subjectLines.length * 5.5 + 4.5
+        continue
+      }
+
+      if (block.type === 'note') {
+        doc.setFontSize(9.5)
+        doc.setTextColor(30, 41, 59)
+        const startNoteY = y
+        const endNoteY = drawRichParagraph(
+          doc,
+          markdownToRichSegments(block.text),
+          left + 3.5,
+          startNoteY,
+          contentWidth - 3.5,
+          5.0
+        )
+        doc.setDrawColor(148, 163, 184)
+        doc.setLineWidth(0.7)
+        doc.line(left + 0.5, startNoteY - 3, left + 0.5, Math.max(startNoteY, endNoteY - 3))
+        y = endNoteY + 3.5
+        continue
+      }
+
+      const isGreeting = /^To\s*:/i.test(block.text) || /^Dear\s+/i.test(block.text)
+      doc.setFontSize(10)
+      doc.setTextColor(isGreeting ? 15 : 30, isGreeting ? 23 : 41, isGreeting ? 42 : 59)
+      y = drawRichParagraph(
+        doc,
+        markdownToRichSegments(block.text),
+        left,
+        y,
+        contentWidth,
+        5.3
       )
-    } else {
-      para2Segments.push(
-        { text: 'Both parties have mutually agreed to extend the operational engagement of the above vehicle for a further period of ' },
-        { text: durationLabel, bold: true },
-        { text: ' until ' },
-        { text: newEndFormatted, bold: true },
-        { text: '.' }
-      )
-    }
-    if (amountFormatted) {
-      para2Segments.push(
-        { text: ' The agreed monthly owner rental amount during the extended term shall be ' },
-        { text: amountFormatted, bold: true },
-        { text: '.' }
-      )
+      y += 3.8
     }
   } else {
-    if (isIndefinite) {
-      para2Segments.push(
-        { text: 'By mutual consent, the rental period is hereby extended ' },
-        { text: 'until further notice', bold: true },
-        { text: ', effective immediately following the original expiry date.' }
+    // Legacy fallback for extensions created prior to editable master templates
+    doc.setTextColor(15, 23, 42)
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`Ref: ${extension?.extension_number || 'EXT'}`, left, y)
+    doc.text(`Date: ${formatDateOrdinal(extension?.issue_date) || 'N/A'}`, right, y, { align: 'right' })
+
+    y += 10
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10.5)
+    doc.text(`To: ${extension?.recipient_name || ''}`, left, y)
+
+    y += 10
+    const subjectText = isOwner
+      ? `RE: EXTENSION OF VEHICLE OWNER AGREEMENT – VEHICLE NO: ${regNo}`
+      : `RE: EXTENSION OF VEHICLE RENTAL AGREEMENT – VEHICLE NO: ${regNo}`
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10.5)
+    const subjectLines = doc.splitTextToSize(subjectText, contentWidth)
+    doc.text(subjectLines, left, y)
+    const firstLineWidth = Math.min(doc.getTextWidth(subjectLines[0] || ''), contentWidth)
+    doc.setDrawColor(15, 23, 42)
+    doc.setLineWidth(0.35)
+    doc.line(left, y + 1.4, left + firstLineWidth, y + 1.4)
+    y += subjectLines.length * 5.5 + 5
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.text(`Dear ${extension?.recipient_name || 'Sir / Madam'},`, left, y)
+    y += 8
+
+    doc.setFontSize(10)
+    doc.setTextColor(30, 41, 59)
+
+    if (isOwner) {
+      y = drawRichParagraph(
+        doc,
+        [
+          { text: 'This letter formally confirms the mutual extension of the Vehicle Owner Agreement between ' },
+          { text: companyName, bold: true },
+          { text: ' and ' },
+          { text: extension?.recipient_name || 'the Vehicle Owner', bold: true },
+          { text: ' regarding the vehicle bearing registration number ' },
+          { text: regNo, bold: true },
+          { text: ' (Reference Agreement No. ' },
+          { text: origRef, bold: true },
+          { text: ').' },
+        ],
+        left,
+        y,
+        contentWidth,
+        5.3
       )
     } else {
-      para2Segments.push(
-        { text: 'By mutual consent, the rental period is hereby extended for a further period of ' },
-        { text: durationLabel, bold: true },
-        { text: ', with the revised rental end date now set as ' },
-        { text: newEndFormatted, bold: true },
-        { text: '.' }
+      y = drawRichParagraph(
+        doc,
+        [
+          { text: 'We are pleased to confirm the extension of your vehicle rental agreement with ' },
+          { text: companyName, bold: true },
+          { text: ' for the vehicle bearing registration number ' },
+          { text: regNo, bold: true },
+          { text: ' (originally commenced under Agreement No. ' },
+          { text: origRef, bold: true },
+          { text: ').' },
+        ],
+        left,
+        y,
+        contentWidth,
+        5.3
       )
     }
-    if (amountFormatted) {
-      para2Segments.push(
-        { text: ' The agreed renewal/periodic rental charge shall be ' },
-        { text: amountFormatted, bold: true },
-        { text: '.' }
-      )
-    }
-  }
 
-  y = drawRichParagraph(doc, para2Segments, left, y, contentWidth, 5.3)
-  y += 4
-
-  // Paragraph 3
-  const para3Text = isOwner
-    ? 'All original terms, conditions, revenue-share / monthly payment schedules, mileage limits, and maintenance responsibilities set out in the principal Vehicle Owner Agreement shall remain binding throughout the extended tenure.'
-    : 'All other terms, conditions, security deposit provisions, insurance obligations, and covenants stated in the original Vehicle Rental Agreement shall remain unchanged and continue in full force and effect during this extended period.'
-
-  y = drawRichParagraph(doc, [{ text: para3Text }], left, y, contentWidth, 5.3)
-  y += 4
-
-  if (extension?.custom_notes) {
-    y = drawRichParagraph(
-      doc,
-      [
-        { text: isOwner ? 'Special Notes: ' : 'Additional Notes / Agreed Terms: ', bold: true },
-        { text: String(extension.custom_notes) },
-      ],
-      left,
-      y,
-      contentWidth,
-      5.2
-    )
     y += 4
-  }
 
-  y = drawRichParagraph(
-    doc,
-    [
-      {
-        text: 'Kindly sign and return a copy of this letter as your formal acknowledgment and acceptance of this extension.',
-      },
-    ],
-    left,
-    y,
-    contentWidth,
-    5.3
-  )
+    const para2Segments: TextSegment[] = []
+    if (isOwner) {
+      if (isIndefinite) {
+        para2Segments.push(
+          { text: 'Both parties have mutually agreed to extend the operational engagement of the above vehicle ' },
+          { text: 'until further notice', bold: true },
+          { text: '.' }
+        )
+      } else {
+        para2Segments.push(
+          { text: 'Both parties have mutually agreed to extend the operational engagement of the above vehicle for a further period of ' },
+          { text: durationLabel, bold: true },
+          { text: ' until ' },
+          { text: newEndFormatted, bold: true },
+          { text: '.' }
+        )
+      }
+      if (amountFormatted) {
+        para2Segments.push(
+          { text: ' The agreed monthly owner rental amount during the extended term shall be ' },
+          { text: amountFormatted, bold: true },
+          { text: '.' }
+        )
+      }
+    } else {
+      if (isIndefinite) {
+        para2Segments.push(
+          { text: 'By mutual consent, the rental period is hereby extended ' },
+          { text: 'until further notice', bold: true },
+          { text: ', effective immediately following the original expiry date.' }
+        )
+      } else {
+        para2Segments.push(
+          { text: 'By mutual consent, the rental period is hereby extended for a further period of ' },
+          { text: durationLabel, bold: true },
+          { text: ', with the revised rental end date now set as ' },
+          { text: newEndFormatted, bold: true },
+          { text: '.' }
+        )
+      }
+      if (amountFormatted) {
+        para2Segments.push(
+          { text: ' The agreed renewal/periodic rental charge shall be ' },
+          { text: amountFormatted, bold: true },
+          { text: '.' }
+        )
+      }
+    }
+
+    y = drawRichParagraph(doc, para2Segments, left, y, contentWidth, 5.3)
+    y += 4
+
+    const para3Text = isOwner
+      ? 'All original terms, conditions, revenue-share / monthly payment schedules, mileage limits, and maintenance responsibilities set out in the principal Vehicle Owner Agreement shall remain binding throughout the extended tenure.'
+      : 'All other terms, conditions, security deposit provisions, insurance obligations, and covenants stated in the original Vehicle Rental Agreement shall remain unchanged and continue in full force and effect during this extended period.'
+
+    y = drawRichParagraph(doc, [{ text: para3Text }], left, y, contentWidth, 5.3)
+    y += 4
+
+    if (extension?.custom_notes) {
+      y = drawRichParagraph(
+        doc,
+        [
+          { text: isOwner ? 'Special Notes: ' : 'Additional Notes / Agreed Terms: ', bold: true },
+          { text: String(extension.custom_notes) },
+        ],
+        left,
+        y,
+        contentWidth,
+        5.2
+      )
+      y += 4
+    }
+
+    y = drawRichParagraph(
+      doc,
+      [
+        {
+          text: 'Kindly sign and return a copy of this letter as your formal acknowledgment and acceptance of this extension.',
+        },
+      ],
+      left,
+      y,
+      contentWidth,
+      5.3
+    )
+  }
 
   // Signature & Seal Block positioned safely above footer
   const sigTopY = Math.min(Math.max(y + 10, 178), 198)

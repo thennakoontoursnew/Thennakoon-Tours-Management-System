@@ -13,7 +13,13 @@ import {
   MERGE_TAGS_USER_AGREEMENT,
   MergeTagDefinition,
 } from '@/lib/agreements/template-renderer'
+import {
+  MERGE_TAGS_EXTENSION_LETTER,
+  DEFAULT_USER_EXTENSION_LETTER_SECTIONS,
+  DEFAULT_OWNER_EXTENSION_LETTER_SECTIONS,
+} from '@/lib/agreements/extension-template-renderer'
 import { LegalDocumentViewer } from '@/lib/agreements/legal-document-viewer'
+import { ExtensionLetterContentRenderer } from '@/components/agreements/extension-letter-content-renderer'
 import { updateDocumentTemplate, resetDocumentTemplateToDefault } from './template-actions'
 import {
   Plus,
@@ -89,15 +95,92 @@ const SAMPLE_PREVIEW_VARS: Record<string, string> = {
   owner_witness_phone: '+94 77 443 2211',
   special_remarks: 'All maintenance and tire wear will be inspected every 5,000 Km.',
   special_notes: 'Vehicle must be returned with full tank of fuel.',
+  issue_date: '27th Nov 2026',
+  extension_number: 'EXT-2026-000018',
+  recipient_name: 'Sampath Wickramasinghe',
+  extension_duration_label: '06 Months',
+  new_end_date: '27th May 2027',
+  renewal_amount: '350,000.00',
+  currency: 'LKR',
+  original_agreement_ref: 'OAG-2026-889201 dated 25th Aug 2026',
+  custom_notes: 'All routine servicing intervals remain at every 5,000 Km.',
+}
+
+interface BuilderConfig {
+  isOwner: boolean
+  isExtension: boolean
+  badgeLabel: string
+  builderHeading: string
+  builderSubtitle: string
+  cardPrefix: string
+  defaultSections: AgreementSection[]
+  availableTags: MergeTagDefinition[]
+}
+
+function getBuilderConfig(documentType: string): BuilderConfig {
+  if (documentType === 'user_extension_letter') {
+    return {
+      isOwner: false,
+      isExtension: true,
+      badgeLabel: 'User Extension Letter',
+      builderHeading: 'Extension Letter Section Builder',
+      builderSubtitle:
+        'Customize the formal letterhead paragraphs and dynamic merge tags for Customer Rental Extension Letters.',
+      cardPrefix: 'Section',
+      defaultSections: DEFAULT_USER_EXTENSION_LETTER_SECTIONS,
+      availableTags: MERGE_TAGS_EXTENSION_LETTER,
+    }
+  }
+  if (documentType === 'owner_extension_letter') {
+    return {
+      isOwner: true,
+      isExtension: true,
+      badgeLabel: 'Owner Extension Letter',
+      builderHeading: 'Extension Letter Section Builder',
+      builderSubtitle:
+        'Customize the formal letterhead paragraphs and dynamic merge tags for Vehicle Owner Extension Letters.',
+      cardPrefix: 'Section',
+      defaultSections: DEFAULT_OWNER_EXTENSION_LETTER_SECTIONS,
+      availableTags: MERGE_TAGS_EXTENSION_LETTER,
+    }
+  }
+  if (documentType === 'owner_agreement') {
+    return {
+      isOwner: true,
+      isExtension: false,
+      badgeLabel: 'Vehicle Owner Agreement',
+      builderHeading: 'Section-by-Section Legal Builder',
+      builderSubtitle:
+        'Each clause is an independent card. Reorder, edit, insert dynamic merge tags, or add custom covenants.',
+      cardPrefix: 'Clause',
+      defaultSections: DEFAULT_OWNER_AGREEMENT_SECTIONS,
+      availableTags: MERGE_TAGS_OWNER_AGREEMENT,
+    }
+  }
+  return {
+    isOwner: false,
+    isExtension: false,
+    badgeLabel: 'User Rental Agreement',
+    builderHeading: 'Section-by-Section Legal Builder',
+    builderSubtitle:
+      'Each clause is an independent card. Reorder, edit, insert dynamic merge tags, or add custom covenants.',
+    cardPrefix: 'Clause',
+    defaultSections: DEFAULT_USER_AGREEMENT_SECTIONS,
+    availableTags: MERGE_TAGS_USER_AGREEMENT,
+  }
 }
 
 export default function SectionCardBuilder({ template }: Props) {
-  const isOwner = template.document_type === 'owner_agreement'
-
-  // Default fallback sections if template.sections_json is empty
-  const defaultSections: AgreementSection[] = isOwner
-    ? DEFAULT_OWNER_AGREEMENT_SECTIONS
-    : DEFAULT_USER_AGREEMENT_SECTIONS
+  const {
+    isOwner,
+    isExtension,
+    badgeLabel,
+    builderHeading,
+    builderSubtitle,
+    cardPrefix,
+    defaultSections,
+    availableTags,
+  } = getBuilderConfig(template.document_type)
 
   const initialSections: AgreementSection[] =
     template.sections_json && Array.isArray(template.sections_json) && template.sections_json.length > 0
@@ -137,11 +220,6 @@ export default function SectionCardBuilder({ template }: Props) {
     }, 50)
     return () => clearTimeout(timer)
   }, [sections.length, previewMode])
-
-  // Merge tags list
-  const availableTags: MergeTagDefinition[] = isOwner
-    ? MERGE_TAGS_OWNER_AGREEMENT
-    : MERGE_TAGS_USER_AGREEMENT
 
   const categories = [
     { id: 'all', label: 'All Tags' },
@@ -333,16 +411,15 @@ export default function SectionCardBuilder({ template }: Props) {
           <div>
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                {isOwner ? 'Vehicle Owner Agreement' : 'User Rental Agreement'}
+                {badgeLabel}
               </span>
               <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                {sections.length} Section{sections.length === 1 ? '' : 's'}
+                {sections.length} {cardPrefix}
+                {sections.length === 1 ? '' : 's'}
               </span>
             </div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white mt-1">Section-by-Section Legal Builder</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Each clause is an independent card. Reorder, edit, insert dynamic merge tags, or add custom covenants.
-            </p>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white mt-1">{builderHeading}</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{builderSubtitle}</p>
           </div>
 
           {/* Mode Switcher & Save Button */}
@@ -427,27 +504,80 @@ export default function SectionCardBuilder({ template }: Props) {
             </button>
           </div>
 
-          {/* White Paper Simulation */}
-          <div
-            className="w-full max-w-[210mm] mx-auto bg-white text-slate-900 shadow-2xl rounded-sm p-10 md:p-14 space-y-6 text-[12px] leading-[1.65] font-serif"
-            style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}
-          >
-            {/* Formal Header */}
-            <div className="border-b-2 border-slate-900 pb-4 text-center space-y-1">
-              <h1 className="text-xl font-bold tracking-wide uppercase text-slate-900 font-sans">
-                THENNAKOON TOURS (PRIVATE) LIMITED
-              </h1>
-              <p className="text-[10px] text-slate-600 font-sans">
-                Company Registration No: <strong>PV 00312253</strong> • Registered under the Companies Act No. 07 of 2007
-              </p>
-              <p className="text-[10px] text-slate-600 font-sans">
-                Registered Office: No. 146/5A, Dutugamunu Street, Caldera Gardens, Kohuwala, Sri Lanka.
-              </p>
-            </div>
+          {isExtension ? (
+            <div className="relative w-full max-w-[210mm] min-h-[297mm] mx-auto bg-white text-slate-900 shadow-2xl overflow-hidden rounded-sm">
+              <img
+                src="/documents/thennakoon-tours-letterhead.png"
+                alt="Thennakoon Tours Official Letterhead"
+                className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-0"
+              />
+              <div
+                className="relative z-10 flex flex-col justify-between min-h-[297mm]"
+                style={{
+                  padding: '47mm 18mm 54mm 18mm',
+                  fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif',
+                }}
+              >
+                <ExtensionLetterContentRenderer sections={resolvedPreviewSections} />
 
-            {/* Rendered Sections Viewer */}
-            <LegalDocumentViewer sections={resolvedPreviewSections} />
-          </div>
+                <div className="mt-10 pt-4 grid grid-cols-2 gap-12 font-sans text-slate-900">
+                  <div className="flex flex-col">
+                    <p className="text-[11px] text-slate-600 font-medium">Issued For &amp; On Behalf of</p>
+                    <p className="text-[12.5px] font-bold text-slate-950">Thennakoon Tours (Pvt) Ltd</p>
+                    <div className="h-16 flex items-end my-1">
+                      <span className="text-[11px] italic text-slate-400 pb-2">
+                        [Staff Digital Signature + Official Seal]
+                      </span>
+                    </div>
+                    <div className="border-t border-slate-500 pt-1.5">
+                      <p className="text-[12.5px] font-bold text-slate-950">
+                        {SAMPLE_PREVIEW_VARS.company_rep_name}
+                      </p>
+                      <p className="text-[11px] text-slate-600 font-medium">
+                        {SAMPLE_PREVIEW_VARS.company_rep_designation}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col">
+                    <p className="text-[11px] text-slate-600 font-medium">Acknowledged &amp; Accepted By</p>
+                    <p className="text-[12.5px] font-bold text-slate-950">
+                      {isOwner ? 'Vehicle Owner' : 'Customer / Authorized Signatory'}
+                    </p>
+                    <div className="h-16" />
+                    <div className="border-t border-slate-500 pt-1.5 space-y-0.5">
+                      <p className="text-[12.5px] font-bold text-slate-950">
+                        {SAMPLE_PREVIEW_VARS.recipient_name}
+                      </p>
+                      <p className="text-[11px] text-slate-600 font-medium">Signature</p>
+                      <p className="text-[11px] text-slate-600 pt-1">Date / NIC: ______________________</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* White Paper Simulation */
+            <div
+              className="w-full max-w-[210mm] mx-auto bg-white text-slate-900 shadow-2xl rounded-sm p-10 md:p-14 space-y-6 text-[12px] leading-[1.65] font-serif"
+              style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}
+            >
+              {/* Formal Header */}
+              <div className="border-b-2 border-slate-900 pb-4 text-center space-y-1">
+                <h1 className="text-xl font-bold tracking-wide uppercase text-slate-900 font-sans">
+                  THENNAKOON TOURS (PRIVATE) LIMITED
+                </h1>
+                <p className="text-[10px] text-slate-600 font-sans">
+                  Company Registration No: <strong>PV 00312253</strong> • Registered under the Companies Act No. 07 of 2007
+                </p>
+                <p className="text-[10px] text-slate-600 font-sans">
+                  Registered Office: No. 146/5A, Dutugamunu Street, Caldera Gardens, Kohuwala, Sri Lanka.
+                </p>
+              </div>
+
+              {/* Rendered Sections Viewer */}
+              <LegalDocumentViewer sections={resolvedPreviewSections} />
+            </div>
+          )}
         </div>
       ) : (
         /* SECTION CARDS BUILDER (GOOGLE-FORMS STYLE) */
@@ -540,13 +670,17 @@ export default function SectionCardBuilder({ template }: Props) {
                         <GripVertical size={16} />
                       </div>
                       <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-mono">
-                        Clause {index + 1}
+                        {cardPrefix} {index + 1}
                       </span>
                       <input
                         type="text"
                         value={section.title}
                         onChange={(e) => updateSection(section.id, { title: e.target.value })}
-                        placeholder="Section Title (e.g. 1. TERM & COMMENCEMENT)"
+                        placeholder={
+                          isExtension
+                            ? 'Section Label (e.g. Extension Period & Charges)'
+                            : 'Section Title (e.g. 1. TERM & COMMENCEMENT)'
+                        }
                         className="flex-1 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/60 focus:bg-slate-50 dark:focus:bg-slate-800 text-slate-900 dark:text-white font-bold text-base border-b border-transparent focus:border-amber-500 px-2 py-1 rounded-md transition-colors focus:outline-none placeholder-slate-400"
                       />
                     </div>
@@ -606,27 +740,35 @@ export default function SectionCardBuilder({ template }: Props) {
                   {/* Card Body: Textarea */}
                   <div className="mt-4 space-y-2">
                     <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                      <span>Clause Wording & Legal Covenants:</span>
-                      <div className="flex items-center gap-4">
-                        <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(section.is_schedule)}
-                            onChange={(e) => updateSection(section.id, { is_schedule: e.target.checked })}
-                            className="rounded border-slate-300 dark:border-slate-700 text-amber-500 focus:ring-amber-400/20"
-                          />
-                          <span>Schedule / Table block</span>
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(section.is_signatories)}
-                            onChange={(e) => updateSection(section.id, { is_signatories: e.target.checked })}
-                            className="rounded border-slate-300 dark:border-slate-700 text-amber-500 focus:ring-amber-400/20"
-                          />
-                          <span>Signatures block</span>
-                        </label>
-                      </div>
+                      <span>
+                        {isExtension ? 'Letter Paragraph / Section Wording:' : 'Clause Wording & Legal Covenants:'}
+                      </span>
+                      {!isExtension ? (
+                        <div className="flex items-center gap-4">
+                          <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(section.is_schedule)}
+                              onChange={(e) => updateSection(section.id, { is_schedule: e.target.checked })}
+                              className="rounded border-slate-300 dark:border-slate-700 text-amber-500 focus:ring-amber-400/20"
+                            />
+                            <span>Schedule / Table block</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(section.is_signatories)}
+                              onChange={(e) => updateSection(section.id, { is_signatories: e.target.checked })}
+                              className="rounded border-slate-300 dark:border-slate-700 text-amber-500 focus:ring-amber-400/20"
+                            />
+                            <span>Signatures block</span>
+                          </label>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-400">
+                          Signature &amp; Company Seal appear automatically at bottom of letterhead
+                        </span>
+                      )}
                     </div>
 
                     <textarea
@@ -648,13 +790,13 @@ export default function SectionCardBuilder({ template }: Props) {
 
                   {/* Active Card Merge Tag Shortcut Row */}
                   {isActive && (
-                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[11px]">
                       <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
                         <Tag size={12} className="text-amber-500" />
-                        Quick insert into this clause:
+                        Click-to-insert into this {cardPrefix.toLowerCase()}:
                       </span>
-                      <div className="flex items-center gap-1 overflow-x-auto max-w-[70%]">
-                        {availableTags.slice(0, 6).map((t) => (
+                      <div className="flex flex-wrap items-center gap-1">
+                        {availableTags.slice(0, isExtension ? 10 : 6).map((t) => (
                           <button
                             key={t.tag}
                             type="button"
@@ -662,9 +804,10 @@ export default function SectionCardBuilder({ template }: Props) {
                               e.stopPropagation()
                               handleInsertTag(t.tag, section.id)
                             }}
-                            className="px-2 py-0.5 rounded bg-slate-100 hover:bg-amber-50 dark:bg-slate-800 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 text-[10px] text-slate-700 dark:text-slate-300 font-mono hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-400 transition-colors whitespace-nowrap cursor-pointer"
+                            title={t.description || t.label}
+                            className="px-2 py-0.5 rounded bg-slate-100 hover:bg-amber-50 dark:bg-slate-800 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 text-[10px] text-slate-700 dark:text-slate-300 font-medium hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-400 transition-colors whitespace-nowrap cursor-pointer"
                           >
-                            {t.tag}
+                            + {t.label}
                           </button>
                         ))}
                       </div>

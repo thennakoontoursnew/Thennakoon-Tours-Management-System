@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import TemplateForm from './template-form'
 import { getDocumentTemplateByType } from './template-actions'
-import { FileSpreadsheet, Receipt, FileText, CheckCircle2, ShieldAlert, Lock, FileCheck } from 'lucide-react'
+import { FileSpreadsheet, Receipt, FileText, CheckCircle2, ShieldAlert, Lock, FileCheck, CalendarPlus, FileSignature } from 'lucide-react'
 
 interface PageProps {
   searchParams: Promise<{ type?: string }>
@@ -55,6 +55,8 @@ export default async function DocumentTemplatesPage({ searchParams }: PageProps)
   const tabs = [
     { type: 'owner_agreement', label: 'Owner Agreement Template', icon: FileText },
     { type: 'user_agreement', label: 'User Agreement Template', icon: FileCheck },
+    { type: 'user_extension_letter', label: 'User Extension Letter Template', icon: CalendarPlus },
+    { type: 'owner_extension_letter', label: 'Owner Extension Letter Template', icon: FileSignature },
     { type: 'quotation', label: 'Quotation Template', icon: FileSpreadsheet },
     { type: 'invoice', label: 'Invoice Template', icon: Receipt },
     { type: 'receipt', label: 'Receipt Template', icon: CheckCircle2 },

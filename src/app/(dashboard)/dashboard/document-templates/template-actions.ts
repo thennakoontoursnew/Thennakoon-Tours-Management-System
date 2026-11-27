@@ -14,6 +14,12 @@ import {
   DEFAULT_USER_AGREEMENT_SECTIONS,
   sectionsToMarkdown,
 } from '@/lib/agreements/section-template-renderer'
+import {
+  DEFAULT_USER_EXTENSION_LETTER_SECTIONS,
+  DEFAULT_OWNER_EXTENSION_LETTER_SECTIONS,
+  DEFAULT_USER_EXTENSION_LETTER_BODY,
+  DEFAULT_OWNER_EXTENSION_LETTER_BODY,
+} from '@/lib/agreements/extension-template-renderer'
 import { z } from 'zod'
 
 type TemplateInput = z.infer<typeof documentTemplateSchema>
@@ -115,6 +121,39 @@ const DEFAULT_USER_AGREEMENT_TEMPLATE = {
   is_active: true,
 }
 
+const DEFAULT_USER_EXTENSION_LETTER_TEMPLATE = {
+  document_type: 'user_extension_letter',
+  template_type: 'user_extension_letter',
+  display_name: 'User Extension Letter Template',
+  title: 'Master Customer Rental Extension Letter',
+  body_content: DEFAULT_USER_EXTENSION_LETTER_BODY,
+  sections_json: DEFAULT_USER_EXTENSION_LETTER_SECTIONS,
+  special_notes: 'Official customer rental agreement extension letter template with dynamic merge tags.',
+  is_active: true,
+}
+
+const DEFAULT_OWNER_EXTENSION_LETTER_TEMPLATE = {
+  document_type: 'owner_extension_letter',
+  template_type: 'owner_extension_letter',
+  display_name: 'Owner Extension Letter Template',
+  title: 'Master Vehicle Owner Extension Letter',
+  body_content: DEFAULT_OWNER_EXTENSION_LETTER_BODY,
+  sections_json: DEFAULT_OWNER_EXTENSION_LETTER_SECTIONS,
+  special_notes: 'Official vehicle owner agreement extension letter template with dynamic merge tags.',
+  is_active: true,
+}
+
+const DEFAULT_TEMPLATE_MAP: Record<string, any> = {
+  quotation: DEFAULT_QUOTATION_TEMPLATE,
+  invoice: DEFAULT_INVOICE_TEMPLATE,
+  receipt: DEFAULT_RECEIPT_TEMPLATE,
+  rental_agreement: DEFAULT_AGREEMENT_TEMPLATE,
+  owner_agreement: DEFAULT_OWNER_AGREEMENT_TEMPLATE,
+  user_agreement: DEFAULT_USER_AGREEMENT_TEMPLATE,
+  user_extension_letter: DEFAULT_USER_EXTENSION_LETTER_TEMPLATE,
+  owner_extension_letter: DEFAULT_OWNER_EXTENSION_LETTER_TEMPLATE,
+}
+
 async function verifyTemplateWritePermission(supabase: any, userId: string) {
   const { data: profile } = await supabase
     .from('profiles')
@@ -165,27 +204,18 @@ export async function getDocumentTemplateByType(type: string) {
       .eq('document_type', type)
       .maybeSingle()
 
+    const defaultTemplate = DEFAULT_TEMPLATE_MAP[type] || DEFAULT_QUOTATION_TEMPLATE
+
     if (data) {
       const cleaned = cleanTemplateRecord(data)
-      if (cleaned) {
-        if (type === 'owner_agreement' && (!cleaned.sections_json || cleaned.sections_json.length === 0)) {
-          cleaned.sections_json = DEFAULT_OWNER_AGREEMENT_SECTIONS
-        } else if (type === 'user_agreement' && (!cleaned.sections_json || cleaned.sections_json.length === 0)) {
-          cleaned.sections_json = DEFAULT_USER_AGREEMENT_SECTIONS
-        }
+      if (cleaned && (!cleaned.sections_json || cleaned.sections_json.length === 0) && Array.isArray(defaultTemplate.sections_json)) {
+        cleaned.sections_json = defaultTemplate.sections_json
       }
       return { success: true, template: cleaned }
     }
 
     // Fallback: Return safe system default template without crashing
-    let defaultObj: any = DEFAULT_QUOTATION_TEMPLATE
-    if (type === 'invoice') defaultObj = DEFAULT_INVOICE_TEMPLATE
-    if (type === 'receipt') defaultObj = DEFAULT_RECEIPT_TEMPLATE
-    if (type === 'rental_agreement') defaultObj = DEFAULT_AGREEMENT_TEMPLATE
-    if (type === 'owner_agreement') defaultObj = DEFAULT_OWNER_AGREEMENT_TEMPLATE
-    if (type === 'user_agreement') defaultObj = DEFAULT_USER_AGREEMENT_TEMPLATE
-
-    return { success: true, template: cleanTemplateRecord({ id: 'default', ...defaultObj }) }
+    return { success: true, template: cleanTemplateRecord({ id: 'default', ...defaultTemplate }) }
   } catch (err: any) {
     return { success: false, error: err.message }
   }
@@ -263,12 +293,7 @@ export async function resetDocumentTemplateToDefault(type: string) {
       return { success: false, error: 'Unauthorized: Only owner, admin, or manager roles can edit document templates.' }
     }
 
-    let defaultObj: any = DEFAULT_QUOTATION_TEMPLATE
-    if (type === 'invoice') defaultObj = DEFAULT_INVOICE_TEMPLATE
-    if (type === 'receipt') defaultObj = DEFAULT_RECEIPT_TEMPLATE
-    if (type === 'rental_agreement') defaultObj = DEFAULT_AGREEMENT_TEMPLATE
-    if (type === 'owner_agreement') defaultObj = DEFAULT_OWNER_AGREEMENT_TEMPLATE
-    if (type === 'user_agreement') defaultObj = DEFAULT_USER_AGREEMENT_TEMPLATE
+    const defaultObj: any = DEFAULT_TEMPLATE_MAP[type] || DEFAULT_QUOTATION_TEMPLATE
 
     const { error } = await supabase
       .from('document_templates')

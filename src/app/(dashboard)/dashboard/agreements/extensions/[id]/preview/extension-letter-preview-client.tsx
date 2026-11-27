@@ -8,6 +8,7 @@ import {
   generateExtensionLetterPDF,
   buildExtensionPdfFilename,
 } from '@/lib/documents/extension-letter-pdf'
+import { ExtensionLetterContentRenderer } from '@/components/agreements/extension-letter-content-renderer'
 
 interface ExtensionLetterPreviewClientProps {
   extension: any
@@ -44,6 +45,11 @@ export function ExtensionLetterPreviewClient({
     extension?.renewal_amount && Number(extension.renewal_amount) > 0
       ? formatCurrency(extension.renewal_amount, extension?.currency || 'LKR')
       : null
+
+  const hasLockedSnapshot =
+    (Array.isArray(extension?.rendered_sections_snapshot) &&
+      extension.rendered_sections_snapshot.length > 0) ||
+    Boolean(extension?.rendered_content_snapshot)
 
   const parentAgreementHref =
     isOwner && extension?.owner_agreement_id
@@ -124,6 +130,11 @@ export function ExtensionLetterPreviewClient({
             <FileText size={11} />
             <span>{isOwner ? 'Owner Extension Letter' : 'User Rental Extension Letter'}</span>
           </span>
+          {hasLockedSnapshot && (
+            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              Locked Template Snapshot
+            </span>
+          )}
 
           <button
             type="button"
@@ -163,129 +174,136 @@ export function ExtensionLetterPreviewClient({
             fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif',
           }}
         >
-          {/* Letter Body Section */}
-          <div className="space-y-4 text-[13.5px] leading-[1.7] text-slate-800">
-            {/* Reference & Date Header */}
-            <div className="flex items-center justify-between border-b border-slate-300/80 pb-2 text-[12.5px] font-sans font-bold text-slate-900">
-              <span>Ref: {extension?.extension_number}</span>
-              <span>Date: {formatDateOrdinal(extension?.issue_date) || 'N/A'}</span>
-            </div>
+          {/* Letter Body Section (Immutable Template Snapshot or Legacy Fallback) */}
+          {hasLockedSnapshot ? (
+            <ExtensionLetterContentRenderer
+              sections={extension?.rendered_sections_snapshot}
+              content={extension?.rendered_content_snapshot}
+            />
+          ) : (
+            <div className="space-y-4 text-[13.5px] leading-[1.7] text-slate-800">
+              {/* Reference & Date Header */}
+              <div className="flex items-center justify-between border-b border-slate-300/80 pb-2 text-[12.5px] font-sans font-bold text-slate-900">
+                <span>Ref: {extension?.extension_number}</span>
+                <span>Date: {formatDateOrdinal(extension?.issue_date) || 'N/A'}</span>
+              </div>
 
-            {/* Recipient Block */}
-            <div className="pt-1 font-sans">
-              <p className="text-[13.5px] font-bold text-slate-900">
-                To: {extension?.recipient_name}
+              {/* Recipient Block */}
+              <div className="pt-1 font-sans">
+                <p className="text-[13.5px] font-bold text-slate-900">
+                  To: {extension?.recipient_name}
+                </p>
+              </div>
+
+              {/* Subject Line */}
+              <div className="pt-1 pb-1">
+                <h1 className="font-sans text-[14px] font-extrabold uppercase tracking-tight text-slate-950 underline underline-offset-4 decoration-slate-800">
+                  {isOwner
+                    ? `RE: EXTENSION OF VEHICLE OWNER AGREEMENT – VEHICLE NO: ${regNo}`
+                    : `RE: EXTENSION OF VEHICLE RENTAL AGREEMENT – VEHICLE NO: ${regNo}`}
+                </h1>
+              </div>
+
+              <p className="font-sans text-[13.5px] text-slate-900">
+                Dear {extension?.recipient_name || 'Sir / Madam'},
+              </p>
+
+              {/* Formal Conditional Legal Wording */}
+              {isOwner ? (
+                <>
+                  <p className="text-justify">
+                    This letter formally confirms the mutual extension of the Vehicle Owner Agreement
+                    between <strong className="text-slate-950">{companyName}</strong> and{' '}
+                    <strong className="text-slate-950">{extension?.recipient_name}</strong> regarding the
+                    vehicle bearing registration number <strong className="text-slate-950">{regNo}</strong>{' '}
+                    (Reference Agreement No. <strong className="text-slate-950">{origRef}</strong>).
+                  </p>
+
+                  <p className="text-justify">
+                    Both parties have mutually agreed to extend the operational engagement of the above
+                    vehicle{' '}
+                    {isIndefinite ? (
+                      <strong className="text-slate-950">until further notice</strong>
+                    ) : (
+                      <>
+                        for a further period of{' '}
+                        <strong className="text-slate-950">{durationLabel}</strong> until{' '}
+                        <strong className="text-slate-950">{newEndFormatted}</strong>
+                      </>
+                    )}
+                    .
+                    {amountFormatted && (
+                      <>
+                        {' '}
+                        The agreed monthly owner rental amount during the extended term shall be{' '}
+                        <strong className="text-slate-950">{amountFormatted}</strong>.
+                      </>
+                    )}
+                  </p>
+
+                  <p className="text-justify">
+                    All original terms, conditions, revenue-share / monthly payment schedules, mileage
+                    limits, and maintenance responsibilities set out in the principal Vehicle Owner
+                    Agreement shall remain binding throughout the extended tenure.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-justify">
+                    We are pleased to confirm the extension of your vehicle rental agreement with{' '}
+                    <strong className="text-slate-950">{companyName}</strong> for the vehicle bearing
+                    registration number <strong className="text-slate-950">{regNo}</strong> (originally
+                    commenced under Agreement No. <strong className="text-slate-950">{origRef}</strong>).
+                  </p>
+
+                  <p className="text-justify">
+                    By mutual consent, the rental period is hereby extended{' '}
+                    {isIndefinite ? (
+                      <>
+                        <strong className="text-slate-950">until further notice</strong>, effective
+                        immediately following the original expiry date
+                      </>
+                    ) : (
+                      <>
+                        for a further period of{' '}
+                        <strong className="text-slate-950">{durationLabel}</strong>, with the revised
+                        rental end date now set as{' '}
+                        <strong className="text-slate-950">{newEndFormatted}</strong>
+                      </>
+                    )}
+                    .
+                    {amountFormatted && (
+                      <>
+                        {' '}
+                        The agreed renewal/periodic rental charge shall be{' '}
+                        <strong className="text-slate-950">{amountFormatted}</strong>.
+                      </>
+                    )}
+                  </p>
+
+                  <p className="text-justify">
+                    All other terms, conditions, security deposit provisions, insurance obligations, and
+                    covenants stated in the original Vehicle Rental Agreement shall remain unchanged and
+                    continue in full force and effect during this extended period.
+                  </p>
+                </>
+              )}
+
+              {extension?.custom_notes && (
+                <p className="text-justify bg-slate-50/80 border-l-2 border-slate-400 pl-3 py-1.5 text-[12.5px]">
+                  <strong className="font-sans text-slate-900">
+                    {isOwner ? 'Special Notes: ' : 'Additional Notes / Agreed Terms: '}
+                  </strong>
+                  {extension.custom_notes}
+                </p>
+              )}
+
+              <p className="text-justify pt-1">
+                Kindly sign and return a copy of this letter as your formal acknowledgment and
+                acceptance of this extension.
               </p>
             </div>
-
-            {/* Subject Line */}
-            <div className="pt-1 pb-1">
-              <h1 className="font-sans text-[14px] font-extrabold uppercase tracking-tight text-slate-950 underline underline-offset-4 decoration-slate-800">
-                {isOwner
-                  ? `RE: EXTENSION OF VEHICLE OWNER AGREEMENT – VEHICLE NO: ${regNo}`
-                  : `RE: EXTENSION OF VEHICLE RENTAL AGREEMENT – VEHICLE NO: ${regNo}`}
-              </h1>
-            </div>
-
-            <p className="font-sans text-[13.5px] text-slate-900">
-              Dear {extension?.recipient_name || 'Sir / Madam'},
-            </p>
-
-            {/* Formal Conditional Legal Wording */}
-            {isOwner ? (
-              <>
-                <p className="text-justify">
-                  This letter formally confirms the mutual extension of the Vehicle Owner Agreement
-                  between <strong className="text-slate-950">{companyName}</strong> and{' '}
-                  <strong className="text-slate-950">{extension?.recipient_name}</strong> regarding the
-                  vehicle bearing registration number <strong className="text-slate-950">{regNo}</strong>{' '}
-                  (Reference Agreement No. <strong className="text-slate-950">{origRef}</strong>).
-                </p>
-
-                <p className="text-justify">
-                  Both parties have mutually agreed to extend the operational engagement of the above
-                  vehicle{' '}
-                  {isIndefinite ? (
-                    <strong className="text-slate-950">until further notice</strong>
-                  ) : (
-                    <>
-                      for a further period of{' '}
-                      <strong className="text-slate-950">{durationLabel}</strong> until{' '}
-                      <strong className="text-slate-950">{newEndFormatted}</strong>
-                    </>
-                  )}
-                  .
-                  {amountFormatted && (
-                    <>
-                      {' '}
-                      The agreed monthly owner rental amount during the extended term shall be{' '}
-                      <strong className="text-slate-950">{amountFormatted}</strong>.
-                    </>
-                  )}
-                </p>
-
-                <p className="text-justify">
-                  All original terms, conditions, revenue-share / monthly payment schedules, mileage
-                  limits, and maintenance responsibilities set out in the principal Vehicle Owner
-                  Agreement shall remain binding throughout the extended tenure.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-justify">
-                  We are pleased to confirm the extension of your vehicle rental agreement with{' '}
-                  <strong className="text-slate-950">{companyName}</strong> for the vehicle bearing
-                  registration number <strong className="text-slate-950">{regNo}</strong> (originally
-                  commenced under Agreement No. <strong className="text-slate-950">{origRef}</strong>).
-                </p>
-
-                <p className="text-justify">
-                  By mutual consent, the rental period is hereby extended{' '}
-                  {isIndefinite ? (
-                    <>
-                      <strong className="text-slate-950">until further notice</strong>, effective
-                      immediately following the original expiry date
-                    </>
-                  ) : (
-                    <>
-                      for a further period of{' '}
-                      <strong className="text-slate-950">{durationLabel}</strong>, with the revised
-                      rental end date now set as{' '}
-                      <strong className="text-slate-950">{newEndFormatted}</strong>
-                    </>
-                  )}
-                  .
-                  {amountFormatted && (
-                    <>
-                      {' '}
-                      The agreed renewal/periodic rental charge shall be{' '}
-                      <strong className="text-slate-950">{amountFormatted}</strong>.
-                    </>
-                  )}
-                </p>
-
-                <p className="text-justify">
-                  All other terms, conditions, security deposit provisions, insurance obligations, and
-                  covenants stated in the original Vehicle Rental Agreement shall remain unchanged and
-                  continue in full force and effect during this extended period.
-                </p>
-              </>
-            )}
-
-            {extension?.custom_notes && (
-              <p className="text-justify bg-slate-50/80 border-l-2 border-slate-400 pl-3 py-1.5 text-[12.5px]">
-                <strong className="font-sans text-slate-900">
-                  {isOwner ? 'Special Notes: ' : 'Additional Notes / Agreed Terms: '}
-                </strong>
-                {extension.custom_notes}
-              </p>
-            )}
-
-            <p className="text-justify pt-1">
-              Kindly sign and return a copy of this letter as your formal acknowledgment and
-              acceptance of this extension.
-            </p>
-          </div>
+          )}
 
           {/* Two-Column Signature & Company Seal Block */}
           <div className="mt-10 pt-4 grid grid-cols-2 gap-12 font-sans text-slate-900">

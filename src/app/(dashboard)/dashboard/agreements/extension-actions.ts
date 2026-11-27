@@ -4,6 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import {
+  getDefaultExtensionLetterSections,
+  resolveExtensionLetterSections,
+} from '@/lib/agreements/extension-template-renderer'
+import { AgreementSection } from '@/lib/agreements/section-template-renderer'
 
 const createExtensionSchema = z.object({
   agreement_type: z.enum(['user', 'owner']),
@@ -80,25 +85,64 @@ export async function createAgreementExtensionAction(values: CreateExtensionInpu
 
     const extensionNumber = await getNextExtensionNumber(dbClient)
 
-    const insertPayload = {
+    const templateType = d.agreement_type === 'owner' ? 'owner_extension_letter' : 'user_extension_letter'
+    const { data: activeTemplate } = await dbClient
+      .from('document_templates')
+      .select('sections_json, body_content')
+      .eq('document_type', templateType)
+      .maybeSingle()
+
+    const rawTemplateSections: AgreementSection[] =
+      Array.isArray(activeTemplate?.sections_json) && activeTemplate.sections_json.length > 0
+        ? activeTemplate.sections_json
+        : activeTemplate?.body_content
+        ? [{ id: 'sec_ext_body', order: 1, title: 'Extension Letter', body: activeTemplate.body_content }]
+        : getDefaultExtensionLetterSections(d.agreement_type)
+
+    const snapshotInput = {
       extension_number: extensionNumber,
       agreement_type: d.agreement_type,
-      user_agreement_id: d.agreement_type === 'user' ? d.user_agreement_id : null,
-      owner_agreement_id: d.agreement_type === 'owner' ? d.owner_agreement_id : null,
       vehicle_reg_no: d.vehicle_reg_no?.trim() || null,
       recipient_name: d.recipient_name.trim(),
       issue_date: d.issue_date,
       extension_period_type: d.extension_period_type,
       extension_duration_label: d.extension_duration_label.trim(),
       new_end_date: d.extension_period_type === 'fixed_period' ? d.new_end_date || null : null,
-      renewal_amount: d.renewal_amount !== undefined && d.renewal_amount !== null && d.renewal_amount > 0 ? Number(d.renewal_amount) : null,
+      renewal_amount:
+        d.renewal_amount !== undefined && d.renewal_amount !== null && d.renewal_amount > 0
+          ? Number(d.renewal_amount)
+          : null,
       currency: d.currency || 'LKR',
       original_agreement_ref: d.original_agreement_ref?.trim() || null,
       custom_notes: d.custom_notes?.trim() || null,
+    }
+
+    const { resolvedSections, resolvedMarkdown } = resolveExtensionLetterSections(
+      rawTemplateSections,
+      snapshotInput
+    )
+
+    const insertPayload = {
+      extension_number: extensionNumber,
+      agreement_type: d.agreement_type,
+      user_agreement_id: d.agreement_type === 'user' ? d.user_agreement_id : null,
+      owner_agreement_id: d.agreement_type === 'owner' ? d.owner_agreement_id : null,
+      vehicle_reg_no: snapshotInput.vehicle_reg_no,
+      recipient_name: snapshotInput.recipient_name,
+      issue_date: snapshotInput.issue_date,
+      extension_period_type: snapshotInput.extension_period_type,
+      extension_duration_label: snapshotInput.extension_duration_label,
+      new_end_date: snapshotInput.new_end_date,
+      renewal_amount: snapshotInput.renewal_amount,
+      currency: snapshotInput.currency,
+      original_agreement_ref: snapshotInput.original_agreement_ref,
+      custom_notes: snapshotInput.custom_notes,
       issued_by_id: d.issued_by_id || user.id,
       issued_by_name: d.issued_by_name.trim(),
       issued_by_designation: d.issued_by_designation.trim(),
       issued_by_signature_url: resolvedSignatureUrl,
+      rendered_content_snapshot: resolvedMarkdown,
+      rendered_sections_snapshot: resolvedSections,
     }
 
     const { data: extension, error: insertError } = await dbClient

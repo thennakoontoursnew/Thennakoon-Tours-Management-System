@@ -30,7 +30,10 @@ interface Props {
 
 export default function TemplateForm({ template }: Props) {
   const isAgreementTemplate =
-    template.document_type === 'owner_agreement' || template.document_type === 'user_agreement'
+    template.document_type === 'owner_agreement' ||
+    template.document_type === 'user_agreement' ||
+    template.document_type === 'user_extension_letter' ||
+    template.document_type === 'owner_extension_letter'
 
   if (isAgreementTemplate) {
     return <SectionCardBuilder template={template} />
